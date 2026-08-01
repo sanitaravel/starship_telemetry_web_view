@@ -63,8 +63,8 @@ This plan implements a real-time telemetry extraction and display system for Spa
 - [ ] 3. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Implement Frame Extractor
-  - [ ] 4.1 Implement Frame Extractor with OpenCV VideoCapture
+- [x] 4. Implement Frame Extractor
+  - [x] 4.1 Implement Frame Extractor with OpenCV VideoCapture
     - Create `backend/src/frame_extractor.py` with `FrameExtractor` class
     - Implement `validate()` to check video source URL reachability
     - Implement `start()` / `stop()` for pipeline control with async frame capture loop
@@ -73,7 +73,7 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - Implement exponential backoff reconnection (1s, 2s, 4s, 8s, max 30s) on disconnection
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8_
 
-  - [ ]* 4.2 Write property test for Frame Resize Invariant
+  - [x] 4.2 Write property test for Frame Resize Invariant
     - **Property 3: Frame Resize Invariant**
     - **Validates: Requirements 2.8**
 
