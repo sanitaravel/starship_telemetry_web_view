@@ -17,8 +17,8 @@ class ParallelPipelineConfig:
     and buffer management thresholds.
     """
 
-    executor_max_workers: int = 4  # Thread pool size [1-8]
-    concurrency_limit: int = 3  # Max concurrent frames [1-10]
+    executor_max_workers: int = 8  # Thread pool size [1-8]
+    concurrency_limit: int = 10  # Max concurrent frames [1-10]
     stage_timeout_seconds: float = 30.0  # Timeout for individual stages
     frame_timeout_seconds: float = 10.0  # Timeout for complete frame processing
     max_buffer_size: int = 120  # Maximum reorder buffer entries

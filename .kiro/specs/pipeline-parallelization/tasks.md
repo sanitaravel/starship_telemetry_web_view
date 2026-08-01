@@ -177,7 +177,7 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 12. Integration wiring and final validation
-  - [ ] 12.1 Wire all components into `PipelineOrchestrator.__init__` and `start()`
+  - [x] 12.1 Wire all components into `PipelineOrchestrator.__init__` and `start()`
     - Instantiate `ParallelPipelineConfig`, `ConcurrencyController`, `ReorderBuffer`, `FPSMeter`
     - Connect frame extractor callback to `_on_frame`
     - Ensure skip_frames logic still applies before dispatching to parallel pipeline
