@@ -6,19 +6,19 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
 
 ## Tasks
 
-- [ ] 1. Create configuration and data model foundations
-  - [ ] 1.1 Create `ParallelPipelineConfig` dataclass and `FPSMeter` utility
+- [x] 1. Create configuration and data model foundations
+  - [x] 1.1 Create `ParallelPipelineConfig` dataclass and `FPSMeter` utility
     - Add `ParallelPipelineConfig` with fields: `executor_max_workers`, `concurrency_limit`, `stage_timeout_seconds`, `frame_timeout_seconds`, `max_buffer_size`, `stale_gap_timeout_seconds`, `shutdown_timeout_seconds`, `buffer_overflow_threshold`
     - Implement `validate()` method returning list of error strings for out-of-range values
     - Add `FPSMeter` dataclass with `record_broadcast(timestamp)` and `get_fps()` methods using a sliding window of 10 entries
     - _Requirements: 2.3, 3.3, 6.1, 6.4_
 
-  - [ ]* 1.2 Write property test for configuration validation (Property 2)
+  - [x] 1.2 Write property test for configuration validation (Property 2)
     - **Property 2: Configuration Parameter Validation**
     - Generate integers across wide range, verify `executor_max_workers` accepted iff in [1, 8] and `concurrency_limit` accepted iff in [1, 10]
     - **Validates: Requirements 2.3, 3.3, 3.5, 7.3**
 
-  - [ ]* 1.3 Write property test for FPS sliding window calculation (Property 11)
+  - [x] 1.3 Write property test for FPS sliding window calculation (Property 11)
     - **Property 11: FPS Sliding Window Calculation**
     - Generate timestamp sequences, verify FPS equals `(count - 1) / (last - first)` over most recent 10 entries, rounded to 2 decimal places; 0.0 if fewer than 2 broadcasts
     - **Validates: Requirements 6.1, 6.4**
@@ -33,17 +33,17 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - Enforce `max_size` of 120 entries
     - _Requirements: 4.2, 4.3, 4.5, 4.6_
 
-  - [ ]* 2.2 Write property test for reorder buffer ordering (Property 7)
+  - [ ] 2.2 Write property test for reorder buffer ordering (Property 7)
     - **Property 7: Reorder Buffer Preserves Capture Order**
     - Generate permutations of completion order, verify output is always in strictly ascending sequence number order
     - **Validates: Requirements 4.2, 4.3, 4.4**
 
-  - [ ]* 2.3 Write property test for buffer overflow handling (Property 8)
+  - [ ] 2.3 Write property test for buffer overflow handling (Property 8)
     - **Property 8: Buffer Overflow Triggers Discard and Drain**
     - Generate buffer states at/above capacity, verify discard of oldest gap and drain behavior
     - **Validates: Requirements 4.6, 8.2**
 
-  - [ ]* 2.4 Write property test for frame sequence contiguity (Property 6)
+  - [ ] 2.4 Write property test for frame sequence contiguity (Property 6)
     - **Property 6: Frame Sequence Number Contiguity**
     - Generate N frames dispatched, verify assigned sequence numbers form contiguous [1..N]
     - **Validates: Requirements 4.1**
@@ -56,12 +56,12 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - Add `in_flight` and `limit` properties
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-  - [ ]* 3.2 Write property test for admission control invariant (Property 4)
+  - [ ] 3.2 Write property test for admission control invariant (Property 4)
     - **Property 4: Admission Control Invariant**
     - Generate in-flight counts and limits, verify frame dispatched when in_flight < limit and discarded when in_flight == limit
     - **Validates: Requirements 3.1, 3.2**
 
-  - [ ]* 3.3 Write property test for in-flight count conservation (Property 5)
+  - [ ] 3.3 Write property test for in-flight count conservation (Property 5)
     - **Property 5: In-Flight Count Conservation**
     - Generate sequences of dispatch/complete/cancel events, verify count == dispatched - completed and never negative or exceeds limit
     - **Validates: Requirements 3.4**
@@ -102,12 +102,12 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - Execute JPEG encoding concurrently via `_run_jpeg_encoding`
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-  - [ ]* 6.4 Write property test for fault isolation (Property 1)
+  - [ ] 6.4 Write property test for fault isolation (Property 1)
     - **Property 1: Fault Isolation Between Parallel Stages**
     - Mock one stage to raise, verify other stage's result preserved unchanged in final record
     - **Validates: Requirements 1.3, 1.4**
 
-  - [ ]* 6.5 Write property test for exception resilience (Property 3)
+  - [ ] 6.5 Write property test for exception resilience (Property 3)
     - **Property 3: Exception Resilience in Thread Pool**
     - Generate exception types, verify pipeline continues processing subsequent frames without crash
     - **Validates: Requirements 2.5, 7.5**
@@ -128,7 +128,7 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - Release concurrency slot on completion
     - _Requirements: 5.1, 1.1_
 
-  - [ ]* 7.3 Write property test for sequential processing before T-0 (Property 9)
+  - [ ] 7.3 Write property test for sequential processing before T-0 (Property 9)
     - **Property 9: Sequential Processing Before T-0**
     - Generate frame arrival sequences, verify no two frames have overlapping processing timespans before T-0
     - **Validates: Requirements 5.1**
@@ -147,7 +147,7 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - Log warnings for each discarded frame
     - _Requirements: 4.5, 4.6, 8.2_
 
-  - [ ]* 8.3 Write property test for timeout advances expected sequence (Property 12)
+  - [ ] 8.3 Write property test for timeout advances expected sequence (Property 12)
     - **Property 12: Timeout Advances Expected Sequence**
     - Generate timeout scenarios, verify task cancelled and expected sequence advanced past timed-out frame
     - **Validates: Requirements 8.1**
@@ -184,7 +184,7 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - Replace sequential `_process_frame` with new dispatch logic
     - _Requirements: 1.1, 2.3, 3.1, 3.3_
 
-  - [ ]* 12.2 Write integration tests for concurrent execution
+  - [ ] 12.2 Write integration tests for concurrent execution
     - Verify wall-clock overlap of engine analysis and OCR execution
     - Test stale gap timeout with mocked time
     - Test graceful shutdown under load (cancel in-flight tasks)
