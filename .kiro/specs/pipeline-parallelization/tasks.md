@@ -82,19 +82,19 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - **Validates: Requirements 5.3, 5.4**
 
 - [ ] 6. Implement intra-frame parallel execution in PipelineOrchestrator
-  - [-] 6.1 Add ThreadPoolExecutor lifecycle to `start()` and `stop()`
+  - [x] 6.1 Add ThreadPoolExecutor lifecycle to `start()` and `stop()`
     - Create `ThreadPoolExecutor(max_workers=config.executor_max_workers)` in `start()`
     - Call `shutdown(wait=True, cancel_futures=True)` in `stop()` with 10-second timeout
     - Store executor reference and release on stop
     - _Requirements: 2.3, 2.4_
 
-  - [ ] 6.2 Implement `_run_engine_analysis`, `_run_ocr_extraction`, and `_run_jpeg_encoding` methods
+  - [x] 6.2 Implement `_run_engine_analysis`, `_run_ocr_extraction`, and `_run_jpeg_encoding` methods
     - Each method wraps the CPU-bound call in `loop.run_in_executor(self._executor, ...)`
     - Add `asyncio.wait_for` with `stage_timeout_seconds` (30s default) for engine and OCR
     - Handle `asyncio.TimeoutError` by logging and returning default results
     - _Requirements: 2.1, 2.2, 1.6, 7.1, 7.4_
 
-  - [ ] 6.3 Implement `_process_frame_parallel` with `asyncio.gather` for intra-frame concurrency
+  - [x] 6.3 Implement `_process_frame_parallel` with `asyncio.gather` for intra-frame concurrency
     - Use `asyncio.gather(_run_engine_analysis(frame), _run_ocr_extraction(frame), return_exceptions=True)` 
     - Handle exception results: produce default `EngineAnalysisResult` or default `OCRResult` as needed
     - If both stages fail, skip frame without crashing
