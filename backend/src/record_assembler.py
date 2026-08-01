@@ -196,6 +196,7 @@ class RecordAssembler:
 
         # Extract text fields
         mission_elapsed_time = _extract_field_text(ocr_result.time)
+        mission_elapsed_time_raw = ocr_result.time.raw_text if ocr_result.time.raw_text else None
         stage_left_label = _extract_field_text(ocr_result.stage_l)
         stage_right_label = _extract_field_text(ocr_result.stage_r)
         stage_separation_text = _extract_field_text(ocr_result.stage_sep_text)
@@ -216,6 +217,7 @@ class RecordAssembler:
         return TelemetryRecord(
             sequence_number=self._sequence_counter,
             mission_elapsed_time=mission_elapsed_time,
+            mission_elapsed_time_raw=mission_elapsed_time_raw,
             speed_left=speed_left,
             speed_right=speed_right,
             altitude_left=altitude_left,

@@ -26,6 +26,11 @@ _TIME_PATTERN = re.compile(r"[Tt][+\-−]?\s*(\d{1,2}):(\d{2}):(\d{2})")
 # Numeric value regex: optional sign, digits with optional decimal point
 _NUMERIC_PATTERN = re.compile(r"[+\-−]?\s*(\d+(?:[.,]\d+)?)")
 
+# Allowed character sets for EasyOCR per field type
+_ALLOWLIST_TIME = "0123456789T+-:"
+_ALLOWLIST_NUMERIC = "0123456789."
+_ALLOWLIST_UNIT = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ/"
+
 
 @dataclass
 class OCRFieldResult:
@@ -162,6 +167,28 @@ def _is_numeric_field(field_name: str) -> bool:
     return field_name in numeric_fields
 
 
+def _is_unit_field(field_name: str) -> bool:
+    """Check if a field name corresponds to a unit region."""
+    unit_fields = {
+        "speed_l_unit",
+        "speed_r_unit",
+        "altitude_l_unit",
+        "altitude_r_unit",
+    }
+    return field_name in unit_fields
+
+
+def _get_allowlist(field_name: str) -> str | None:
+    """Return the EasyOCR allowlist for a given field, or None for no restriction."""
+    if _is_time_field(field_name):
+        return _ALLOWLIST_TIME
+    elif _is_numeric_field(field_name):
+        return _ALLOWLIST_NUMERIC
+    elif _is_unit_field(field_name):
+        return _ALLOWLIST_UNIT
+    return None
+
+
 class EasyOCREngine:
     """Wraps EasyOCR Reader with GPU/CPU auto-configuration."""
 
@@ -286,7 +313,8 @@ class EasyOCREngine:
             return OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
 
         # Step 3: Run EasyOCR on cropped region
-        results = self.reader.readtext(cropped)
+        allowlist = _get_allowlist(field_name)
+        results = self.reader.readtext(cropped, allowlist=allowlist)
 
         # Step 4: Extract best result
         if not results:

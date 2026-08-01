@@ -34,6 +34,7 @@ class TelemetryRecord(BaseModel):
 
     sequence_number: int
     mission_elapsed_time: str | None = None
+    mission_elapsed_time_raw: str | None = None
     speed_left: TelemetryFieldValue
     speed_right: TelemetryFieldValue
     altitude_left: TelemetryFieldValue

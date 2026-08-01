@@ -32,6 +32,7 @@ export class TelemetryDisplay {
   private stateManager: StateManager;
 
   private metElement!: HTMLElement;
+  private metRawElement!: HTMLElement;
   private speedL!: HTMLElement;
   private speedR!: HTMLElement;
   private altitudeL!: HTMLElement;
@@ -68,8 +69,14 @@ export class TelemetryDisplay {
     this.metElement.setAttribute('aria-label', 'Mission Elapsed Time');
     this.metElement.textContent = '--:--:--';
 
+    this.metRawElement = document.createElement('span');
+    this.metRawElement.className = 'telemetry-display__met-raw';
+    this.metRawElement.setAttribute('aria-label', 'Mission Elapsed Time Raw OCR');
+    this.metRawElement.textContent = '';
+
     metSection.appendChild(metLabel);
     metSection.appendChild(this.metElement);
+    metSection.appendChild(this.metRawElement);
 
     // Telemetry grid: L and R columns
     const grid = document.createElement('div');
@@ -164,6 +171,7 @@ export class TelemetryDisplay {
    */
   private renderEmpty(): void {
     this.metElement.textContent = '--:--:--';
+    this.metRawElement.textContent = '';
     this.speedL.textContent = '--';
     this.speedR.textContent = '--';
     this.altitudeL.textContent = '--';
@@ -176,6 +184,9 @@ export class TelemetryDisplay {
   private renderTelemetry(record: TelemetryRecord): void {
     // Mission Elapsed Time
     this.metElement.textContent = record.mission_elapsed_time ?? '--:--:--';
+    this.metRawElement.textContent = record.mission_elapsed_time_raw
+      ? `(raw: ${record.mission_elapsed_time_raw})`
+      : '';
 
     // Speed values with units
     this.speedL.textContent = formatFieldValue(record.speed_left);

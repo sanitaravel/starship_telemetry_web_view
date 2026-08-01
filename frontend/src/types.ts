@@ -4,6 +4,7 @@
 export interface TelemetryRecord {
   sequence_number: number;
   mission_elapsed_time: string | null;
+  mission_elapsed_time_raw: string | null;
   speed_left: { value: number | null; unit: string | null; status: string };
   speed_right: { value: number | null; unit: string | null; status: string };
   altitude_left: { value: number | null; unit: string | null; status: string };
