@@ -113,7 +113,7 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - **Validates: Requirements 2.5, 7.5**
 
 - [ ] 7. Implement inter-frame parallelism with dispatch and T-0 gate
-  - [ ] 7.1 Implement `_on_frame` dispatch logic with T-0 gate
+  - [x] 7.1 Implement `_on_frame` dispatch logic with T-0 gate
     - Assign `Frame_Sequence_Number` starting at 1, incrementing by 1
     - If T-0 not detected: call `_process_frame_sequential`
     - If T-0 detected and `ConcurrencyController.try_acquire()` succeeds: spawn `_process_frame_parallel` as async task
@@ -121,7 +121,7 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - On T-0 detection: set `_t_zero_detected = True`, enable parallel mode
     - _Requirements: 3.1, 3.2, 4.1, 5.1, 5.2_
 
-  - [ ] 7.2 Implement `_process_frame_sequential` for pre-T-0 processing
+  - [x] 7.2 Implement `_process_frame_sequential` for pre-T-0 processing
     - Process frames one at a time in capture order
     - Use same intra-frame parallelism (engine + OCR concurrent) but no inter-frame overlap
     - Submit results directly to reorder buffer
