@@ -159,15 +159,15 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - Compute and include `processing_fps` from `FPSMeter.get_fps()`
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 10. Implement graceful shutdown and degradation
-  - [ ] 10.1 Implement graceful stop with task cancellation and timeout
+- [x] 10. Implement graceful shutdown and degradation
+  - [x] 10.1 Implement graceful stop with task cancellation and timeout
     - On `stop()`: cancel all in-flight frame tasks, clear reorder buffer
     - Wait up to 5 seconds for tasks to terminate
     - If tasks not terminated in 5 seconds, abandon and log error with count of un-terminated tasks
     - Shutdown executor with 10-second timeout
     - _Requirements: 2.4, 8.3, 8.4_
 
-  - [ ] 10.2 Implement frame-level timeout handling (10s)
+  - [x] 10.2 Implement frame-level timeout handling (10s)
     - Wrap each frame processing task in `asyncio.wait_for(timeout=frame_timeout_seconds)`
     - On timeout: cancel task, advance expected sequence past that frame, release concurrency slot
     - Log timeout warning

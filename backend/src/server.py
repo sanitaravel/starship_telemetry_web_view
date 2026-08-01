@@ -169,7 +169,7 @@ def create_app() -> FastAPI:
                     await orchestrator.start(source_url, skip_frames)
 
                 elif action == "stop":
-                    orchestrator.stop()
+                    await orchestrator.stop()
 
                     # Broadcast status update after stopping
                     await manager.broadcast_json({

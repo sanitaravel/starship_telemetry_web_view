@@ -108,6 +108,9 @@ class PipelineOrchestrator:
         self._broadcast_sequence: int = 0  # monotonic broadcast counter
         self._fps_meter = FPSMeter()
 
+        # In-flight frame task tracking for graceful shutdown
+        self._in_flight_tasks: set[asyncio.Task] = set()
+
         # Stale gap tracking: when a gap was first noticed at next_expected
         self._gap_detected_at: float | None = None
 
@@ -462,6 +465,38 @@ class PipelineOrchestrator:
                 except Exception as frame_err:
                     logger.warning(f"Failed to broadcast frame: {frame_err}")
 
+    async def _process_frame_with_timeout(self, frame: np.ndarray, seq: int) -> None:
+        """Wrap frame processing with a configurable timeout.
+
+        Calls _process_frame_parallel within asyncio.wait_for using
+        frame_timeout_seconds (default 10s). On timeout, logs a warning,
+        advances the reorder buffer's expected sequence past the timed-out
+        frame, and drains any consecutive results that become available.
+
+        The concurrency slot release and task tracking cleanup happen in the
+        _on_task_done callback regardless of whether this method completes
+        normally or via timeout.
+
+        Args:
+            frame: BGR numpy array (1920x1080).
+            seq: Frame sequence number from the extractor.
+        """
+        try:
+            await asyncio.wait_for(
+                self._process_frame_parallel(frame, seq),
+                timeout=self._parallel_config.frame_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Frame %d timed out after %.1f seconds (frame-level timeout). "
+                "Advancing past frame.",
+                seq,
+                self._parallel_config.frame_timeout_seconds,
+            )
+            if self._reorder_buffer is not None:
+                self._reorder_buffer.advance_past_gap(seq)
+                await self._drain_reorder_buffer()
+
     async def _process_frame_parallel(self, frame: np.ndarray, seq: int) -> None:
         """Process a frame with intra-frame parallelism using asyncio.gather.
 
@@ -651,40 +686,99 @@ class PipelineOrchestrator:
         # Broadcast status change
         await self._broadcast_status()
 
-    def stop(self) -> None:
-        """Stop the extraction pipeline.
+    async def stop(self) -> None:
+        """Stop the extraction pipeline with graceful shutdown.
 
-        Stops frame capture, shuts down the thread pool executor,
-        and resets per-session components.
+        Implements Requirements 2.4, 8.3, 8.4:
+        1. Stops frame capture (no new frames dispatched)
+        2. Cancels all in-flight frame processing tasks
+        3. Waits up to 5 seconds for cancelled tasks to terminate
+        4. If tasks not terminated in 5 seconds, abandons them and logs error
+           with the count of un-terminated tasks
+        5. Shuts down the thread pool executor with a 10-second timeout
+        6. Clears reorder buffer and resets parallel state
         """
         if self._state.status == PipelineStatus.STOPPED:
             logger.info("Pipeline is already stopped.")
             return
 
+        # Step 1: Stop frame extractor (prevents new frames from arriving)
         self._frame_extractor.stop()
 
-        # Shutdown the thread pool executor
+        # Step 2: Cancel all in-flight frame processing tasks
+        tasks_to_cancel = set(self._in_flight_tasks)
+        if tasks_to_cancel:
+            logger.info(
+                "Cancelling %d in-flight frame tasks for graceful shutdown.",
+                len(tasks_to_cancel),
+            )
+            for task in tasks_to_cancel:
+                task.cancel()
+
+            # Step 3: Wait up to 5 seconds for tasks to terminate
+            done, pending = await asyncio.wait(
+                tasks_to_cancel, timeout=5.0
+            )
+
+            # Step 4: If tasks still pending after 5 seconds, abandon and log error
+            if pending:
+                logger.error(
+                    "Graceful shutdown: %d in-flight tasks did not terminate "
+                    "within 5 seconds. Abandoning remaining tasks.",
+                    len(pending),
+                )
+
+        # Clear the in-flight task tracking set
+        self._in_flight_tasks.clear()
+
+        # Step 5: Clear the reorder buffer (Req 8.3)
+        if self._reorder_buffer is not None:
+            self._reorder_buffer = None
+
+        # Step 6: Shutdown the thread pool executor with 10-second timeout (Req 2.4)
         if self._executor is not None:
             try:
-                self._executor.shutdown(
-                    wait=True,
-                    cancel_futures=True,
+                loop = asyncio.get_running_loop()
+                await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        lambda: self._executor.shutdown(
+                            wait=True, cancel_futures=True
+                        ),
+                    ),
+                    timeout=self._parallel_config.shutdown_timeout_seconds,
                 )
+            except asyncio.TimeoutError:
+                logger.error(
+                    "Thread pool executor did not shut down within %.1f seconds. "
+                    "Forcing release.",
+                    self._parallel_config.shutdown_timeout_seconds,
+                )
+                # Force a non-blocking shutdown
+                try:
+                    self._executor.shutdown(wait=False, cancel_futures=True)
+                except Exception:
+                    pass
             except Exception as e:
                 logger.error(f"Error shutting down executor: {e}")
             finally:
                 self._executor = None
 
+        # Step 7: Reset components and parallel state
         self._stage_assigner.reset()
         self._record_assembler.reset()
-
-        # Clear the reorder buffer
-        if self._reorder_buffer is not None:
-            self._reorder_buffer = None
+        self._frame_sequence_counter = 0
+        self._t_zero_detected = False
+        self._concurrency_controller = None
 
         self._state.status = PipelineStatus.STOPPED
         self._state.current_sequence = 0
         self._state.separation_state = SeparationState.PRE_SEPARATION
+        self._state.in_flight_frames = 0
+        self._state.t_zero_detected = False
+        self._state.parallel_mode_active = False
+        self._state.frames_discarded = 0
+        self._state.buffer_size = 0
 
     def set_skip_frames(self, skip_frames: int) -> None:
         """Update the frame skip count.
@@ -738,11 +832,15 @@ class PipelineOrchestrator:
             if self._concurrency_controller is not None and self._concurrency_controller.try_acquire():
                 # Spawn parallel processing as a fire-and-forget async task
                 task = asyncio.create_task(
-                    self._process_frame_parallel(frame, frame_seq)
+                    self._process_frame_with_timeout(frame, frame_seq)
                 )
 
-                # Add done callback to release the concurrency slot
+                # Track the task for graceful shutdown
+                self._in_flight_tasks.add(task)
+
+                # Add done callback to release the concurrency slot and remove from tracking
                 def _on_task_done(t: asyncio.Task) -> None:
+                    self._in_flight_tasks.discard(t)
                     if self._concurrency_controller is not None:
                         self._concurrency_controller.release()
 
