@@ -139,8 +139,8 @@ This plan implements a real-time telemetry extraction and display system for Spa
 - [ ] 8. Checkpoint - Ensure all backend tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Implement WebSocket Server and Pipeline Orchestration
-  - [ ] 9.1 Implement FastAPI WebSocket server and REST endpoints
+- [x] 9. Implement WebSocket Server and Pipeline Orchestration
+  - [x] 9.1 Implement FastAPI WebSocket server and REST endpoints
     - Create `backend/src/server.py` with FastAPI app
     - Implement `/ws/telemetry` WebSocket endpoint supporting broadcast to multiple clients
     - Implement `/api/status` GET endpoint returning pipeline status and GPU capabilities
@@ -148,7 +148,7 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - Mount frontend static files at `/static`
     - _Requirements: 7.2, 7.3, 7.4, 7.5, 7.15, 7.17_
 
-  - [ ] 9.2 Implement Pipeline Orchestrator
+  - [x] 9.2 Implement Pipeline Orchestrator
     - Create `backend/src/pipeline.py` that wires Frame Extractor → Engine Analyzer → OCR → Stage Assignment → Record Assembly → WebSocket broadcast
     - Handle Start/Stop control commands from WebSocket clients
     - Manage `PipelineState` including status transitions, current template, sequence counter
@@ -156,7 +156,7 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - _Requirements: 2.3, 2.4, 2.5, 2.6, 7.4, 7.5, 7.17_
 
 - [ ] 10. Implement Frontend Dashboard
-  - [ ] 10.1 Set up frontend project structure and build tooling
+  - [-] 10.1 Set up frontend project structure and build tooling
     - Create `frontend/` with TypeScript config, HTML entry point, CSS with design tokens
     - Apply design tokens: JetBrains Mono font, #262626 background, #FEFEFE text, #FF8014 accent
     - Set up Vitest and fast-check for frontend testing
