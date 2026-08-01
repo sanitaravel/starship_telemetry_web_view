@@ -1,7 +1,7 @@
 <svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g id="starship_rois">
 <rect width="1920" height="1080" fill="black"/>
-<rect id="time" x="828.5" y="968.5" width="257" height="39" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="time" x="868" y="965" width="222" height="47" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 <g id="engines_starship">
 <g id="atmo">
 <circle id="ss_e1" cx="1765" cy="981" r="5.5" fill="#FF0000" fill-opacity="0.25" stroke="white"/>

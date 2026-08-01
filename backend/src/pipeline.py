@@ -240,7 +240,6 @@ class PipelineOrchestrator:
             ocr_result = ocr_engine.extract_text(
                 frame=frame,
                 text_regions=self._roi_config.text_regions,
-                engine_bounding_boxes=engine_result.engine_group_bounding_boxes,
             )
 
             # Step 3: Stage Assignment

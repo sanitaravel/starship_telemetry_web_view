@@ -1,9 +1,7 @@
 """OCR Engine - extracts text values from frame regions using EasyOCR.
 
 Uses EasyOCR with GPU acceleration (when available) to read text values
-(time, speed, altitude, stage labels) from non-occluded ROI regions.
-Regions overlapping with detected engine bounding boxes are skipped and
-marked as occluded.
+(time, speed, altitude, stage labels) from ROI regions.
 """
 
 import re
@@ -20,14 +18,14 @@ from src.models import ROIRect
 # Confidence threshold below which OCR results are marked UNAVAILABLE
 _CONFIDENCE_THRESHOLD = 0.3
 
-# Time format regex: T+HH:MM:SS or T-HH:MM:SS (flexible with possible OCR noise)
-_TIME_PATTERN = re.compile(r"[Tt][+\-−]?\s*(\d{1,2}):(\d{2}):(\d{2})")
+# Time format regex: HH:MM:SS (no sign prefix, just digits and colons)
+_TIME_PATTERN = re.compile(r"(\d{1,2}):(\d{2}):(\d{2})")
 
 # Numeric value regex: optional sign, digits with optional decimal point
 _NUMERIC_PATTERN = re.compile(r"[+\-−]?\s*(\d+(?:[.,]\d+)?)")
 
 # Allowed character sets for EasyOCR per field type
-_ALLOWLIST_TIME = "0123456789T+-:"
+_ALLOWLIST_TIME = "0123456789:_"
 _ALLOWLIST_NUMERIC = "0123456789."
 _ALLOWLIST_UNIT = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ/"
 
@@ -59,40 +57,6 @@ class OCRResult:
     stage_sep_text: OCRFieldResult
 
 
-def _rects_intersect(a: ROIRect, b: ROIRect) -> bool:
-    """Check if two axis-aligned bounding boxes overlap (AABB intersection).
-
-    Returns True if rectangles a and b share any area.
-    """
-    a_left = a.x
-    a_right = a.x + a.width
-    a_top = a.y
-    a_bottom = a.y + a.height
-
-    b_left = b.x
-    b_right = b.x + b.width
-    b_top = b.y
-    b_bottom = b.y + b.height
-
-    # No overlap if one is entirely to the left/right/above/below the other
-    if a_right <= b_left or b_right <= a_left:
-        return False
-    if a_bottom <= b_top or b_bottom <= a_top:
-        return False
-
-    return True
-
-
-def _is_occluded_by_engines(
-    text_roi: ROIRect, engine_bounding_boxes: list[ROIRect]
-) -> bool:
-    """Check if a text ROI intersects any engine bounding box."""
-    for engine_bbox in engine_bounding_boxes:
-        if _rects_intersect(text_roi, engine_bbox):
-            return True
-    return False
-
-
 def _crop_frame_to_roi(frame: np.ndarray, roi: ROIRect) -> np.ndarray:
     """Crop the frame to the given ROI rectangle.
 
@@ -111,8 +75,8 @@ def _crop_frame_to_roi(frame: np.ndarray, roi: ROIRect) -> np.ndarray:
 def _parse_time_value(text: str) -> str | None:
     """Parse mission elapsed time from OCR text.
 
-    Expected format: T+HH:MM:SS or T-HH:MM:SS
-    Returns normalized time string or None if parsing fails.
+    Expected format: HH:MM:SS (digits and colons only).
+    Returns the raw time string as-is, or None if parsing fails.
     """
     match = _TIME_PATTERN.search(text)
     if not match:
@@ -122,16 +86,11 @@ def _parse_time_value(text: str) -> str | None:
     minutes = match.group(2)
     seconds = match.group(3)
 
-    # Determine sign: look for minus/dash before the digits
-    sign_char = "+"
-    # Find where T is and check the character after it
-    t_idx = text.lower().find("t")
-    if t_idx >= 0 and t_idx + 1 < len(text):
-        after_t = text[t_idx + 1]
-        if after_t in ("-", "−"):
-            sign_char = "-"
+    # Validate ranges
+    if int(minutes) > 59 or int(seconds) > 59:
+        return None
 
-    return f"T{sign_char}{hours}:{minutes}:{seconds}"
+    return f"{hours}:{minutes}:{seconds}"
 
 
 def _parse_numeric_value(text: str) -> float | None:
@@ -190,7 +149,11 @@ def _get_allowlist(field_name: str) -> str | None:
 
 
 class EasyOCREngine:
-    """Wraps EasyOCR Reader with GPU/CPU auto-configuration."""
+    """Wraps EasyOCR Reader with GPU/CPU auto-configuration.
+
+    Tracks T-0 detection: OCR results are only emitted after the time ROI
+    reads 00:00:00 for the first time, which marks liftoff (T-0).
+    """
 
     def __init__(self, gpu_capabilities: GPUCapabilities) -> None:
         """Initialize EasyOCR Reader.
@@ -205,30 +168,28 @@ class EasyOCREngine:
             lang_list=["en"],
             gpu=gpu_capabilities.gpu_available,
         )
+        self._t_zero_detected: bool = False
 
     def extract_text(
         self,
         frame: np.ndarray,
         text_regions: dict[str, ROIRect],
-        engine_bounding_boxes: list[ROIRect],
     ) -> OCRResult:
-        """Extract text from non-occluded ROI regions.
+        """Extract text from ROI regions.
 
         Processes the 'time' region first. If the time region yields no text,
         all other regions are skipped and marked UNAVAILABLE (early exit to
         avoid wasting OCR cycles on frames without telemetry overlay).
 
         For each remaining text region:
-        1. Check if it intersects any engine bounding box → mark OCCLUDED_BY_ENGINES
-        2. Crop frame to ROI rect
-        3. Call self.reader.readtext(cropped_image) to get text predictions
-        4. Parse result based on field type (float for speed/altitude, time format)
-        5. If confidence is low or no text detected → mark UNAVAILABLE
+        1. Crop frame to ROI rect
+        2. Call self.reader.readtext(cropped_image) to get text predictions
+        3. Parse result based on field type (float for speed/altitude, time format)
+        4. If confidence is low or no text detected → mark UNAVAILABLE
 
         Args:
             frame: BGR numpy array (1920x1080)
             text_regions: Dict mapping field names to ROIRect objects
-            engine_bounding_boxes: Bounding boxes of engine groups with detected engines
 
         Returns:
             OCRResult with extraction results for all text fields
@@ -239,8 +200,47 @@ class EasyOCREngine:
         # Process time ROI first as a gate check
         if "time" in text_regions:
             time_result = self._process_field(
-                frame, "time", text_regions["time"], engine_bounding_boxes
+                frame, "time", text_regions["time"]
             )
+
+            # T-0 detection: wait for 00:00:00 before emitting telemetry
+            if not self._t_zero_detected:
+                if (
+                    time_result.status == OCRFieldStatus.AVAILABLE
+                    and time_result.parsed_value == "00:00:00"
+                ):
+                    self._t_zero_detected = True
+                    # Mark as T+00:00:00 for the output
+                    time_result = OCRFieldResult(
+                        status=OCRFieldStatus.AVAILABLE,
+                        raw_text=time_result.raw_text,
+                        parsed_value="T+00:00:00",
+                    )
+                else:
+                    # T-0 not yet seen — skip all fields
+                    return OCRResult(
+                        time=unavailable,
+                        speed_l=unavailable,
+                        speed_l_unit=unavailable,
+                        speed_r=unavailable,
+                        speed_r_unit=unavailable,
+                        altitude_l=unavailable,
+                        altitude_l_unit=unavailable,
+                        altitude_r=unavailable,
+                        altitude_r_unit=unavailable,
+                        stage_l=unavailable,
+                        stage_r=unavailable,
+                        stage_sep_text=unavailable,
+                    )
+            else:
+                # T-0 already detected — prefix parsed time with T+
+                if time_result.status == OCRFieldStatus.AVAILABLE and time_result.parsed_value:
+                    time_result = OCRFieldResult(
+                        status=OCRFieldStatus.AVAILABLE,
+                        raw_text=time_result.raw_text,
+                        parsed_value=f"T+{time_result.parsed_value}",
+                    )
+
             field_results["time"] = time_result
 
             # Early exit: if time has no text, skip all other regions
@@ -265,7 +265,7 @@ class EasyOCREngine:
             if field_name == "time":
                 continue  # already processed
             field_results[field_name] = self._process_field(
-                frame, field_name, roi, engine_bounding_boxes
+                frame, field_name, roi
             )
 
         # Build OCRResult, using UNAVAILABLE for any fields not in text_regions
@@ -289,24 +289,18 @@ class EasyOCREngine:
         frame: np.ndarray,
         field_name: str,
         roi: ROIRect,
-        engine_bounding_boxes: list[ROIRect],
     ) -> OCRFieldResult:
-        """Process a single text field: check occlusion, crop, OCR, and parse.
+        """Process a single text field: crop, OCR, and parse.
 
         Args:
             frame: Full BGR frame
             field_name: Name of the text field (e.g., "time", "speed_l")
             roi: ROI rectangle for this field
-            engine_bounding_boxes: Active engine bounding boxes
 
         Returns:
             OCRFieldResult with appropriate status and parsed value
         """
-        # Step 1: Check occlusion
-        if _is_occluded_by_engines(roi, engine_bounding_boxes):
-            return OCRFieldResult(status=OCRFieldStatus.OCCLUDED_BY_ENGINES)
-
-        # Step 2: Crop frame to ROI
+        # Step 1: Crop frame to ROI
         cropped = _crop_frame_to_roi(frame, roi)
 
         if cropped.size == 0:
@@ -365,3 +359,12 @@ class EasyOCREngine:
         else:
             # Unit fields, stage labels, and stage_sep_text are kept as strings
             return raw_text
+
+    def reset(self) -> None:
+        """Reset T-0 detection state for a new pipeline run."""
+        self._t_zero_detected = False
+
+    @property
+    def t_zero_detected(self) -> bool:
+        """Whether T-0 (00:00:00) has been detected."""
+        return self._t_zero_detected
