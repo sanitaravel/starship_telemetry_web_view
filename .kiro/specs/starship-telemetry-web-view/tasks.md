@@ -109,8 +109,8 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - **Property 8: Numeric and Time Parsing Correctness**
     - **Validates: Requirements 4.1, 4.4, 4.5, 4.7**
 
-- [ ] 7. Implement Stage Assignment and Record Assembly
-  - [ ] 7.1 Implement Stage Assignment logic
+- [x] 7. Implement Stage Assignment and Record Assembly
+  - [x] 7.1 Implement Stage Assignment logic
     - Create `backend/src/stage_assignment.py` with `StageAssigner` class
     - Track session-level separation state flag (pre → post, never reverts)
     - Pre-separation: assign all data to "super_heavy"
@@ -118,20 +118,20 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - Post-separation without labels: assign all to "starship"
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
-  - [ ]* 7.2 Write property tests for Stage Assignment
+  - [x] 7.2 Write property tests for Stage Assignment
     - **Property 9: Pre-Separation Assignment Invariant**
     - **Property 10: Post-Separation Label-Based Assignment**
     - **Property 11: Separation State Monotonicity**
     - **Validates: Requirements 5.1, 5.2, 5.4**
 
-  - [ ] 7.3 Implement Record Assembler
+  - [x] 7.3 Implement Record Assembler
     - Create `backend/src/record_assembler.py` with assembly function
     - Combine engine analysis, OCR results, and stage assignment into a single `TelemetryRecord`
     - Assign monotonically increasing sequence numbers
     - Include units from OCR unit regions
     - _Requirements: 6.1, 6.2, 6.3_
 
-  - [ ]* 7.4 Write property tests for Record Assembly
+  - [x] 7.4 Write property tests for Record Assembly
     - **Property 12: Telemetry Record Assembly Completeness**
     - **Property 13: Sequence Number Monotonicity**
     - **Validates: Requirements 6.1, 6.2, 6.3**
