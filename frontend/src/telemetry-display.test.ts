@@ -110,35 +110,12 @@ describe('TelemetryDisplay', () => {
     });
   });
 
-  describe('Requirement 7.11: Stage labels', () => {
-    it('should display stage labels for left and right', () => {
-      stateManager.handleMessage({
-        type: 'telemetry',
-        payload: createTelemetryRecord({
-          stage_left_label: 'SUPER HEAVY',
-          stage_right_label: 'STARSHIP',
-        }),
-      });
-
-      const leftLabel = container.querySelector('.telemetry-display__column:first-child .telemetry-display__stage-label') as HTMLElement;
-      const rightLabel = container.querySelector('.telemetry-display__column:last-child .telemetry-display__stage-label') as HTMLElement;
-      expect(leftLabel.textContent).toBe('SUPER HEAVY');
-      expect(rightLabel.textContent).toBe('STARSHIP');
-    });
-
-    it('should display "--" when stage label is null', () => {
-      stateManager.handleMessage({
-        type: 'telemetry',
-        payload: createTelemetryRecord({
-          stage_left_label: null,
-          stage_right_label: null,
-        }),
-      });
-
-      const leftLabel = container.querySelector('.telemetry-display__column:first-child .telemetry-display__stage-label') as HTMLElement;
-      const rightLabel = container.querySelector('.telemetry-display__column:last-child .telemetry-display__stage-label') as HTMLElement;
-      expect(leftLabel.textContent).toBe('--');
-      expect(rightLabel.textContent).toBe('--');
+  describe('Requirement 7.11: Column headers', () => {
+    it('should display L and R column headers', () => {
+      const leftHeader = container.querySelector('.telemetry-display__column:first-child .telemetry-display__column-header') as HTMLElement;
+      const rightHeader = container.querySelector('.telemetry-display__column:last-child .telemetry-display__column-header') as HTMLElement;
+      expect(leftHeader.textContent).toBe('L');
+      expect(rightHeader.textContent).toBe('R');
     });
   });
 

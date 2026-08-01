@@ -21,10 +21,10 @@ SVG_NS = "http://www.w3.org/2000/svg"
 NS_MAP = {"svg": SVG_NS}
 
 # Required top-level text regions that must exist as direct rects
-REQUIRED_TOP_LEVEL_RECTS = ["time", "stage_R", "stage_L", "stage_sep_text"]
+REQUIRED_TOP_LEVEL_RECTS = ["time", "stage_r", "stage_l", "stage_sep_text"]
 
 # Required text region groups (contain value and unit rects)
-REQUIRED_TEXT_GROUPS = ["altitude_R", "speed_R", "altitude_L", "speed_L"]
+REQUIRED_TEXT_GROUPS = ["altitude_r", "speed_r", "altitude_l", "speed_l"]
 
 # Required engine groups (must start with "engines_")
 REQUIRED_ENGINE_GROUPS = ["engines_starship", "engines_superheavy"]
@@ -236,7 +236,7 @@ def parse_roi_template(
         else:
             missing_regions.append(rect_id)
 
-    # Process text region groups (altitude_R, speed_R, altitude_L, speed_L)
+    # Process text region groups (altitude_r, speed_r, altitude_l, speed_l)
     for group_id in REQUIRED_TEXT_GROUPS:
         if group_id in children_by_id:
             group_elem = children_by_id[group_id]
@@ -246,8 +246,7 @@ def parse_roi_template(
                     if _strip_ns(rect_elem.tag) == "rect":
                         rect = _parse_rect(rect_elem)
                         if rect is not None:
-                            # Qualify the name: e.g., "value" → "altitude_R_value"
-                            # Handle Figma's naming: "value_2" → "speed_R_value"
+                            # Qualify the name: "value" → group_id, "unit" → "group_id_unit"
                             local_id = rect.id
                             # Strip numeric suffixes from Figma IDs for clean naming
                             base_name = local_id.rstrip("_0123456789")
@@ -255,7 +254,12 @@ def parse_roi_template(
                                 base_name = local_id
                             # Remove trailing underscore if present
                             base_name = base_name.rstrip("_")
-                            qualified_name = f"{group_id}_{base_name}"
+                            # "value" rect gets the group name directly (e.g., speed_l)
+                            # "unit" rect gets group_unit (e.g., speed_l_unit)
+                            if base_name == "value":
+                                qualified_name = group_id
+                            else:
+                                qualified_name = f"{group_id}_{base_name}"
                             text_regions[qualified_name] = ROIRect(
                                 id=qualified_name,
                                 x=rect.x,
@@ -328,23 +332,20 @@ def serialize_roi_configuration(config: ROIConfiguration) -> str:
     lines.append('<g id="Frame">')
 
     # Serialize top-level text rects
-    top_level_rects = {
-        region_id: rect
-        for region_id, rect in config.text_regions.items()
-        if "_" not in region_id or region_id in REQUIRED_TOP_LEVEL_RECTS
-    }
-    # Identify which are truly top-level (not belonging to a group)
-    grouped_prefixes = set(REQUIRED_TEXT_GROUPS)
+    # Identify which keys belong to text groups (either group_id itself or group_id_unit)
+    grouped_keys = set(REQUIRED_TEXT_GROUPS)
+    for group_id in REQUIRED_TEXT_GROUPS:
+        grouped_keys.add(f"{group_id}_unit")
 
     for region_id, rect in config.text_regions.items():
-        # Check if this belongs to a text group
-        is_grouped = any(region_id.startswith(prefix + "_") for prefix in grouped_prefixes)
-        if not is_grouped:
-            lines.append(
-                f'<rect id="{region_id}" x="{rect.x}" y="{rect.y}" '
-                f'width="{rect.width}" height="{rect.height}" '
-                f'fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>'
-            )
+        # Skip keys that belong to a text group
+        if region_id in grouped_keys:
+            continue
+        lines.append(
+            f'<rect id="{region_id}" x="{rect.x}" y="{rect.y}" '
+            f'width="{rect.width}" height="{rect.height}" '
+            f'fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>'
+        )
 
     # Serialize engine groups
     for engine_group in config.engine_groups:
@@ -361,18 +362,23 @@ def serialize_roi_configuration(config: ROIConfiguration) -> str:
 
     # Serialize text region groups
     for group_id in REQUIRED_TEXT_GROUPS:
-        prefix = group_id + "_"
-        group_rects = {
-            k: v for k, v in config.text_regions.items() if k.startswith(prefix)
-        }
-        if group_rects:
+        # The value rect uses the group_id directly, unit uses group_id_unit
+        value_key = group_id
+        unit_key = f"{group_id}_unit"
+        value_rect = config.text_regions.get(value_key)
+        unit_rect = config.text_regions.get(unit_key)
+        if value_rect or unit_rect:
             lines.append(f'<g id="{group_id}">')
-            for region_id, rect in group_rects.items():
-                # Use the local name (strip group prefix) for the rect id
-                local_name = region_id[len(prefix):]
+            if value_rect:
                 lines.append(
-                    f'<rect id="{local_name}" x="{rect.x}" y="{rect.y}" '
-                    f'width="{rect.width}" height="{rect.height}" '
+                    f'<rect id="value" x="{value_rect.x}" y="{value_rect.y}" '
+                    f'width="{value_rect.width}" height="{value_rect.height}" '
+                    f'fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>'
+                )
+            if unit_rect:
+                lines.append(
+                    f'<rect id="unit" x="{unit_rect.x}" y="{unit_rect.y}" '
+                    f'width="{unit_rect.width}" height="{unit_rect.height}" '
                     f'fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>'
                 )
             lines.append("</g>")

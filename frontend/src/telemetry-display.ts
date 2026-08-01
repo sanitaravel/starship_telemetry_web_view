@@ -23,8 +23,8 @@ function formatFieldValue(field: { value: number | null; unit: string | null; st
 
 /**
  * Telemetry Display UI component.
- * Renders mission elapsed time, speed/altitude values with units,
- * and stage labels for both left and right vehicle stages.
+ * Renders mission elapsed time and speed/altitude values with units
+ * for left (L) and right (R) sides of the telemetry overlay.
  * Subscribes to state updates and re-renders when new telemetry arrives.
  */
 export class TelemetryDisplay {
@@ -32,12 +32,10 @@ export class TelemetryDisplay {
   private stateManager: StateManager;
 
   private metElement!: HTMLElement;
-  private leftStageLabel!: HTMLElement;
-  private rightStageLabel!: HTMLElement;
-  private leftSpeed!: HTMLElement;
-  private rightSpeed!: HTMLElement;
-  private leftAltitude!: HTMLElement;
-  private rightAltitude!: HTMLElement;
+  private speedL!: HTMLElement;
+  private speedR!: HTMLElement;
+  private altitudeL!: HTMLElement;
+  private altitudeR!: HTMLElement;
 
   private unsubscribe: (() => void) | null = null;
 
@@ -73,43 +71,43 @@ export class TelemetryDisplay {
     metSection.appendChild(metLabel);
     metSection.appendChild(this.metElement);
 
-    // Vehicle telemetry grid
+    // Telemetry grid: L and R columns
     const grid = document.createElement('div');
     grid.className = 'telemetry-display__grid';
 
-    // Left stage column
+    // Left (L) column
     const leftCol = document.createElement('div');
     leftCol.className = 'telemetry-display__column';
 
-    this.leftStageLabel = document.createElement('div');
-    this.leftStageLabel.className = 'telemetry-display__stage-label';
-    this.leftStageLabel.textContent = '--';
+    const leftHeader = document.createElement('div');
+    leftHeader.className = 'telemetry-display__column-header';
+    leftHeader.textContent = 'L';
 
     const leftSpeedRow = this.createFieldRow('SPD');
-    this.leftSpeed = leftSpeedRow.querySelector('.telemetry-display__field-value')!;
+    this.speedL = leftSpeedRow.querySelector('.telemetry-display__field-value')!;
 
     const leftAltRow = this.createFieldRow('ALT');
-    this.leftAltitude = leftAltRow.querySelector('.telemetry-display__field-value')!;
+    this.altitudeL = leftAltRow.querySelector('.telemetry-display__field-value')!;
 
-    leftCol.appendChild(this.leftStageLabel);
+    leftCol.appendChild(leftHeader);
     leftCol.appendChild(leftSpeedRow);
     leftCol.appendChild(leftAltRow);
 
-    // Right stage column
+    // Right (R) column
     const rightCol = document.createElement('div');
     rightCol.className = 'telemetry-display__column';
 
-    this.rightStageLabel = document.createElement('div');
-    this.rightStageLabel.className = 'telemetry-display__stage-label';
-    this.rightStageLabel.textContent = '--';
+    const rightHeader = document.createElement('div');
+    rightHeader.className = 'telemetry-display__column-header';
+    rightHeader.textContent = 'R';
 
     const rightSpeedRow = this.createFieldRow('SPD');
-    this.rightSpeed = rightSpeedRow.querySelector('.telemetry-display__field-value')!;
+    this.speedR = rightSpeedRow.querySelector('.telemetry-display__field-value')!;
 
     const rightAltRow = this.createFieldRow('ALT');
-    this.rightAltitude = rightAltRow.querySelector('.telemetry-display__field-value')!;
+    this.altitudeR = rightAltRow.querySelector('.telemetry-display__field-value')!;
 
-    rightCol.appendChild(this.rightStageLabel);
+    rightCol.appendChild(rightHeader);
     rightCol.appendChild(rightSpeedRow);
     rightCol.appendChild(rightAltRow);
 
@@ -166,12 +164,10 @@ export class TelemetryDisplay {
    */
   private renderEmpty(): void {
     this.metElement.textContent = '--:--:--';
-    this.leftStageLabel.textContent = '--';
-    this.rightStageLabel.textContent = '--';
-    this.leftSpeed.textContent = '--';
-    this.rightSpeed.textContent = '--';
-    this.leftAltitude.textContent = '--';
-    this.rightAltitude.textContent = '--';
+    this.speedL.textContent = '--';
+    this.speedR.textContent = '--';
+    this.altitudeL.textContent = '--';
+    this.altitudeR.textContent = '--';
   }
 
   /**
@@ -181,17 +177,13 @@ export class TelemetryDisplay {
     // Mission Elapsed Time
     this.metElement.textContent = record.mission_elapsed_time ?? '--:--:--';
 
-    // Stage labels
-    this.leftStageLabel.textContent = record.stage_left_label ?? '--';
-    this.rightStageLabel.textContent = record.stage_right_label ?? '--';
+    // Speed values with units
+    this.speedL.textContent = formatFieldValue(record.speed_left);
+    this.speedR.textContent = formatFieldValue(record.speed_right);
 
-    // Speed values
-    this.leftSpeed.textContent = formatFieldValue(record.speed_left);
-    this.rightSpeed.textContent = formatFieldValue(record.speed_right);
-
-    // Altitude values
-    this.leftAltitude.textContent = formatFieldValue(record.altitude_left);
-    this.rightAltitude.textContent = formatFieldValue(record.altitude_right);
+    // Altitude values with units
+    this.altitudeL.textContent = formatFieldValue(record.altitude_left);
+    this.altitudeR.textContent = formatFieldValue(record.altitude_right);
   }
 
   /**

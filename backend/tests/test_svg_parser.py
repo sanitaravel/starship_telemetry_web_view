@@ -55,10 +55,10 @@ class TestParseROITemplate:
         assert result.template_name == "custom_name"
 
     def test_extracts_top_level_text_rects(self, parsed_config: ROIConfiguration):
-        """Top-level rects (time, stage_R, stage_L, stage_sep_text) should be extracted."""
+        """Top-level rects (time, stage_r, stage_l, stage_sep_text) should be extracted."""
         assert "time" in parsed_config.text_regions
-        assert "stage_R" in parsed_config.text_regions
-        assert "stage_L" in parsed_config.text_regions
+        assert "stage_r" in parsed_config.text_regions
+        assert "stage_l" in parsed_config.text_regions
         assert "stage_sep_text" in parsed_config.text_regions
 
     def test_time_rect_coordinates(self, parsed_config: ROIConfiguration):
@@ -70,23 +70,23 @@ class TestParseROITemplate:
         assert time_rect.height == 39
 
     def test_extracts_text_group_regions(self, parsed_config: ROIConfiguration):
-        """Text region groups (altitude_R, speed_R, etc.) should produce qualified rects."""
-        # altitude_R should have value and unit rects
-        assert "altitude_R_value" in parsed_config.text_regions
-        assert "altitude_R_unit" in parsed_config.text_regions
-        # speed_R should have value and unit rects
-        assert "speed_R_value" in parsed_config.text_regions
-        assert "speed_R_unit" in parsed_config.text_regions
-        # altitude_L
-        assert "altitude_L_value" in parsed_config.text_regions
-        assert "altitude_L_unit" in parsed_config.text_regions
-        # speed_L
-        assert "speed_L_value" in parsed_config.text_regions
-        assert "speed_L_unit" in parsed_config.text_regions
+        """Text region groups (altitude_r, speed_r, etc.) should produce qualified rects."""
+        # altitude_r should have value and unit rects
+        assert "altitude_r" in parsed_config.text_regions
+        assert "altitude_r_unit" in parsed_config.text_regions
+        # speed_r should have value and unit rects
+        assert "speed_r" in parsed_config.text_regions
+        assert "speed_r_unit" in parsed_config.text_regions
+        # altitude_l
+        assert "altitude_l" in parsed_config.text_regions
+        assert "altitude_l_unit" in parsed_config.text_regions
+        # speed_l
+        assert "speed_l" in parsed_config.text_regions
+        assert "speed_l_unit" in parsed_config.text_regions
 
     def test_altitude_r_value_coordinates(self, parsed_config: ROIConfiguration):
-        """altitude_R value rect should have correct coordinates."""
-        rect = parsed_config.text_regions["altitude_R_value"]
+        """altitude_r value rect should have correct coordinates."""
+        rect = parsed_config.text_regions["altitude_r"]
         assert rect.x == 1707.5
         assert rect.y == 968.5
         assert rect.width == 112
@@ -234,9 +234,9 @@ class TestParseErrors:
         result = parse_roi_template(svg)
         assert isinstance(result, ParseError)
         assert len(result.missing_regions) > 0
-        # Should be missing stage_R, stage_L, stage_sep_text, and all groups
-        assert "stage_R" in result.missing_regions
-        assert "stage_L" in result.missing_regions
+        # Should be missing stage_r, stage_l, stage_sep_text, and all groups
+        assert "stage_r" in result.missing_regions
+        assert "stage_l" in result.missing_regions
         assert "stage_sep_text" in result.missing_regions
 
     def test_missing_engine_groups_reported(self):
@@ -246,16 +246,16 @@ class TestParseErrors:
             'xmlns="http://www.w3.org/2000/svg">'
             '<g id="Frame">'
             '<rect id="time" x="0" y="0" width="100" height="50"/>'
-            '<rect id="stage_R" x="0" y="0" width="100" height="50"/>'
-            '<rect id="stage_L" x="0" y="0" width="100" height="50"/>'
+            '<rect id="stage_r" x="0" y="0" width="100" height="50"/>'
+            '<rect id="stage_l" x="0" y="0" width="100" height="50"/>'
             '<rect id="stage_sep_text" x="0" y="0" width="100" height="50"/>'
-            '<g id="altitude_R"><rect id="value" x="0" y="0" width="50" height="20"/>'
+            '<g id="altitude_r"><rect id="value" x="0" y="0" width="50" height="20"/>'
             '<rect id="unit" x="0" y="0" width="50" height="20"/></g>'
-            '<g id="speed_R"><rect id="value" x="0" y="0" width="50" height="20"/>'
+            '<g id="speed_r"><rect id="value" x="0" y="0" width="50" height="20"/>'
             '<rect id="unit" x="0" y="0" width="50" height="20"/></g>'
-            '<g id="altitude_L"><rect id="value" x="0" y="0" width="50" height="20"/>'
+            '<g id="altitude_l"><rect id="value" x="0" y="0" width="50" height="20"/>'
             '<rect id="unit" x="0" y="0" width="50" height="20"/></g>'
-            '<g id="speed_L"><rect id="value" x="0" y="0" width="50" height="20"/>'
+            '<g id="speed_l"><rect id="value" x="0" y="0" width="50" height="20"/>'
             '<rect id="unit" x="0" y="0" width="50" height="20"/></g>'
             "</g>"
             "</svg>"
@@ -434,8 +434,8 @@ def roi_configurations(draw):
     """Generate arbitrary valid ROIConfiguration objects suitable for round-trip testing.
 
     Produces configurations with:
-    - All required top-level rects (time, stage_R, stage_L, stage_sep_text)
-    - All required text groups (altitude_R, speed_R, altitude_L, speed_L) with value/unit rects
+    - All required top-level rects (time, stage_r, stage_l, stage_sep_text)
+    - All required text groups (altitude_r, speed_r, altitude_l, speed_l) with value/unit rects
     - Both required engine groups (engines_starship, engines_superheavy) with subgroups
     """
     template_name = draw(text(
@@ -452,11 +452,13 @@ def roi_configurations(draw):
         text_regions[rect_id] = rect
 
     # Generate required text group regions with value/unit child rects
+    # "value" rect uses the group_id directly, "unit" uses group_id_unit
     for group_id in REQUIRED_TEXT_GROUPS:
-        for suffix in ["value", "unit"]:
-            qualified_name = f"{group_id}_{suffix}"
-            rect = draw(roi_rects(id_strategy=just(qualified_name)))
-            text_regions[qualified_name] = rect
+        value_rect = draw(roi_rects(id_strategy=just(group_id)))
+        text_regions[group_id] = value_rect
+        unit_key = f"{group_id}_unit"
+        unit_rect = draw(roi_rects(id_strategy=just(unit_key)))
+        text_regions[unit_key] = unit_rect
 
     # Generate engine groups
     eg_list = []

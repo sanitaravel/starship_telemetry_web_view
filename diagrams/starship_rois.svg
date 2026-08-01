@@ -14,15 +14,15 @@
 <circle id="ss_e5" cx="1765" cy="1021" r="14.5" fill="#00FF11" fill-opacity="0.25" stroke="white"/>
 </g>
 </g>
-<g id="altitude_R">
+<g id="altitude_r">
 <rect id="unit" x="1741.5" y="1010.5" width="44" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 <rect id="value" x="1707.5" y="968.5" width="112" height="39" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 </g>
-<g id="speed_R">
+<g id="speed_r">
 <rect id="value" x="1543.5" y="968.5" width="112" height="39" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 <rect id="unit" x="1577.5" y="1010.5" width="44" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 </g>
-<rect id="stage_R" x="1624.5" y="1039.5" width="109" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="stage_r" x="1624.5" y="1039.5" width="109" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 <rect id="stage_sep_text" x="914.5" y="904.5" width="85" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 <g id="engines_superheavy">
 <g id="engines_outer">
@@ -65,14 +65,14 @@
 <circle id="sh_e2" cx="155" cy="999" r="5.5" fill="#FF0000" fill-opacity="0.25" stroke="white"/>
 </g>
 </g>
-<g id="altitude_L">
+<g id="altitude_l">
 <rect id="value" x="264.5" y="968.5" width="111" height="39" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 <rect id="unit" x="298.199" y="1010.5" width="43.6018" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 </g>
-<g id="speed_L">
+<g id="speed_l">
 <rect id="value" x="99.5" y="968.5" width="111" height="39" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 <rect id="unit" x="133.199" y="1010.5" width="43.6018" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 </g>
-<rect id="stage_L" x="182.5" y="1039.5" width="109" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="stage_l" x="182.5" y="1039.5" width="109" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 </g>
 </svg>
