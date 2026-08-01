@@ -1,0 +1,24 @@
+{
+  "name": "starship-telemetry-frontend",
+  "version": "0.1.0",
+  "description": "Frontend dashboard for Starship Telemetry Web View",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0",
+    "reconnecting-websocket": "^4.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.1.0",
+    "fast-check": "^3.15.0",
+    "@types/node": "^20.10.0"
+  }
+}

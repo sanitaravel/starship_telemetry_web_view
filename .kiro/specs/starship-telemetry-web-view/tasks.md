@@ -6,31 +6,31 @@ This plan implements a real-time telemetry extraction and display system for Spa
 
 ## Tasks
 
-- [ ] 1. Set up project structure, dependencies, and core data models
-  - [ ] 1.1 Create Python project structure with pyproject.toml and install dependencies
+- [x] 1. Set up project structure, dependencies, and core data models
+  - [x] 1.1 Create Python project structure with pyproject.toml and install dependencies
     - Create directory structure: `backend/`, `backend/src/`, `backend/tests/`, `frontend/`
     - Add pyproject.toml with dependencies: fastapi, uvicorn, opencv-python-headless, easyocr, torch, numpy, pydantic, hypothesis, pytest
     - Add frontend package.json with dependencies: typescript, vitest, fast-check, chart.js (or lightweight charting lib), reconnecting-websocket
     - Set up pytest configuration and hypothesis profile
     - _Requirements: 1.1, 3.1, 4.1, 7.1_
 
-  - [ ] 1.2 Implement GPU Detector module
+  - [x] 1.2 Implement GPU Detector module
     - Create `backend/src/gpu_detector.py` with `AccelerationBackend` enum, `GPUCapabilities` dataclass, and `detect_gpu()` function
     - Implement CUDA detection via `torch.cuda.is_available()` with exception handling for driver mismatches
     - _Requirements: 3.5, 3.6 (GPU Strategy from design)_
 
-  - [ ] 1.3 Implement core data model interfaces and enums
+  - [x] 1.3 Implement core data model interfaces and enums
     - Create `backend/src/models.py` with `ROIRect`, `ROICircle`, `EngineSubgroup`, `EngineGroup`, `ROIConfiguration`, `ParseError` dataclasses
     - Create `backend/src/enums.py` with `EngineStatus`, `PipelineStatus`, `SeparationState`, `OCRFieldStatus` enums
     - _Requirements: 1.4, 3.9, 6.1_
 
-  - [ ] 1.4 Implement TelemetryRecord Pydantic model with serialization/deserialization
+  - [x] 1.4 Implement TelemetryRecord Pydantic model with serialization/deserialization
     - Create `backend/src/telemetry_record.py` with `TelemetryRecord` Pydantic model
     - Implement `serialize_telemetry_record()` and `deserialize_telemetry_record()` functions
     - Include `ValidationError` model for missing/invalid field reporting
     - _Requirements: 6.1, 6.2, 6.3, 9.1, 9.2, 9.3, 9.4_
 
-  - [ ]* 1.5 Write property tests for TelemetryRecord serialization
+  - [x] 1.5 Write property tests for TelemetryRecord serialization
     - **Property 15: Telemetry Record Serialization Round-Trip**
     - **Property 16: Validation Error on Missing Fields**
     - **Validates: Requirements 9.3, 9.4**
