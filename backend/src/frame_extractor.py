@@ -25,13 +25,13 @@ class FrameExtractorConfig:
 
     Attributes:
         source_url: Video source URL (e.g., RTSP, HTTP stream, or file path).
-        interval_ms: Interval between frame captures in milliseconds (default: 1000ms = 1 fps).
+        skip_frames: Process every Nth frame (default: 30, i.e., ~1 per second at 30fps).
         target_width: Target frame width after resize (default: 1920).
         target_height: Target frame height after resize (default: 1080).
     """
 
     source_url: str
-    interval_ms: int = 1000
+    skip_frames: int = 30
     target_width: int = 1920
     target_height: int = 1080
 
@@ -125,11 +125,21 @@ class FrameExtractor:
                 )
 
             # Try reading a single frame to verify the stream is active
-            ret, _ = await loop.run_in_executor(None, cap.read)
+            ret, frame = await loop.run_in_executor(None, cap.read)
             if not ret:
                 return ConnectionError(
                     message="Video source opened but no frames could be read. The stream may not be active.",
                     url=url,
+                )
+
+            # Check source resolution — warn if not 1080p (frames will be resized)
+            source_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            source_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            if source_w != 1920 or source_h != 1080:
+                logger.warning(
+                    f"Video source is {source_w}x{source_h}, not 1920x1080. "
+                    f"Frames will be resized which may reduce OCR and detection accuracy. "
+                    f"Use a 1080p stream for best results."
                 )
 
             return None
@@ -257,9 +267,9 @@ class FrameExtractor:
     async def _capture_loop(self) -> None:
         """Main async capture loop.
 
-        Opens the video source, captures frames at the configured interval,
-        resizes them to target resolution, and invokes callbacks. Handles
-        disconnection with exponential backoff reconnection.
+        Opens the video source, reads every frame, but only processes
+        every Nth frame (skip_frames). Handles disconnection with
+        exponential backoff reconnection.
         """
         assert self._config is not None
 
@@ -267,6 +277,7 @@ class FrameExtractor:
 
         loop = asyncio.get_event_loop()
         backoff_s = self._INITIAL_BACKOFF_S
+        frame_counter = 0
 
         try:
             # Initial connection
@@ -278,6 +289,23 @@ class FrameExtractor:
                 logger.error(f"Failed to open video source: {self._config.source_url}")
                 await self._set_status(PipelineStatus.DISCONNECTED)
                 return
+
+            # Request 1080p from source (hint — not all backends honor this)
+            self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, self._config.target_width)
+            self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self._config.target_height)
+
+            actual_w = self._capture.get(cv2.CAP_PROP_FRAME_WIDTH)
+            actual_h = self._capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            if actual_w != self._config.target_width or actual_h != self._config.target_height:
+                logger.warning(
+                    f"Requested {self._config.target_width}x{self._config.target_height} "
+                    f"but source provides {int(actual_w)}x{int(actual_h)}. "
+                    f"Frames will be resized."
+                )
+            else:
+                logger.info(
+                    f"Source confirmed at {int(actual_w)}x{int(actual_h)}."
+                )
 
             # Main frame capture loop
             while not self._stop_event.is_set():
@@ -292,31 +320,32 @@ class FrameExtractor:
                         return
                     # Reset backoff on successful reconnection
                     backoff_s = self._INITIAL_BACKOFF_S
+                    frame_counter = 0
                     continue
 
                 # Reset backoff on each successful frame read
                 backoff_s = self._INITIAL_BACKOFF_S
+                frame_counter += 1
 
-                # Resize frame to target resolution
-                resized = self.resize_frame(
-                    frame, self._config.target_width, self._config.target_height
-                )
+                # Only process every Nth frame
+                if frame_counter % self._config.skip_frames != 0:
+                    continue
+
+                # Resize frame to target resolution (skip if already correct)
+                h, w = frame.shape[:2]
+                if w == self._config.target_width and h == self._config.target_height:
+                    resized = frame
+                else:
+                    resized = self.resize_frame(
+                        frame, self._config.target_width, self._config.target_height
+                    )
 
                 # Increment sequence and notify
                 self._sequence_number += 1
                 await self._notify_frame(resized, self._sequence_number)
 
-                # Wait for the configured interval before next capture
-                interval_s = self._config.interval_ms / 1000.0
-                try:
-                    await asyncio.wait_for(
-                        self._stop_event.wait(), timeout=interval_s
-                    )
-                    # If we get here, stop was requested
-                    break
-                except asyncio.TimeoutError:
-                    # Normal timeout — continue to next frame
-                    pass
+                # Yield control briefly to check for stop event
+                await asyncio.sleep(0)
 
         except asyncio.CancelledError:
             logger.info("Capture loop cancelled.")

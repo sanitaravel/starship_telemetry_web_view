@@ -30,9 +30,9 @@ def config() -> FrameExtractorConfig:
 class TestFrameExtractorConfig:
     """Tests for FrameExtractorConfig defaults."""
 
-    def test_default_interval(self) -> None:
+    def test_default_skip_frames(self) -> None:
         config = FrameExtractorConfig(source_url="http://test.com/stream")
-        assert config.interval_ms == 1000
+        assert config.skip_frames == 30
 
     def test_default_target_dimensions(self) -> None:
         config = FrameExtractorConfig(source_url="http://test.com/stream")
@@ -42,12 +42,12 @@ class TestFrameExtractorConfig:
     def test_custom_values(self) -> None:
         config = FrameExtractorConfig(
             source_url="rtsp://camera/feed",
-            interval_ms=500,
+            skip_frames=10,
             target_width=1280,
             target_height=720,
         )
         assert config.source_url == "rtsp://camera/feed"
-        assert config.interval_ms == 500
+        assert config.skip_frames == 10
         assert config.target_width == 1280
         assert config.target_height == 720
 
@@ -228,14 +228,15 @@ class TestCaptureLoop:
 
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = True
-        # Return 3 frames, then stop
+        mock_cap.set.return_value = True
+        mock_cap.release.return_value = None
+        # Return 3 frames, then disconnect
         mock_cap.read.side_effect = [
             (True, frame_640x480.copy()),
             (True, frame_640x480.copy()),
             (True, frame_640x480.copy()),
-            (False, None),  # Trigger disconnect
+            (False, None),
         ]
-        mock_cap.release.return_value = None
         mock_cap_cls.return_value = mock_cap
 
         frame_callback = AsyncMock()
@@ -245,7 +246,7 @@ class TestCaptureLoop:
 
         config = FrameExtractorConfig(
             source_url="http://test.com/stream",
-            interval_ms=10,  # Very short interval for test speed
+            skip_frames=1,  # Process every frame for test speed
         )
 
         extractor._config = config
@@ -284,7 +285,7 @@ class TestCaptureLoop:
         extractor.on_status_change(status_callback)
 
         config = FrameExtractorConfig(
-            source_url="http://test.com/stream", interval_ms=10
+            source_url="http://test.com/stream", skip_frames=1
         )
         extractor._config = config
         extractor._stop_event.clear()

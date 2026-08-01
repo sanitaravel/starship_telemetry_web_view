@@ -19,9 +19,9 @@ describe('parseWebSocketMessage', () => {
         stage_assignment_left: 'super_heavy',
         stage_assignment_right: 'starship',
         separation_state: 'post_separation',
-        starship_engines: { e1: 'active', e2: 'active', e3: 'inactive', e4: 'active', e5: 'active', e6: 'undetected' },
+        starship_engines: { ss_e1: 'active', ss_e2: 'active', ss_e3: 'inactive', ss_e4: 'active', ss_e5: 'active', ss_e6: 'undetected' },
         superheavy_engines: Object.fromEntries(
-          Array.from({ length: 33 }, (_, i) => [`e${i + 1}`, 'inactive'])
+          Array.from({ length: 33 }, (_, i) => [`sh_e${i + 1}`, 'inactive'])
         ),
         detection_accuracy: { starship: 0.83, superheavy: 0.97 },
         timestamp: 1700000000000,
@@ -40,7 +40,7 @@ describe('parseWebSocketMessage', () => {
       payload: {
         status: 'running',
         gpu: { available: true, device_name: 'NVIDIA RTX 4090' },
-        frame_interval_ms: 1000,
+        skip_frames: 30,
         current_sequence: 42,
       },
     });
@@ -98,12 +98,12 @@ describe('parseWebSocketMessage', () => {
 
 describe('serializeCommand', () => {
   it('serializes start command', () => {
-    const cmd: ControlCommand = { action: 'start', source_url: 'https://example.com/stream', interval_ms: 500 };
+    const cmd: ControlCommand = { action: 'start', source_url: 'https://example.com/stream', skip_frames: 15 };
     const result = serializeCommand(cmd);
     const parsed = JSON.parse(result);
     expect(parsed.action).toBe('start');
     expect(parsed.source_url).toBe('https://example.com/stream');
-    expect(parsed.interval_ms).toBe(500);
+    expect(parsed.skip_frames).toBe(15);
   });
 
   it('serializes stop command', () => {
@@ -121,12 +121,12 @@ describe('serializeCommand', () => {
     expect(parsed.url).toBe('https://example.com/stream');
   });
 
-  it('start command without optional interval_ms', () => {
+  it('start command without optional skip_frames', () => {
     const cmd: ControlCommand = { action: 'start', source_url: 'https://example.com/stream' };
     const result = serializeCommand(cmd);
     const parsed = JSON.parse(result);
     expect(parsed.action).toBe('start');
     expect(parsed.source_url).toBe('https://example.com/stream');
-    expect(parsed.interval_ms).toBeUndefined();
+    expect(parsed.skip_frames).toBeUndefined();
   });
 });

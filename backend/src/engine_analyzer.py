@@ -32,9 +32,9 @@ class HoughParams:
 class EngineAnalyzerConfig:
     """Configuration for the Engine Analyzer."""
 
-    distance_tolerance: float = 5.0  # pixels
-    brightness_threshold: float = 128.0  # V channel in HSV
-    saturation_threshold: float = 80.0  # S channel in HSV
+    distance_tolerance: float = 2.0  # pixels — matching reference implementation
+    radius_tolerance: float = 3.0  # pixels — max allowed deviation from expected radius
+    brightness_threshold: float = 166.0  # V channel in HSV — midpoint between #4e4e4e (V=78) and #ffffff (V=255)
     hough_starship: HoughParams = field(
         default_factory=lambda: HoughParams(
             dp=1.0,
@@ -117,20 +117,26 @@ def _detect_circles(
 
 def _match_circles_to_positions(
     detected_circles: list[tuple[float, float, float]],
-    expected_positions: list[tuple[str, float, float]],
+    expected_positions: list[tuple[str, float, float, float]],
     distance_tolerance: float,
+    radius_tolerance: float,
 ) -> dict[str, tuple[float, float, float] | None]:
     """Match detected circles to expected SVG positions deterministically.
 
-    Uses a greedy nearest-neighbor matching algorithm that is deterministic:
+    Uses a greedy nearest-neighbor matching algorithm with radius validation:
     1. Compute all pairwise distances between detected circles and expected positions
-    2. Sort pairs by distance (ascending), then by expected position index for ties
-    3. Greedily assign closest available pairs within tolerance
+    2. Filter pairs where distance exceeds distance_tolerance OR detected radius
+       deviates from expected radius by more than radius_tolerance
+    3. Sort valid pairs by a combined score (distance + radius deviation) for
+       better matching quality, with expected position index as tiebreaker
+    4. Greedily assign best available pairs — each detected circle matches at
+       most one expected position and vice versa (strict 1:1 matching)
 
     Args:
         detected_circles: List of (x, y, radius) for each detected circle
-        expected_positions: List of (engine_id, x, y) for expected SVG positions
+        expected_positions: List of (engine_id, x, y, expected_radius) for expected SVG positions
         distance_tolerance: Maximum Euclidean distance for a valid match
+        radius_tolerance: Maximum allowed deviation between detected and expected radius
 
     Returns:
         Dict mapping engine_id to matched circle (x, y, radius) or None if unmatched
@@ -139,28 +145,35 @@ def _match_circles_to_positions(
         return {}
 
     result: dict[str, tuple[float, float, float] | None] = {
-        eid: None for eid, _, _ in expected_positions
+        eid: None for eid, _, _, _ in expected_positions
     }
 
     if not detected_circles:
         return result
 
-    # Build list of all (distance, expected_idx, detected_idx) pairs
+    # Build list of all valid (score, expected_idx, detected_idx) pairs
     pairs: list[tuple[float, int, int]] = []
-    for ei, (eid, ex, ey) in enumerate(expected_positions):
+    for ei, (eid, ex, ey, er) in enumerate(expected_positions):
         for di, (dx, dy, dr) in enumerate(detected_circles):
             dist = math.sqrt((dx - ex) ** 2 + (dy - ey) ** 2)
-            if dist <= distance_tolerance:
-                pairs.append((dist, ei, di))
+            radius_diff = abs(dr - er)
 
-    # Sort by distance first, then expected index for determinism on ties
+            # Both distance and radius must be within tolerance
+            if dist > distance_tolerance or radius_diff > radius_tolerance:
+                continue
+
+            # Combined score: distance + radius deviation for better ranking
+            score = dist + radius_diff
+            pairs.append((score, ei, di))
+
+    # Sort by score first, then expected index for determinism on ties
     pairs.sort(key=lambda p: (p[0], p[1], p[2]))
 
-    # Greedy assignment
+    # Greedy 1:1 assignment — each detected circle maps to exactly one expected
     used_expected: set[int] = set()
     used_detected: set[int] = set()
 
-    for dist, ei, di in pairs:
+    for score, ei, di in pairs:
         if ei in used_expected or di in used_detected:
             continue
         eid = expected_positions[ei][0]
@@ -180,10 +193,15 @@ def _classify_engine_color(
 ) -> EngineStatus:
     """Classify engine status by sampling mean HSV within the circle area.
 
-    Creates a circular mask and computes mean Saturation and Value (brightness)
-    within the masked area. Classification rules:
-    - High V (> brightness_threshold) AND high S (> saturation_threshold) → ACTIVE
-    - Low V (≤ brightness_threshold) → INACTIVE
+    Creates a circular mask and computes mean Value (brightness) within
+    the masked area. Classification is based on brightness alone since
+    engine indicators on the frame are grayscale:
+    - Active engines: #ffffff (V=255, white)
+    - Inactive engines: #4e4e4e (V=78, dark gray)
+
+    Classification rule:
+    - V > brightness_threshold → ACTIVE
+    - V ≤ brightness_threshold → INACTIVE
     """
     h, w = hsv_frame.shape[:2]
 
@@ -196,10 +214,9 @@ def _classify_engine_color(
     # Sample mean HSV within the circle
     mean_hsv = cv2.mean(hsv_frame, mask=mask)
     # mean_hsv is (H, S, V, _) for 3-channel HSV image
-    mean_s = mean_hsv[1]
     mean_v = mean_hsv[2]
 
-    if mean_v > config.brightness_threshold and mean_s > config.saturation_threshold:
+    if mean_v > config.brightness_threshold:
         return EngineStatus.ACTIVE
     else:
         return EngineStatus.INACTIVE
@@ -207,7 +224,7 @@ def _classify_engine_color(
 
 def _get_all_expected_positions(
     group: EngineGroup, offset_x: float, offset_y: float
-) -> list[tuple[str, float, float]]:
+) -> list[tuple[str, float, float, float]]:
     """Get all expected engine positions from a group, adjusted for crop offset.
 
     Args:
@@ -216,15 +233,15 @@ def _get_all_expected_positions(
         offset_y: Y offset of the bounding box crop
 
     Returns:
-        List of (engine_id, x_in_crop, y_in_crop) tuples
+        List of (engine_id, x_in_crop, y_in_crop, expected_radius) tuples
     """
-    positions: list[tuple[str, float, float]] = []
+    positions: list[tuple[str, float, float, float]] = []
     for subgroup in group.subgroups:
         for circle in subgroup.circles:
             # Translate SVG coordinates to cropped-frame coordinates
             local_x = circle.cx - offset_x
             local_y = circle.cy - offset_y
-            positions.append((circle.id, local_x, local_y))
+            positions.append((circle.id, local_x, local_y, circle.r))
     return positions
 
 
@@ -303,7 +320,7 @@ def analyze_engines(
 
         # Step 4: Match detected circles to expected SVG positions
         matches = _match_circles_to_positions(
-            detected_circles, expected_positions, config.distance_tolerance
+            detected_circles, expected_positions, config.distance_tolerance, config.radius_tolerance
         )
 
         # Convert cropped BGR to HSV for color sampling

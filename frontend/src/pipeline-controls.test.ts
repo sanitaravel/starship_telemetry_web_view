@@ -25,7 +25,7 @@ function createPipelineStatus(status: PipelineStatus['status']): PipelineStatus 
   return {
     status,
     gpu: { available: false, device_name: null },
-    frame_interval_ms: 1000,
+    skip_frames: 30,
     current_sequence: 0,
   };
 }
@@ -184,7 +184,7 @@ describe('PipelineControls', () => {
       expect((ws.sendCommand as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith({
         action: 'start',
         source_url: 'https://youtube.com/live/test',
-        interval_ms: 1000,
+        skip_frames: 30,
       });
     });
   });

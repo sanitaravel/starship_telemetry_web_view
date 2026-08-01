@@ -24,7 +24,10 @@ export class FramePreview {
       <div class="frame-preview">
         <div class="frame-preview__header">
           <span class="frame-preview__title">Live Frame</span>
-          <span class="frame-preview__seq"></span>
+          <span class="frame-preview__stats">
+            <span class="frame-preview__fps"></span>
+            <span class="frame-preview__seq"></span>
+          </span>
         </div>
         <div class="frame-preview__image-container">
           <img class="frame-preview__img" alt="Current processed frame" />
@@ -45,6 +48,11 @@ export class FramePreview {
       const placeholder = this.container.querySelector('.frame-preview__placeholder') as HTMLElement;
       if (placeholder) placeholder.style.display = 'none';
       this.sequenceLabel.textContent = `#${frame.sequence}`;
+
+      const fpsEl = this.container.querySelector('.frame-preview__fps') as HTMLElement;
+      if (fpsEl && frame.processing_fps) {
+        fpsEl.textContent = `${frame.processing_fps.toFixed(1)} FPS`;
+      }
     }
   }
 

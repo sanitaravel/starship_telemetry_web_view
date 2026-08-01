@@ -14,53 +14,53 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 /** Starship engine layout (native 84×76 coordinate space) */
 const STARSHIP_ENGINES: EnginePosition[] = [
   // Atmospheric engines
-  { id: 'E1', cx: 42, cy: 21, r: 5.5 },
-  { id: 'E2', cx: 50, cy: 35, r: 5.5 },
-  { id: 'E3', cx: 34, cy: 35, r: 5.5 },
+  { id: 'ss_e1', cx: 42, cy: 21, r: 5.5 },
+  { id: 'ss_e2', cx: 50, cy: 35, r: 5.5 },
+  { id: 'ss_e3', cx: 34, cy: 35, r: 5.5 },
   // Vacuum engines
-  { id: 'E4', cx: 69, cy: 15, r: 14.5 },
-  { id: 'E5', cx: 42, cy: 61, r: 14.5 },
-  { id: 'E6', cx: 15, cy: 15, r: 14.5 },
+  { id: 'ss_e4', cx: 69, cy: 15, r: 14.5 },
+  { id: 'ss_e5', cx: 42, cy: 61, r: 14.5 },
+  { id: 'ss_e6', cx: 15, cy: 15, r: 14.5 },
 ];
 
 /** Super Heavy engine layout (native 96×96 coordinate space, from superheavy_engine_diagram.svg) */
 const SUPERHEAVY_ENGINES: EnginePosition[] = [
   // Inner ring (3 engines)
-  { id: 'E1', cx: 56, cy: 43, r: 5.5 },
-  { id: 'E2', cx: 48, cy: 57, r: 5.5 },
-  { id: 'E3', cx: 40, cy: 43, r: 5.5 },
+  { id: 'sh_e1', cx: 56, cy: 43, r: 5.5 },
+  { id: 'sh_e2', cx: 48, cy: 57, r: 5.5 },
+  { id: 'sh_e3', cx: 40, cy: 43, r: 5.5 },
   // Middle ring (10 engines)
-  { id: 'E4', cx: 56, cy: 24, r: 5.5 },
-  { id: 'E5', cx: 69, cy: 33, r: 5.5 },
-  { id: 'E6', cx: 74, cy: 48, r: 5.5 },
-  { id: 'E7', cx: 69, cy: 63, r: 5.5 },
-  { id: 'E8', cx: 56, cy: 72, r: 5.5 },
-  { id: 'E9', cx: 40, cy: 72, r: 5.5 },
-  { id: 'E10', cx: 27, cy: 63, r: 5.5 },
-  { id: 'E11', cx: 22, cy: 48, r: 5.5 },
-  { id: 'E12', cx: 27, cy: 33, r: 5.5 },
-  { id: 'E13', cx: 40, cy: 24, r: 5.5 },
+  { id: 'sh_e4', cx: 56, cy: 24, r: 5.5 },
+  { id: 'sh_e5', cx: 69, cy: 33, r: 5.5 },
+  { id: 'sh_e6', cx: 74, cy: 48, r: 5.5 },
+  { id: 'sh_e7', cx: 69, cy: 63, r: 5.5 },
+  { id: 'sh_e8', cx: 56, cy: 72, r: 5.5 },
+  { id: 'sh_e9', cx: 40, cy: 72, r: 5.5 },
+  { id: 'sh_e10', cx: 27, cy: 63, r: 5.5 },
+  { id: 'sh_e11', cx: 22, cy: 48, r: 5.5 },
+  { id: 'sh_e12', cx: 27, cy: 33, r: 5.5 },
+  { id: 'sh_e13', cx: 40, cy: 24, r: 5.5 },
   // Outer ring (20 engines)
-  { id: 'E14', cx: 55, cy: 6, r: 5.5 },
-  { id: 'E15', cx: 67, cy: 10, r: 5.5 },
-  { id: 'E16', cx: 78, cy: 18, r: 5.5 },
-  { id: 'E17', cx: 86, cy: 29, r: 5.5 },
-  { id: 'E18', cx: 90, cy: 41, r: 5.5 },
-  { id: 'E19', cx: 90, cy: 55, r: 5.5 },
-  { id: 'E20', cx: 86, cy: 67, r: 5.5 },
-  { id: 'E21', cx: 78, cy: 78, r: 5.5 },
-  { id: 'E22', cx: 68, cy: 86, r: 5.5 },
-  { id: 'E23', cx: 55, cy: 90, r: 5.5 },
-  { id: 'E24', cx: 41, cy: 90, r: 5.5 },
-  { id: 'E25', cx: 28, cy: 86, r: 5.5 },
-  { id: 'E26', cx: 18, cy: 78, r: 5.5 },
-  { id: 'E27', cx: 10, cy: 67, r: 5.5 },
-  { id: 'E28', cx: 6, cy: 55, r: 5.5 },
-  { id: 'E29', cx: 6, cy: 41, r: 5.5 },
-  { id: 'E30', cx: 10, cy: 29, r: 5.5 },
-  { id: 'E31', cx: 18, cy: 18, r: 5.5 },
-  { id: 'E32', cx: 29, cy: 10, r: 5.5 },
-  { id: 'E33', cx: 41, cy: 6, r: 5.5 },
+  { id: 'sh_e14', cx: 55, cy: 6, r: 5.5 },
+  { id: 'sh_e15', cx: 67, cy: 10, r: 5.5 },
+  { id: 'sh_e16', cx: 78, cy: 18, r: 5.5 },
+  { id: 'sh_e17', cx: 86, cy: 29, r: 5.5 },
+  { id: 'sh_e18', cx: 90, cy: 41, r: 5.5 },
+  { id: 'sh_e19', cx: 90, cy: 55, r: 5.5 },
+  { id: 'sh_e20', cx: 86, cy: 67, r: 5.5 },
+  { id: 'sh_e21', cx: 78, cy: 78, r: 5.5 },
+  { id: 'sh_e22', cx: 68, cy: 86, r: 5.5 },
+  { id: 'sh_e23', cx: 55, cy: 90, r: 5.5 },
+  { id: 'sh_e24', cx: 41, cy: 90, r: 5.5 },
+  { id: 'sh_e25', cx: 28, cy: 86, r: 5.5 },
+  { id: 'sh_e26', cx: 18, cy: 78, r: 5.5 },
+  { id: 'sh_e27', cx: 10, cy: 67, r: 5.5 },
+  { id: 'sh_e28', cx: 6, cy: 55, r: 5.5 },
+  { id: 'sh_e29', cx: 6, cy: 41, r: 5.5 },
+  { id: 'sh_e30', cx: 10, cy: 29, r: 5.5 },
+  { id: 'sh_e31', cx: 18, cy: 18, r: 5.5 },
+  { id: 'sh_e32', cx: 29, cy: 10, r: 5.5 },
+  { id: 'sh_e33', cx: 41, cy: 6, r: 5.5 },
 ];
 
 /** Display sizes for the rendered SVGs (used as fallback, CSS overrides with 100% width) */
@@ -166,6 +166,10 @@ export class EngineVisualizer {
 
     this.container.appendChild(superheavySection);
     this.container.appendChild(starshipSection);
+
+    // Legend
+    const legend = this.createLegend();
+    this.container.appendChild(legend);
   }
 
   /**
@@ -212,6 +216,42 @@ export class EngineVisualizer {
   }
 
   /**
+   * Create the legend showing what each engine status color means.
+   */
+  private createLegend(): HTMLElement {
+    const legend = document.createElement('div');
+    legend.className = 'engine-visualizer__legend';
+    legend.setAttribute('aria-label', 'Engine status legend');
+
+    const items: { status: EngineStatus; label: string; description: string }[] = [
+      { status: 'active', label: 'Active', description: 'Engine is firing' },
+      { status: 'inactive', label: 'Inactive', description: 'Engine is off' },
+      { status: 'undetected', label: 'Undetected', description: 'Status unknown' },
+    ];
+
+    for (const item of items) {
+      const entry = document.createElement('div');
+      entry.className = 'engine-visualizer__legend-item';
+
+      const swatch = document.createElement('span');
+      swatch.className = 'engine-visualizer__legend-swatch';
+      swatch.style.backgroundColor = getStatusFill(item.status);
+      swatch.style.borderColor = getStatusStroke(item.status);
+
+      const label = document.createElement('span');
+      label.className = 'engine-visualizer__legend-label';
+      label.textContent = item.label;
+      label.title = item.description;
+
+      entry.appendChild(swatch);
+      entry.appendChild(label);
+      legend.appendChild(entry);
+    }
+
+    return legend;
+  }
+
+  /**
    * Create a single engine circle with text label inside.
    * Font size is adjusted based on both circle radius and label length
    * to ensure text fits within the circle.
@@ -230,10 +270,13 @@ export class EngineVisualizer {
     circle.setAttribute('stroke', getStatusStroke(status));
     circle.setAttribute('stroke-width', '0.5');
 
+    // Display label: strip vehicle prefix (ss_/sh_) for cleaner display
+    const displayLabel = engine.id.replace(/^(ss|sh)_/, '').toUpperCase();
+
     // Scale font-size to fit inside the circle.
     // For monospace, approximate char width ≈ 0.6 * fontSize.
     // Text must fit within ~1.6 * r (usable horizontal space).
-    const charCount = engine.id.length;
+    const charCount = displayLabel.length;
     const maxWidthBasedSize = (engine.r * 1.6) / (charCount * 0.6);
     const maxHeightBasedSize = engine.r * 1.0;
     const fontSize = Math.min(maxWidthBasedSize, maxHeightBasedSize);
@@ -247,7 +290,7 @@ export class EngineVisualizer {
     text.setAttribute('font-size', String(fontSize.toFixed(2)));
     text.setAttribute('font-family', "'JetBrains Mono', monospace");
     text.setAttribute('font-weight', '500');
-    text.textContent = engine.id;
+    text.textContent = displayLabel;
 
     group.appendChild(circle);
     group.appendChild(text);

@@ -43,6 +43,7 @@ export interface ValidationResult {
 export interface FramePayload {
   image: string;  // base64-encoded JPEG
   sequence: number;
+  processing_fps?: number;
 }
 
 /**
@@ -59,7 +60,7 @@ export interface WebSocketMessage {
 export interface PipelineStatus {
   status: 'stopped' | 'running' | 'disconnected' | 'reconnecting';
   gpu: { available: boolean; device_name: string | null };
-  frame_interval_ms: number;
+  skip_frames: number;
   current_sequence: number;
   processing_fps?: number;
 }
@@ -68,7 +69,7 @@ export interface PipelineStatus {
  * Commands sent from the frontend to control the pipeline.
  */
 export type ControlCommand =
-  | { action: 'start'; source_url: string; interval_ms?: number }
+  | { action: 'start'; source_url: string; skip_frames?: number }
   | { action: 'stop' }
   | { action: 'validate_url'; url: string }
-  | { action: 'set_interval'; interval_ms: number };
+  | { action: 'set_interval'; skip_frames: number };

@@ -46,7 +46,7 @@ def circle_position_strategy():
 
 
 def expected_position_strategy():
-    """Strategy for generating expected SVG positions with unique engine IDs."""
+    """Strategy for generating expected SVG positions with unique engine IDs and expected radius."""
     return st.tuples(
         st.text(
             alphabet=st.sampled_from("abcdefghijklmnopqrstuvwxyz0123456789_"),
@@ -55,6 +55,7 @@ def expected_position_strategy():
         ),
         st.floats(min_value=10.0, max_value=1900.0, allow_nan=False, allow_infinity=False),
         st.floats(min_value=10.0, max_value=1060.0, allow_nan=False, allow_infinity=False),
+        st.floats(min_value=3.0, max_value=15.0, allow_nan=False, allow_infinity=False),
     )
 
 
@@ -96,9 +97,11 @@ CPU_CAPABILITIES = GPUCapabilities(
 class TestEngineColorClassification:
     """Property 4: Engine Color Classification Correctness.
 
-    For any HSV color sample taken from a detected engine circle:
-    - If V > brightness_threshold AND S > saturation_threshold → ACTIVE
-    - If V ≤ brightness_threshold → INACTIVE
+    Engine indicators on the frame are grayscale:
+    - Active: #ffffff (V=255, white)
+    - Inactive: #4e4e4e (V=78, dark gray)
+
+    Classification rule: V > brightness_threshold → ACTIVE, else INACTIVE.
     """
 
     @given(
@@ -106,15 +109,12 @@ class TestEngineColorClassification:
         saturation=st.integers(min_value=0, max_value=255),
         value=st.integers(min_value=0, max_value=255),
         brightness_threshold=st.floats(min_value=1.0, max_value=254.0, allow_nan=False, allow_infinity=False),
-        saturation_threshold=st.floats(min_value=1.0, max_value=254.0, allow_nan=False, allow_infinity=False),
     )
-    def test_active_when_high_brightness_and_high_saturation(
-        self, hue, saturation, value, brightness_threshold, saturation_threshold
+    def test_active_when_high_brightness(
+        self, hue, saturation, value, brightness_threshold
     ):
-        """Engine classified ACTIVE when V > brightness_threshold AND S > saturation_threshold."""
-        # Only test the "active" case
+        """Engine classified ACTIVE when V > brightness_threshold."""
         assume(value > brightness_threshold)
-        assume(saturation > saturation_threshold)
 
         # Create a uniform HSV image large enough for a circle
         size = 30
@@ -122,7 +122,6 @@ class TestEngineColorClassification:
 
         config = EngineAnalyzerConfig(
             brightness_threshold=brightness_threshold,
-            saturation_threshold=saturation_threshold,
         )
 
         result = _classify_engine_color(
@@ -140,10 +139,9 @@ class TestEngineColorClassification:
         saturation=st.integers(min_value=0, max_value=255),
         value=st.integers(min_value=0, max_value=255),
         brightness_threshold=st.floats(min_value=1.0, max_value=254.0, allow_nan=False, allow_infinity=False),
-        saturation_threshold=st.floats(min_value=1.0, max_value=254.0, allow_nan=False, allow_infinity=False),
     )
     def test_inactive_when_low_brightness(
-        self, hue, saturation, value, brightness_threshold, saturation_threshold
+        self, hue, saturation, value, brightness_threshold
     ):
         """Engine classified INACTIVE when V ≤ brightness_threshold."""
         assume(value <= brightness_threshold)
@@ -153,7 +151,6 @@ class TestEngineColorClassification:
 
         config = EngineAnalyzerConfig(
             brightness_threshold=brightness_threshold,
-            saturation_threshold=saturation_threshold,
         )
 
         result = _classify_engine_color(
@@ -166,36 +163,30 @@ class TestEngineColorClassification:
 
         assert result == EngineStatus.INACTIVE
 
-    @given(
-        hue=st.integers(min_value=0, max_value=179),
-        saturation=st.integers(min_value=0, max_value=255),
-        value=st.integers(min_value=0, max_value=255),
-        brightness_threshold=st.floats(min_value=1.0, max_value=254.0, allow_nan=False, allow_infinity=False),
-        saturation_threshold=st.floats(min_value=1.0, max_value=254.0, allow_nan=False, allow_infinity=False),
-    )
-    def test_inactive_when_high_brightness_but_low_saturation(
-        self, hue, saturation, value, brightness_threshold, saturation_threshold
-    ):
-        """Engine classified INACTIVE when V > brightness_threshold but S ≤ saturation_threshold."""
-        assume(value > brightness_threshold)
-        assume(saturation <= saturation_threshold)
-
+    def test_ffffff_is_active(self):
+        """#ffffff (pure white, V=255) is classified as ACTIVE with default config."""
         size = 30
-        hsv_frame = np.full((size, size, 3), [hue, saturation, value], dtype=np.uint8)
-
-        config = EngineAnalyzerConfig(
-            brightness_threshold=brightness_threshold,
-            saturation_threshold=saturation_threshold,
-        )
+        # #ffffff in HSV is (0, 0, 255)
+        hsv_frame = np.full((size, size, 3), [0, 0, 255], dtype=np.uint8)
+        config = EngineAnalyzerConfig()
 
         result = _classify_engine_color(
-            hsv_frame,
-            circle_x=size / 2,
-            circle_y=size / 2,
-            circle_radius=5.0,
-            config=config,
+            hsv_frame, circle_x=size / 2, circle_y=size / 2,
+            circle_radius=5.0, config=config,
         )
+        assert result == EngineStatus.ACTIVE
 
+    def test_4e4e4e_is_inactive(self):
+        """#4e4e4e (dark gray, V=78) is classified as INACTIVE with default config."""
+        size = 30
+        # #4e4e4e in HSV is (0, 0, 78)
+        hsv_frame = np.full((size, size, 3), [0, 0, 78], dtype=np.uint8)
+        config = EngineAnalyzerConfig()
+
+        result = _classify_engine_color(
+            hsv_frame, circle_x=size / 2, circle_y=size / 2,
+            circle_radius=5.0, config=config,
+        )
         assert result == EngineStatus.INACTIVE
 
 
@@ -221,11 +212,12 @@ class TestCirclePositionMatchingDeterminism:
     )
     def test_matching_is_deterministic(self, detected_circles, expected_positions, distance_tolerance):
         """Running _match_circles_to_positions twice on same inputs produces identical results."""
+        radius_tolerance = 50.0  # large tolerance so radius doesn't filter in determinism test
         result1 = _match_circles_to_positions(
-            detected_circles, expected_positions, distance_tolerance
+            detected_circles, expected_positions, distance_tolerance, radius_tolerance
         )
         result2 = _match_circles_to_positions(
-            detected_circles, expected_positions, distance_tolerance
+            detected_circles, expected_positions, distance_tolerance, radius_tolerance
         )
 
         assert result1 == result2
@@ -241,11 +233,12 @@ class TestCirclePositionMatchingDeterminism:
     )
     def test_matching_returns_all_expected_keys(self, detected_circles, expected_positions, distance_tolerance):
         """Result always contains an entry for every expected engine ID."""
+        radius_tolerance = 50.0  # large tolerance so radius doesn't filter in key completeness test
         result = _match_circles_to_positions(
-            detected_circles, expected_positions, distance_tolerance
+            detected_circles, expected_positions, distance_tolerance, radius_tolerance
         )
 
-        expected_ids = {eid for eid, _, _ in expected_positions}
+        expected_ids = {eid for eid, _, _, _ in expected_positions}
         assert set(result.keys()) == expected_ids
 
     @given(
@@ -259,8 +252,9 @@ class TestCirclePositionMatchingDeterminism:
     )
     def test_no_detected_circle_matched_twice(self, detected_circles, expected_positions, distance_tolerance):
         """Each detected circle is matched to at most one expected position."""
+        radius_tolerance = 50.0  # large tolerance so radius doesn't filter in uniqueness test
         result = _match_circles_to_positions(
-            detected_circles, expected_positions, distance_tolerance
+            detected_circles, expected_positions, distance_tolerance, radius_tolerance
         )
 
         matched_circles = [v for v in result.values() if v is not None]

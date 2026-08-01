@@ -37,7 +37,7 @@ class PipelineState:
     status: PipelineStatus = PipelineStatus.STOPPED
     source_url: str | None = None
     source_validated: bool = False
-    frame_interval_ms: int = 1000
+    skip_frames: int = 30
     current_sequence: int = 0
     separation_state: SeparationState = SeparationState.PRE_SEPARATION
     active_template_name: str = "starship_rois"
@@ -114,7 +114,7 @@ class PipelineOrchestrator:
             logger.info("EasyOCR engine initialized.")
         return self._ocr_engine
 
-    async def start(self, source_url: str, interval_ms: int = 1000) -> None:
+    async def start(self, source_url: str, skip_frames: int = 30) -> None:
         """Start the extraction pipeline.
 
         Resolves the active template, resets per-session state, creates
@@ -122,7 +122,7 @@ class PipelineOrchestrator:
 
         Args:
             source_url: Video source URL to capture frames from.
-            interval_ms: Interval between frame captures in milliseconds.
+            skip_frames: Process every Nth frame from the stream.
         """
         if self._state.status == PipelineStatus.RUNNING:
             logger.warning("Pipeline is already running, ignoring start request.")
@@ -152,7 +152,7 @@ class PipelineOrchestrator:
         self._stage_assigner.reset()
         self._record_assembler.reset()
         self._state.source_url = source_url
-        self._state.frame_interval_ms = interval_ms
+        self._state.skip_frames = skip_frames
         self._state.current_sequence = 0
         self._state.separation_state = SeparationState.PRE_SEPARATION
 
@@ -162,7 +162,7 @@ class PipelineOrchestrator:
         # Create frame extractor config and start
         config = FrameExtractorConfig(
             source_url=source_url,
-            interval_ms=interval_ms,
+            skip_frames=skip_frames,
         )
 
         self._frame_extractor.start(config)
@@ -188,20 +188,20 @@ class PipelineOrchestrator:
         self._state.current_sequence = 0
         self._state.separation_state = SeparationState.PRE_SEPARATION
 
-    def set_interval(self, interval_ms: int) -> None:
-        """Update the frame capture interval.
+    def set_skip_frames(self, skip_frames: int) -> None:
+        """Update the frame skip count.
 
         Updates both the pipeline state and the frame extractor's active config.
-        Takes effect on the next frame capture cycle.
+        Takes effect on the next frame read cycle.
 
         Args:
-            interval_ms: New interval between frame captures in milliseconds.
+            skip_frames: Process every Nth frame (minimum 1).
         """
-        interval_ms = max(100, min(interval_ms, 10000))
-        self._state.frame_interval_ms = interval_ms
+        skip_frames = max(1, min(skip_frames, 300))
+        self._state.skip_frames = skip_frames
         if self._frame_extractor._config is not None:
-            self._frame_extractor._config.interval_ms = interval_ms
-        logger.info(f"Frame capture interval set to {interval_ms}ms")
+            self._frame_extractor._config.skip_frames = skip_frames
+        logger.info(f"Frame skip set to every {skip_frames} frames")
 
     async def _on_frame(self, frame: np.ndarray, seq: int) -> None:
         """Process a single captured frame through the full pipeline.
@@ -258,13 +258,21 @@ class PipelineOrchestrator:
             self._state.current_sequence = record.sequence_number
             self._state.separation_state = stage_result.separation_state
 
+            # Compute FPS measurement
+            frame_duration = time.perf_counter() - frame_start_time
+            self._fps_samples.append(frame_duration)
+            if len(self._fps_samples) > 10:
+                self._fps_samples = self._fps_samples[-10:]
+            avg_duration = sum(self._fps_samples) / len(self._fps_samples)
+            self._state.processing_fps = round(1.0 / avg_duration, 2) if avg_duration > 0 else 0.0
+
             # Step 5: Broadcast telemetry record
             await self._broadcast({
                 "type": "telemetry",
                 "payload": record.model_dump(),
             })
 
-            # Step 6: Broadcast current frame as JPEG for live preview
+            # Step 6: Broadcast current frame as JPEG for live preview with FPS
             try:
                 _, jpeg_buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
                 frame_b64 = base64.b64encode(jpeg_buf.tobytes()).decode('ascii')
@@ -273,19 +281,11 @@ class PipelineOrchestrator:
                     "payload": {
                         "image": frame_b64,
                         "sequence": record.sequence_number,
+                        "processing_fps": self._state.processing_fps,
                     },
                 })
             except Exception as frame_err:
                 logger.warning(f"Failed to encode/broadcast frame: {frame_err}")
-
-            # Step 7: Update FPS measurement
-            frame_duration = time.perf_counter() - frame_start_time
-            self._fps_samples.append(frame_duration)
-            # Keep only the last 10 samples for a rolling average
-            if len(self._fps_samples) > 10:
-                self._fps_samples = self._fps_samples[-10:]
-            avg_duration = sum(self._fps_samples) / len(self._fps_samples)
-            self._state.processing_fps = round(1.0 / avg_duration, 2) if avg_duration > 0 else 0.0
 
         except Exception as e:
             logger.error(f"Error processing frame {seq}: {e}", exc_info=True)
@@ -313,7 +313,7 @@ class PipelineOrchestrator:
         """Build the pipeline status payload dictionary.
 
         Returns:
-            Dictionary with status, gpu info, frame_interval_ms,
+            Dictionary with status, gpu info, skip_frames,
             current_sequence, and processing_fps for API and WebSocket responses.
         """
         return {
@@ -322,7 +322,7 @@ class PipelineOrchestrator:
                 "available": self._gpu_capabilities.gpu_available,
                 "device_name": self._gpu_capabilities.device_name,
             },
-            "frame_interval_ms": self._state.frame_interval_ms,
+            "skip_frames": self._state.skip_frames,
             "current_sequence": self._state.current_sequence,
             "processing_fps": self._state.processing_fps,
         }

@@ -17,9 +17,9 @@ describe('TypeScript interfaces', () => {
       stage_assignment_left: 'super_heavy',
       stage_assignment_right: 'starship',
       separation_state: 'post_separation',
-      starship_engines: { e1: 'active', e2: 'active', e3: 'inactive', e4: 'active', e5: 'active', e6: 'undetected' },
+      starship_engines: { ss_e1: 'active', ss_e2: 'active', ss_e3: 'inactive', ss_e4: 'active', ss_e5: 'active', ss_e6: 'undetected' },
       superheavy_engines: Object.fromEntries(
-        Array.from({ length: 33 }, (_, i) => [`e${i + 1}`, 'inactive' as const])
+        Array.from({ length: 33 }, (_, i) => [`sh_e${i + 1}`, 'inactive' as const])
       ),
       detection_accuracy: { starship: 0.83, superheavy: 0.97 },
       timestamp: Date.now(),
@@ -35,7 +35,7 @@ describe('TypeScript interfaces', () => {
     const status: PipelineStatus = {
       status: 'running',
       gpu: { available: true, device_name: 'NVIDIA RTX 4090' },
-      frame_interval_ms: 1000,
+      skip_frames: 30,
       current_sequence: 42,
     };
 
@@ -44,7 +44,7 @@ describe('TypeScript interfaces', () => {
   });
 
   it('ControlCommand supports all action types', () => {
-    const start: ControlCommand = { action: 'start', source_url: 'https://example.com/stream', interval_ms: 500 };
+    const start: ControlCommand = { action: 'start', source_url: 'https://example.com/stream', skip_frames: 15 };
     const stop: ControlCommand = { action: 'stop' };
     const validate: ControlCommand = { action: 'validate_url', url: 'https://example.com/stream' };
 
@@ -72,9 +72,9 @@ describe('TypeScript interfaces', () => {
             stage_assignment_left: 'super_heavy',
             stage_assignment_right: 'super_heavy',
             separation_state: 'pre_separation',
-            starship_engines: { e1: 'undetected', e2: 'undetected', e3: 'undetected', e4: 'undetected', e5: 'undetected', e6: 'undetected' },
+            starship_engines: { ss_e1: 'undetected', ss_e2: 'undetected', ss_e3: 'undetected', ss_e4: 'undetected', ss_e5: 'undetected', ss_e6: 'undetected' },
             superheavy_engines: Object.fromEntries(
-              Array.from({ length: 33 }, (_, i) => [`e${i + 1}`, 'undetected' as const])
+              Array.from({ length: 33 }, (_, i) => [`sh_e${i + 1}`, 'undetected' as const])
             ),
             detection_accuracy: { starship: 0, superheavy: 0 },
             timestamp: Date.now(),

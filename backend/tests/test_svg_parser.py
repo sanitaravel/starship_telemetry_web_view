@@ -116,21 +116,21 @@ class TestParseROITemplate:
         atmo = next(sg for sg in starship_group.subgroups if sg.name == "atmo")
         assert len(atmo.circles) == 3
         circle_ids = [c.id for c in atmo.circles]
-        assert "e1" in circle_ids
-        assert "e2" in circle_ids
-        assert "e3" in circle_ids
+        assert "ss_e1" in circle_ids
+        assert "ss_e2" in circle_ids
+        assert "ss_e3" in circle_ids
 
     def test_starship_vacuum_circles(self, parsed_config: ROIConfiguration):
-        """Starship vacuum subgroup should have 3 circles: e4, e5, e6."""
+        """Starship vacuum subgroup should have 3 circles: ss_e4, ss_e5, ss_e6."""
         starship_group = next(
             g for g in parsed_config.engine_groups if g.group_id == "engines_starship"
         )
         vacuum = next(sg for sg in starship_group.subgroups if sg.name == "vacuum")
         assert len(vacuum.circles) == 3
         circle_ids = [c.id for c in vacuum.circles]
-        assert "e4" in circle_ids
-        assert "e5" in circle_ids
-        assert "e6" in circle_ids
+        assert "ss_e4" in circle_ids
+        assert "ss_e5" in circle_ids
+        assert "ss_e6" in circle_ids
 
     def test_superheavy_engine_subgroups(self, parsed_config: ROIConfiguration):
         """Super Heavy engine group should have outer, middle, inner subgroups."""
@@ -172,7 +172,7 @@ class TestParseROITemplate:
             g for g in parsed_config.engine_groups if g.group_id == "engines_starship"
         )
         atmo = next(sg for sg in starship_group.subgroups if sg.name == "atmo")
-        e1 = next(c for c in atmo.circles if c.id == "e1")
+        e1 = next(c for c in atmo.circles if c.id == "ss_e1")
         assert e1.cx == 1765
         assert e1.cy == 981
         assert e1.r == 5.5

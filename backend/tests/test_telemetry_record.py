@@ -30,14 +30,14 @@ def _make_sample_record() -> TelemetryRecord:
         stage_assignment_right="starship",
         separation_state="post_separation",
         starship_engines={
-            "e1": "active",
-            "e2": "active",
-            "e3": "inactive",
-            "e4": "active",
-            "e5": "active",
-            "e6": "undetected",
+            "ss_e1": "active",
+            "ss_e2": "active",
+            "ss_e3": "inactive",
+            "ss_e4": "active",
+            "ss_e5": "active",
+            "ss_e6": "undetected",
         },
-        superheavy_engines={f"e{i}": "inactive" for i in range(1, 34)},
+        superheavy_engines={f"sh_e{i}": "inactive" for i in range(1, 34)},
         detection_accuracy=DetectionAccuracy(starship=0.83, superheavy=0.97),
         timestamp=1700000000000,
     )
@@ -95,7 +95,7 @@ class TestSerialization:
         assert data["speed_left"]["unit"] == "KM/H"
         assert data["speed_left"]["status"] == "available"
         assert data["separation_state"] == "post_separation"
-        assert data["starship_engines"]["e1"] == "active"
+        assert data["starship_engines"]["ss_e1"] == "active"
         assert data["detection_accuracy"]["starship"] == 0.83
 
     def test_serialize_null_fields(self):
@@ -245,11 +245,11 @@ def telemetry_records(draw):
     """Generate arbitrary valid TelemetryRecord objects with realistic constraints."""
     engine_statuses = sampled_from(["active", "inactive", "undetected"])
 
-    # Exactly 6 starship engines keyed "e1"-"e6"
-    starship_engines = {f"e{i}": draw(engine_statuses) for i in range(1, 7)}
+    # Exactly 6 starship engines keyed "ss_e1"-"ss_e6"
+    starship_engines = {f"ss_e{i}": draw(engine_statuses) for i in range(1, 7)}
 
-    # Exactly 33 superheavy engines keyed "e1"-"e33"
-    superheavy_engines = {f"e{i}": draw(engine_statuses) for i in range(1, 34)}
+    # Exactly 33 superheavy engines keyed "sh_e1"-"sh_e33"
+    superheavy_engines = {f"sh_e{i}": draw(engine_statuses) for i in range(1, 34)}
 
     return TelemetryRecord(
         sequence_number=draw(integers(min_value=0, max_value=2**31 - 1)),

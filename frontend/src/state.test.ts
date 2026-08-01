@@ -16,9 +16,9 @@ function createTestTelemetryRecord(overrides: Partial<TelemetryRecord> = {}): Te
     stage_assignment_left: 'super_heavy',
     stage_assignment_right: 'starship',
     separation_state: 'post_separation',
-    starship_engines: { e1: 'active', e2: 'active', e3: 'inactive', e4: 'active', e5: 'active', e6: 'undetected' },
+    starship_engines: { ss_e1: 'active', ss_e2: 'active', ss_e3: 'inactive', ss_e4: 'active', ss_e5: 'active', ss_e6: 'undetected' },
     superheavy_engines: Object.fromEntries(
-      Array.from({ length: 33 }, (_, i) => [`e${i + 1}`, 'inactive' as const])
+      Array.from({ length: 33 }, (_, i) => [`sh_e${i + 1}`, 'inactive' as const])
     ),
     detection_accuracy: { starship: 0.83, superheavy: 0.97 },
     timestamp: 1700000000000,
@@ -53,7 +53,7 @@ describe('StateManager', () => {
     const status: PipelineStatus = {
       status: 'running',
       gpu: { available: true, device_name: 'NVIDIA RTX 4090' },
-      frame_interval_ms: 1000,
+      skip_frames: 30,
       current_sequence: 42,
     };
 

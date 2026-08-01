@@ -100,7 +100,7 @@ class PipelineStatusResponse(BaseModel):
 
     status: str
     gpu: dict[str, Any]
-    frame_interval_ms: int
+    skip_frames: int
     current_sequence: int
 
 
@@ -161,9 +161,9 @@ def create_app() -> FastAPI:
 
                 if action == "start":
                     source_url = data.get("source_url", "")
-                    interval = data.get("interval_ms", 1000)
+                    skip_frames = data.get("skip_frames", 30)
 
-                    await orchestrator.start(source_url, interval)
+                    await orchestrator.start(source_url, skip_frames)
 
                 elif action == "stop":
                     orchestrator.stop()
@@ -188,8 +188,8 @@ def create_app() -> FastAPI:
                     await websocket.send_json(result)
 
                 elif action == "set_interval":
-                    interval_ms = data.get("interval_ms", 1000)
-                    orchestrator.set_interval(interval_ms)
+                    skip_frames = data.get("skip_frames", 30)
+                    orchestrator.set_skip_frames(skip_frames)
 
                     await manager.broadcast_json({
                         "type": "status",

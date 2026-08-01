@@ -71,22 +71,22 @@ export class PipelineControls {
 
     const intervalLabel = document.createElement('label');
     intervalLabel.className = 'pipeline-controls__interval-label';
-    intervalLabel.textContent = 'Capture interval:';
+    intervalLabel.textContent = 'Process every:';
     intervalLabel.setAttribute('for', 'interval-input');
 
     this.intervalInput = document.createElement('input');
     this.intervalInput.type = 'number';
     this.intervalInput.id = 'interval-input';
-    this.intervalInput.min = '100';
-    this.intervalInput.max = '10000';
-    this.intervalInput.step = '100';
-    this.intervalInput.value = '1000';
+    this.intervalInput.min = '1';
+    this.intervalInput.max = '300';
+    this.intervalInput.step = '1';
+    this.intervalInput.value = '30';
     this.intervalInput.className = 'pipeline-controls__interval-input';
-    this.intervalInput.setAttribute('aria-label', 'Capture interval in milliseconds');
+    this.intervalInput.setAttribute('aria-label', 'Process every Nth frame');
 
     const intervalUnit = document.createElement('span');
     intervalUnit.className = 'pipeline-controls__interval-unit';
-    intervalUnit.textContent = 'ms';
+    intervalUnit.textContent = 'th frame';
 
     intervalRow.appendChild(intervalLabel);
     intervalRow.appendChild(this.intervalInput);
@@ -165,8 +165,8 @@ export class PipelineControls {
     if (pipelineStatus === 'running') {
       this.ws.sendCommand({ action: 'stop' });
     } else {
-      const intervalMs = parseInt(this.intervalInput.value, 10) || 1000;
-      this.ws.sendCommand({ action: 'start', source_url: this.currentUrl, interval_ms: intervalMs });
+      const skipFrames = parseInt(this.intervalInput.value, 10) || 30;
+      this.ws.sendCommand({ action: 'start', source_url: this.currentUrl, skip_frames: skipFrames });
     }
   }
 
