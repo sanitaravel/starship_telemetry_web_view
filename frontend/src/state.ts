@@ -190,7 +190,11 @@ export function appendToTimeSeries(
       value: record.speed_left.value,
       unit: record.speed_left.unit ?? '',
     };
-    if (record.stage_assignment_left === 'super_heavy') {
+    if (record.separation_state === 'pre_separation') {
+      // Pre-separation: data goes to both vehicles
+      newStore.speedSuperHeavy.push(point);
+      newStore.speedStarship.push({ ...point });
+    } else if (record.stage_assignment_left === 'super_heavy') {
       newStore.speedSuperHeavy.push(point);
     } else {
       newStore.speedStarship.push(point);
@@ -204,7 +208,10 @@ export function appendToTimeSeries(
       value: record.altitude_left.value,
       unit: record.altitude_left.unit ?? '',
     };
-    if (record.stage_assignment_left === 'super_heavy') {
+    if (record.separation_state === 'pre_separation') {
+      newStore.altitudeSuperHeavy.push(point);
+      newStore.altitudeStarship.push({ ...point });
+    } else if (record.stage_assignment_left === 'super_heavy') {
       newStore.altitudeSuperHeavy.push(point);
     } else {
       newStore.altitudeStarship.push(point);
@@ -219,7 +226,10 @@ export function appendToTimeSeries(
       value: record.speed_right.value,
       unit: record.speed_right.unit ?? '',
     };
-    if (record.stage_assignment_right === 'super_heavy') {
+    if (record.separation_state === 'pre_separation') {
+      newStore.speedSuperHeavy.push(point);
+      newStore.speedStarship.push({ ...point });
+    } else if (record.stage_assignment_right === 'super_heavy') {
       newStore.speedSuperHeavy.push(point);
     } else {
       newStore.speedStarship.push(point);
@@ -233,7 +243,10 @@ export function appendToTimeSeries(
       value: record.altitude_right.value,
       unit: record.altitude_right.unit ?? '',
     };
-    if (record.stage_assignment_right === 'super_heavy') {
+    if (record.separation_state === 'pre_separation') {
+      newStore.altitudeSuperHeavy.push(point);
+      newStore.altitudeStarship.push({ ...point });
+    } else if (record.stage_assignment_right === 'super_heavy') {
       newStore.altitudeSuperHeavy.push(point);
     } else {
       newStore.altitudeStarship.push(point);

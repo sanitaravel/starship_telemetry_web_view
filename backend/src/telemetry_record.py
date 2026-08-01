@@ -45,6 +45,8 @@ class TelemetryRecord(BaseModel):
     stage_assignment_left: str
     stage_assignment_right: str
     separation_state: Literal["pre_separation", "post_separation"]
+    t_zero_found: bool = False
+    stage_sep_found: bool = False
     starship_engines: dict[str, Literal["active", "inactive", "undetected"]]
     superheavy_engines: dict[str, Literal["active", "inactive", "undetected"]]
     detection_accuracy: DetectionAccuracy

@@ -6,6 +6,7 @@ function createTestTelemetryRecord(overrides: Partial<TelemetryRecord> = {}): Te
   return {
     sequence_number: 1,
     mission_elapsed_time: 'T+00:01:30',
+    mission_elapsed_time_raw: '00:01:30',
     speed_left: { value: 1200.5, unit: 'KM/H', status: 'available' },
     speed_right: { value: 1300.0, unit: 'KM/H', status: 'available' },
     altitude_left: { value: 45.2, unit: 'KM', status: 'available' },
@@ -16,6 +17,8 @@ function createTestTelemetryRecord(overrides: Partial<TelemetryRecord> = {}): Te
     stage_assignment_left: 'super_heavy',
     stage_assignment_right: 'starship',
     separation_state: 'post_separation',
+    t_zero_found: true,
+    stage_sep_found: true,
     starship_engines: { ss_e1: 'active', ss_e2: 'active', ss_e3: 'inactive', ss_e4: 'active', ss_e5: 'active', ss_e6: 'undetected' },
     superheavy_engines: Object.fromEntries(
       Array.from({ length: 33 }, (_, i) => [`sh_e${i + 1}`, 'inactive' as const])
@@ -191,7 +194,7 @@ describe('appendToTimeSeries', () => {
     expect(store2.speedSuperHeavy[1].value).toBe(1400);
   });
 
-  it('assigns both sides to super_heavy in pre-separation', () => {
+  it('assigns both sides to both stores in pre-separation', () => {
     const store = createInitialState().timeSeries;
     const record = createTestTelemetryRecord({
       separation_state: 'pre_separation',
@@ -201,10 +204,11 @@ describe('appendToTimeSeries', () => {
 
     const result = appendToTimeSeries(store, record);
 
+    // Pre-separation: data goes to both superheavy and starship
     expect(result.speedSuperHeavy).toHaveLength(2);
-    expect(result.speedStarship).toHaveLength(0);
+    expect(result.speedStarship).toHaveLength(2);
     expect(result.altitudeSuperHeavy).toHaveLength(2);
-    expect(result.altitudeStarship).toHaveLength(0);
+    expect(result.altitudeStarship).toHaveLength(2);
   });
 
   it('records timestamp and unit in time-series points', () => {

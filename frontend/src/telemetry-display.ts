@@ -32,7 +32,10 @@ export class TelemetryDisplay {
   private stateManager: StateManager;
 
   private metElement!: HTMLElement;
-  private metRawElement!: HTMLElement;
+  private tZeroIndicator!: HTMLElement;
+  private tZeroDot!: HTMLElement;
+  private stageSepIndicator!: HTMLElement;
+  private stageSepDot!: HTMLElement;
   private speedL!: HTMLElement;
   private speedR!: HTMLElement;
   private altitudeL!: HTMLElement;
@@ -60,23 +63,49 @@ export class TelemetryDisplay {
     const metSection = document.createElement('div');
     metSection.className = 'telemetry-display__met';
 
-    const metLabel = document.createElement('span');
-    metLabel.className = 'telemetry-display__met-label';
-    metLabel.textContent = 'T+';
-
     this.metElement = document.createElement('span');
     this.metElement.className = 'telemetry-display__met-value';
     this.metElement.setAttribute('aria-label', 'Mission Elapsed Time');
     this.metElement.textContent = '--:--:--';
 
-    this.metRawElement = document.createElement('span');
-    this.metRawElement.className = 'telemetry-display__met-raw';
-    this.metRawElement.setAttribute('aria-label', 'Mission Elapsed Time Raw OCR');
-    this.metRawElement.textContent = '';
-
-    metSection.appendChild(metLabel);
     metSection.appendChild(this.metElement);
-    metSection.appendChild(this.metRawElement);
+
+    // Status indicators for T-0 and Stage Separation
+    const indicatorsSection = document.createElement('div');
+    indicatorsSection.className = 'telemetry-display__indicators';
+
+    const tZeroBadge = document.createElement('span');
+    tZeroBadge.className = 'telemetry-display__badge telemetry-display__badge--inactive';
+    this.tZeroIndicator = tZeroBadge;
+
+    this.tZeroDot = document.createElement('span');
+    this.tZeroDot.className = 'telemetry-display__badge-dot';
+
+    const tZeroLabel = document.createElement('span');
+    tZeroLabel.className = 'telemetry-display__badge-label';
+    tZeroLabel.textContent = 'T-0';
+
+    tZeroBadge.setAttribute('aria-label', 'T-0 Detection Status');
+    tZeroBadge.appendChild(this.tZeroDot);
+    tZeroBadge.appendChild(tZeroLabel);
+
+    const stageSepBadge = document.createElement('span');
+    stageSepBadge.className = 'telemetry-display__badge telemetry-display__badge--inactive';
+    this.stageSepIndicator = stageSepBadge;
+
+    this.stageSepDot = document.createElement('span');
+    this.stageSepDot.className = 'telemetry-display__badge-dot';
+
+    const stageSepLabel = document.createElement('span');
+    stageSepLabel.className = 'telemetry-display__badge-label';
+    stageSepLabel.textContent = 'STAGE SEP';
+
+    stageSepBadge.setAttribute('aria-label', 'Stage Separation Detection Status');
+    stageSepBadge.appendChild(this.stageSepDot);
+    stageSepBadge.appendChild(stageSepLabel);
+
+    indicatorsSection.appendChild(tZeroBadge);
+    indicatorsSection.appendChild(stageSepBadge);
 
     // Telemetry grid: L and R columns
     const grid = document.createElement('div');
@@ -122,6 +151,7 @@ export class TelemetryDisplay {
     grid.appendChild(rightCol);
 
     this.container.appendChild(metSection);
+    this.container.appendChild(indicatorsSection);
     this.container.appendChild(grid);
   }
 
@@ -171,7 +201,8 @@ export class TelemetryDisplay {
    */
   private renderEmpty(): void {
     this.metElement.textContent = '--:--:--';
-    this.metRawElement.textContent = '';
+    this.tZeroIndicator.className = 'telemetry-display__badge telemetry-display__badge--inactive';
+    this.stageSepIndicator.className = 'telemetry-display__badge telemetry-display__badge--inactive';
     this.speedL.textContent = '--';
     this.speedR.textContent = '--';
     this.altitudeL.textContent = '--';
@@ -184,9 +215,16 @@ export class TelemetryDisplay {
   private renderTelemetry(record: TelemetryRecord): void {
     // Mission Elapsed Time
     this.metElement.textContent = record.mission_elapsed_time ?? '--:--:--';
-    this.metRawElement.textContent = record.mission_elapsed_time_raw
-      ? `(raw: ${record.mission_elapsed_time_raw})`
-      : '';
+
+    // T-0 detection badge
+    this.tZeroIndicator.className = record.t_zero_found
+      ? 'telemetry-display__badge telemetry-display__badge--active'
+      : 'telemetry-display__badge telemetry-display__badge--inactive';
+
+    // Stage separation badge
+    this.stageSepIndicator.className = record.stage_sep_found
+      ? 'telemetry-display__badge telemetry-display__badge--active'
+      : 'telemetry-display__badge telemetry-display__badge--inactive';
 
     // Speed values with units
     this.speedL.textContent = formatFieldValue(record.speed_left);

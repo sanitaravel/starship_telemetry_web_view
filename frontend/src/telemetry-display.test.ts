@@ -10,6 +10,7 @@ function createTelemetryRecord(overrides: Partial<TelemetryRecord> = {}): Teleme
   return {
     sequence_number: 1,
     mission_elapsed_time: '00:05:32',
+    mission_elapsed_time_raw: '00:05:32',
     speed_left: { value: 1200, unit: 'km/h', status: 'available' },
     speed_right: { value: 800, unit: 'km/h', status: 'available' },
     altitude_left: { value: 45, unit: 'km', status: 'available' },
@@ -20,6 +21,8 @@ function createTelemetryRecord(overrides: Partial<TelemetryRecord> = {}): Teleme
     stage_assignment_left: 'super_heavy',
     stage_assignment_right: 'starship',
     separation_state: 'pre_separation',
+    t_zero_found: true,
+    stage_sep_found: false,
     starship_engines: {},
     superheavy_engines: {},
     detection_accuracy: { starship: 0.95, superheavy: 0.95 },

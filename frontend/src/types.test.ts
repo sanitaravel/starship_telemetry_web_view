@@ -7,6 +7,7 @@ describe('TypeScript interfaces', () => {
     const record: TelemetryRecord = {
       sequence_number: 1,
       mission_elapsed_time: 'T+00:01:30',
+      mission_elapsed_time_raw: '00:01:30',
       speed_left: { value: 1200.5, unit: 'KM/H', status: 'available' },
       speed_right: { value: 1300.0, unit: 'KM/H', status: 'available' },
       altitude_left: { value: 45.2, unit: 'KM', status: 'available' },
@@ -17,6 +18,8 @@ describe('TypeScript interfaces', () => {
       stage_assignment_left: 'super_heavy',
       stage_assignment_right: 'starship',
       separation_state: 'post_separation',
+      t_zero_found: true,
+      stage_sep_found: true,
       starship_engines: { ss_e1: 'active', ss_e2: 'active', ss_e3: 'inactive', ss_e4: 'active', ss_e5: 'active', ss_e6: 'undetected' },
       superheavy_engines: Object.fromEntries(
         Array.from({ length: 33 }, (_, i) => [`sh_e${i + 1}`, 'inactive' as const])
@@ -62,6 +65,7 @@ describe('TypeScript interfaces', () => {
           const record: TelemetryRecord = {
             sequence_number: seq,
             mission_elapsed_time: null,
+            mission_elapsed_time_raw: null,
             speed_left: { value: speed, unit: 'KM/H', status: 'available' },
             speed_right: { value: null, unit: null, status: 'unavailable' },
             altitude_left: { value: null, unit: null, status: 'unavailable' },
@@ -72,6 +76,8 @@ describe('TypeScript interfaces', () => {
             stage_assignment_left: 'super_heavy',
             stage_assignment_right: 'super_heavy',
             separation_state: 'pre_separation',
+            t_zero_found: false,
+            stage_sep_found: false,
             starship_engines: { ss_e1: 'undetected', ss_e2: 'undetected', ss_e3: 'undetected', ss_e4: 'undetected', ss_e5: 'undetected', ss_e6: 'undetected' },
             superheavy_engines: Object.fromEntries(
               Array.from({ length: 33 }, (_, i) => [`sh_e${i + 1}`, 'undetected' as const])

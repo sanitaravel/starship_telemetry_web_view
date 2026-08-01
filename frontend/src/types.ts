@@ -15,6 +15,8 @@ export interface TelemetryRecord {
   stage_assignment_left: string;
   stage_assignment_right: string;
   separation_state: 'pre_separation' | 'post_separation';
+  t_zero_found: boolean;
+  stage_sep_found: boolean;
   starship_engines: Record<string, 'active' | 'inactive' | 'undetected'>;
   superheavy_engines: Record<string, 'active' | 'inactive' | 'undetected'>;
   detection_accuracy: { starship: number; superheavy: number };

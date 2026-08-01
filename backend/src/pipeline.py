@@ -237,9 +237,17 @@ class PipelineOrchestrator:
 
             # Step 2: OCR Extraction
             ocr_engine = self._ensure_ocr_engine()
+
+            # After stage separation is detected, skip the stage_sep_text ROI
+            text_regions = self._roi_config.text_regions
+            if self._state.separation_state == SeparationState.POST_SEPARATION:
+                text_regions = {
+                    k: v for k, v in text_regions.items() if k != "stage_sep_text"
+                }
+
             ocr_result = ocr_engine.extract_text(
                 frame=frame,
-                text_regions=self._roi_config.text_regions,
+                text_regions=text_regions,
             )
 
             # Step 3: Stage Assignment
@@ -251,6 +259,8 @@ class PipelineOrchestrator:
                 ocr_result=ocr_result,
                 stage_result=stage_result,
                 engine_groups=self._roi_config.engine_groups,
+                t_zero_found=ocr_engine.t_zero_detected,
+                stage_sep_found=stage_result.separation_state == SeparationState.POST_SEPARATION,
             )
 
             # Update state

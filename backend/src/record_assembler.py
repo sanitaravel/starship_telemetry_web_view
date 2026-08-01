@@ -170,6 +170,8 @@ class RecordAssembler:
         ocr_result: OCRResult,
         stage_result: StageAssignmentResult,
         engine_groups: list[EngineGroup],
+        t_zero_found: bool = False,
+        stage_sep_found: bool = False,
     ) -> TelemetryRecord:
         """Assemble a TelemetryRecord from pipeline component outputs.
 
@@ -182,6 +184,8 @@ class RecordAssembler:
             ocr_result: Output from the OCR Engine.
             stage_result: Output from the Stage Assigner.
             engine_groups: Engine groups from ROI configuration (for splitting).
+            t_zero_found: Whether T-0 (00:00:00) has been detected in this session.
+            stage_sep_found: Whether stage separation has been detected in this session.
 
         Returns:
             A fully populated TelemetryRecord.
@@ -228,6 +232,8 @@ class RecordAssembler:
             stage_assignment_left=stage_result.left_stage,
             stage_assignment_right=stage_result.right_stage,
             separation_state=stage_result.separation_state.value,
+            t_zero_found=t_zero_found,
+            stage_sep_found=stage_sep_found,
             starship_engines=starship_engines,
             superheavy_engines=superheavy_engines,
             detection_accuracy=detection_accuracy,
