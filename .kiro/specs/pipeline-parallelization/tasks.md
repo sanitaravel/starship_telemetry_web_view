@@ -69,20 +69,20 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
 - [ ] 4. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Add thread-safety to EasyOCREngine for T-0 detection
+- [x] 5. Add thread-safety to EasyOCREngine for T-0 detection
   - [ ] 5.1 Modify `EasyOCREngine` with `threading.Lock` for T-0 state
     - Add `self._t_zero_lock = threading.Lock()` to `__init__`
     - Wrap T-0 state reads and writes in `extract_text` with double-check locking pattern
     - Ensure exactly-once state transition from not-detected to detected under concurrent access
     - _Requirements: 5.3, 5.4_
 
-  - [ ]* 5.2 Write property test for T-0 exactly-once transition (Property 10)
+  - [ ] 5.2 Write property test for T-0 exactly-once transition (Property 10)
     - **Property 10: T-0 Exactly-Once State Transition**
     - Generate concurrent thread counts (2-8), use `threading.Barrier` to synchronize, verify state transition occurs exactly once
     - **Validates: Requirements 5.3, 5.4**
 
 - [ ] 6. Implement intra-frame parallel execution in PipelineOrchestrator
-  - [ ] 6.1 Add ThreadPoolExecutor lifecycle to `start()` and `stop()`
+  - [-] 6.1 Add ThreadPoolExecutor lifecycle to `start()` and `stop()`
     - Create `ThreadPoolExecutor(max_workers=config.executor_max_workers)` in `start()`
     - Call `shutdown(wait=True, cancel_futures=True)` in `stop()` with 10-second timeout
     - Store executor reference and release on stop

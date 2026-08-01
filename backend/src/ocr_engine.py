@@ -5,6 +5,7 @@ Uses EasyOCR with GPU acceleration (when available) to read text values
 """
 
 import re
+import threading
 from dataclasses import dataclass
 
 import easyocr
@@ -169,6 +170,7 @@ class EasyOCREngine:
             gpu=gpu_capabilities.gpu_available,
         )
         self._t_zero_detected: bool = False
+        self._t_zero_lock = threading.Lock()
 
     def extract_text(
         self,
@@ -203,13 +205,20 @@ class EasyOCREngine:
                 frame, "time", text_regions["time"]
             )
 
+            # Read T-0 state under lock (first check of double-check pattern)
+            with self._t_zero_lock:
+                t_zero_was_detected = self._t_zero_detected
+
             # T-0 detection: wait for 00:00:00 before emitting telemetry
-            if not self._t_zero_detected:
+            if not t_zero_was_detected:
                 if (
                     time_result.status == OCRFieldStatus.AVAILABLE
                     and time_result.parsed_value == "00:00:00"
                 ):
-                    self._t_zero_detected = True
+                    # Double-check locking: acquire lock and verify state
+                    with self._t_zero_lock:
+                        if not self._t_zero_detected:
+                            self._t_zero_detected = True
                     # Mark as T+00:00:00 for the output
                     time_result = OCRFieldResult(
                         status=OCRFieldStatus.AVAILABLE,
@@ -362,9 +371,11 @@ class EasyOCREngine:
 
     def reset(self) -> None:
         """Reset T-0 detection state for a new pipeline run."""
-        self._t_zero_detected = False
+        with self._t_zero_lock:
+            self._t_zero_detected = False
 
     @property
     def t_zero_detected(self) -> bool:
         """Whether T-0 (00:00:00) has been detected."""
-        return self._t_zero_detected
+        with self._t_zero_lock:
+            return self._t_zero_detected
