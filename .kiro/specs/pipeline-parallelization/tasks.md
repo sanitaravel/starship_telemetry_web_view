@@ -152,8 +152,8 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - Generate timeout scenarios, verify task cancelled and expected sequence advanced past timed-out frame
     - **Validates: Requirements 8.1**
 
-- [ ] 9. Update PipelineState and WebSocket status payload
-  - [ ] 9.1 Add parallel processing fields to `PipelineState` and status payload
+- [x] 9. Update PipelineState and WebSocket status payload
+  - [-] 9.1 Add parallel processing fields to `PipelineState` and status payload
     - Add `in_flight_frames`, `t_zero_detected`, `parallel_mode_active`, `frames_discarded`, `buffer_size` to `PipelineState`
     - Update `build_status_payload()` to include `in_flight_frames`, `parallel_mode_active`, `frames_discarded`
     - Compute and include `processing_fps` from `FPSMeter.get_fps()`

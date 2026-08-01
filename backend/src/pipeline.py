@@ -48,6 +48,11 @@ class PipelineState:
     active_template_name: str = "starship_rois"
     gpu_capabilities: GPUCapabilities | None = None
     processing_fps: float = 0.0  # actual frames processed per second
+    in_flight_frames: int = 0  # Current concurrent frame count
+    t_zero_detected: bool = False  # Whether T-0 has been detected
+    parallel_mode_active: bool = False  # Whether inter-frame parallelism is enabled
+    frames_discarded: int = 0  # Count of frames discarded due to capacity
+    buffer_size: int = 0  # Current reorder buffer occupancy
 
 
 class PipelineOrchestrator:
@@ -897,7 +902,9 @@ class PipelineOrchestrator:
 
         Returns:
             Dictionary with status, gpu info, skip_frames,
-            current_sequence, and processing_fps for API and WebSocket responses.
+            current_sequence, processing_fps, in_flight_frames,
+            parallel_mode_active, and frames_discarded for API
+            and WebSocket responses.
         """
         return {
             "status": self._state.status.value,
@@ -907,5 +914,8 @@ class PipelineOrchestrator:
             },
             "skip_frames": self._state.skip_frames,
             "current_sequence": self._state.current_sequence,
-            "processing_fps": self._state.processing_fps,
+            "processing_fps": self._fps_meter.get_fps(),
+            "in_flight_frames": self._state.in_flight_frames,
+            "parallel_mode_active": self._state.parallel_mode_active,
+            "frames_discarded": self._state.frames_discarded,
         }
