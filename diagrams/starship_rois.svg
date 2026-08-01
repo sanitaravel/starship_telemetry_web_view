@@ -1,0 +1,78 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Frame 113">
+<!-- <rect width="1920" height="1080" fill="black"/> -->
+<rect id="time" x="828.5" y="968.5" width="257" height="39" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<g id="engines_starship">
+<g id="atmo">
+<circle id="e1" cx="1765" cy="981" r="5.5" fill="#FF0000" fill-opacity="0.25" stroke="white"/>
+<circle id="e2" cx="1773" cy="995" r="5.5" fill="#FF0000" fill-opacity="0.25" stroke="white"/>
+<circle id="e3" cx="1757" cy="995" r="5.5" fill="#FF0000" fill-opacity="0.25" stroke="white"/>
+</g>
+<g id="vacuum">
+<circle id="e6" cx="1738" cy="975" r="14.5" fill="#00FF11" fill-opacity="0.25" stroke="white"/>
+<circle id="e4" cx="1792" cy="975" r="14.5" fill="#00FF11" fill-opacity="0.25" stroke="white"/>
+<circle id="e5" cx="1765" cy="1021" r="14.5" fill="#00FF11" fill-opacity="0.25" stroke="white"/>
+</g>
+</g>
+<g id="altitude_R">
+<rect id="unit" x="1741.5" y="1010.5" width="44" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="value" x="1707.5" y="968.5" width="112" height="39" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+</g>
+<g id="speed_R">
+<rect id="value_2" x="1543.5" y="968.5" width="112" height="39" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="unit_2" x="1577.5" y="1010.5" width="44" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+</g>
+<rect id="stage_R" x="1624.5" y="1039.5" width="109" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="stage_sep_text" x="914.5" y="904.5" width="85" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<g id="engines_superheavy">
+<g id="engines_outer">
+<circle id="e33" cx="148" cy="948" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e14" cx="162" cy="948" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e15" cx="174" cy="952" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e32" cx="136" cy="952" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e31" cx="125" cy="960" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e16" cx="185" cy="960" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e17" cx="193" cy="971" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e30" cx="117" cy="971" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e29" cx="113" cy="983" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e18" cx="197" cy="983" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e19" cx="197" cy="997" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e28" cx="113" cy="997" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e27" cx="117" cy="1009" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e20" cx="193" cy="1009" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e21" cx="185" cy="1020" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e26" cx="125" cy="1020" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e25" cx="135" cy="1028" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e21_2" cx="175" cy="1028" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e23" cx="162" cy="1032" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+<circle id="e24" cx="148" cy="1032" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
+</g>
+<g id="engines_middle">
+<circle id="e6_2" cx="181" cy="990" r="5.5" fill="#00FF00" fill-opacity="0.25" stroke="white"/>
+<circle id="e11" cx="129" cy="990" r="5.5" fill="#00FF00" fill-opacity="0.25" stroke="white"/>
+<circle id="e12" cx="134" cy="975" r="5.5" fill="#00FF00" fill-opacity="0.25" stroke="white"/>
+<circle id="e5_2" cx="176" cy="975" r="5.5" fill="#00FF00" fill-opacity="0.25" stroke="white"/>
+<circle id="e4_2" cx="163" cy="966" r="5.5" fill="#00FF00" fill-opacity="0.25" stroke="white"/>
+<circle id="e13" cx="147" cy="966" r="5.5" fill="#00FF00" fill-opacity="0.25" stroke="white"/>
+<circle id="e10" cx="134" cy="1005" r="5.5" fill="#00FF00" fill-opacity="0.25" stroke="white"/>
+<circle id="e7" cx="176" cy="1005" r="5.5" fill="#00FF00" fill-opacity="0.25" stroke="white"/>
+<circle id="e8" cx="163" cy="1014" r="5.5" fill="#00FF00" fill-opacity="0.25" stroke="white"/>
+<circle id="e9" cx="147" cy="1014" r="5.5" fill="#00FF00" fill-opacity="0.25" stroke="white"/>
+</g>
+<g id="engines_inner">
+<circle id="e3_2" cx="147" cy="985" r="5.5" fill="#FF0000" fill-opacity="0.25" stroke="white"/>
+<circle id="e1_2" cx="163" cy="985" r="5.5" fill="#FF0000" fill-opacity="0.25" stroke="white"/>
+<circle id="e2_2" cx="155" cy="999" r="5.5" fill="#FF0000" fill-opacity="0.25" stroke="white"/>
+</g>
+</g>
+<g id="altitude_L">
+<rect id="value_3" x="264.5" y="968.5" width="111" height="39" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="unit_3" x="298.199" y="1010.5" width="43.6018" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+</g>
+<g id="speed_L">
+<rect id="value_4" x="99.5" y="968.5" width="111" height="39" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="unit_4" x="133.199" y="1010.5" width="43.6018" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+</g>
+<rect id="stage_L" x="182.5" y="1039.5" width="109" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+</g>
+</svg>
