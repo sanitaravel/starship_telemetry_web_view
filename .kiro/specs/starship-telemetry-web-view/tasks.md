@@ -35,8 +35,8 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - **Property 16: Validation Error on Missing Fields**
     - **Validates: Requirements 9.3, 9.4**
 
-- [ ] 2. Implement SVG Template Parser and Template Registry
-  - [ ] 2.1 Implement SVG Template Parser
+- [x] 2. Implement SVG Template Parser and Template Registry
+  - [x] 2.1 Implement SVG Template Parser
     - Create `backend/src/svg_parser.py` with `parse_roi_template()` function
     - Parse named groups and rectangles extracting bounding box coordinates (x, y, width, height) relative to 1920×1080
     - Parse circle elements within engine groups extracting (cx, cy, r)
@@ -44,19 +44,19 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - Implement `serialize_roi_configuration()` for round-trip support
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-  - [ ]* 2.2 Write property tests for SVG Template Parser
+  - [x] 2.2 Write property tests for SVG Template Parser
     - **Property 1: SVG Template Round-Trip**
     - **Property 2: Malformed SVG Error Completeness**
     - **Validates: Requirements 1.3, 1.5**
 
-  - [ ] 2.3 Implement Template Registry
+  - [x] 2.3 Implement Template Registry
     - Create `backend/src/template_registry.py` with `TemplateRegistry` class
     - Implement `register()`, `get()`, `list_templates()`, and `get_default()` methods
     - Register default `starship_rois` template from the provided SVG file
     - Return `TemplateNotFoundError` for missing template names
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
 
-  - [ ]* 2.4 Write property test for Template Registry
+  - [x] 2.4 Write property test for Template Registry
     - **Property 14: Template Registry Round-Trip**
     - **Validates: Requirements 8.1**
 
