@@ -12,7 +12,7 @@ import base64
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Awaitable
 
 import cv2
@@ -25,8 +25,9 @@ from src.frame_extractor import FrameExtractor, FrameExtractorConfig
 from src.gpu_detector import GPUCapabilities
 from src.models import ROIConfiguration
 from src.ocr_engine import EasyOCREngine, OCRFieldResult, OCRResult
-from src.parallel_config import ParallelPipelineConfig
+from src.parallel_config import FPSMeter, ParallelPipelineConfig
 from src.record_assembler import RecordAssembler
+from src.reorder_buffer import BufferedResult, BufferOverflowError, ReorderBuffer
 from src.stage_assignment import StageAssigner
 from src.template_registry import TemplateRegistry, TemplateNotFoundError
 
@@ -97,9 +98,16 @@ class PipelineOrchestrator:
         # Pipeline state
         self._state = PipelineState(gpu_capabilities=gpu_capabilities)
 
-        # FPS tracking
+        # Reorder buffer for sequential broadcasting
+        self._reorder_buffer: ReorderBuffer | None = None
+        self._broadcast_sequence: int = 0  # monotonic broadcast counter
+        self._fps_meter = FPSMeter()
+
+        # Stale gap tracking: when a gap was first noticed at next_expected
+        self._gap_detected_at: float | None = None
+
+        # FPS tracking (legacy, kept for compatibility)
         self._last_frame_time: float = 0.0
-        self._fps_samples: list[float] = []  # recent frame durations for averaging
 
         # Active ROI configuration (resolved from template on start)
         self._roi_config: ROIConfiguration | None = None
@@ -243,6 +251,212 @@ class PipelineOrchestrator:
 
         return await loop.run_in_executor(self._executor, encode_fn)
 
+    async def _handle_stale_gap(self) -> None:
+        """Check for and advance past stale gaps in the reorder buffer.
+
+        If the next_expected sequence number has been pending (not available
+        in the buffer) for longer than stale_gap_timeout_seconds, advances
+        past the gap, logs a warning, and drains the buffer.
+
+        Implements Requirement 4.5: advance past gaps stalled for >5 seconds.
+        """
+        if self._reorder_buffer is None:
+            return
+
+        # If next_expected is already in the buffer, there's no gap
+        if self._reorder_buffer.next_expected in self._reorder_buffer._buffer:
+            self._gap_detected_at = None
+            return
+
+        # If buffer is empty, nothing to do
+        if self._reorder_buffer.size == 0:
+            self._gap_detected_at = None
+            return
+
+        now = time.monotonic()
+
+        # First time noticing a gap — record the timestamp
+        if self._gap_detected_at is None:
+            self._gap_detected_at = now
+            return
+
+        # Check if the gap has been pending for longer than the timeout
+        elapsed = now - self._gap_detected_at
+        if elapsed > self._parallel_config.stale_gap_timeout_seconds:
+            gap_seq = self._reorder_buffer.next_expected
+            logger.warning(
+                "Stale gap detected: seq=%d pending for %.1f seconds. "
+                "Advancing past gap.",
+                gap_seq,
+                elapsed,
+            )
+            self._reorder_buffer.advance_past_gap(gap_seq)
+            self._gap_detected_at = None
+            await self._drain_reorder_buffer()
+
+    async def _handle_buffer_overflow(self) -> None:
+        """Check for and handle buffer overflow conditions.
+
+        Triggers overflow handling if:
+        - buffer.size >= max_buffer_size (120), OR
+        - buffer.size >= buffer_overflow_threshold * concurrency_limit
+
+        When overflow is detected, repeatedly discards the oldest gap until
+        buffer.size <= concurrency_limit, logging a warning for each discarded
+        frame. Then drains the buffer.
+
+        Implements Requirements 4.6 and 8.2.
+        """
+        if self._reorder_buffer is None:
+            return
+
+        concurrency_limit = (
+            self._concurrency_controller.limit
+            if self._concurrency_controller is not None
+            else self._parallel_config.concurrency_limit
+        )
+        max_buffer_size = self._parallel_config.max_buffer_size
+        overflow_threshold = self._parallel_config.buffer_overflow_threshold
+
+        # Check overflow conditions
+        is_overflow = (
+            self._reorder_buffer.size >= max_buffer_size
+            or self._reorder_buffer.size >= overflow_threshold * concurrency_limit
+        )
+
+        if not is_overflow:
+            return
+
+        logger.warning(
+            "Buffer overflow detected: size=%d (max=%d, threshold=%.0f×%d=%d). "
+            "Discarding oldest gaps.",
+            self._reorder_buffer.size,
+            max_buffer_size,
+            overflow_threshold,
+            concurrency_limit,
+            int(overflow_threshold * concurrency_limit),
+        )
+
+        # Discard oldest gaps until buffer.size <= concurrency_limit
+        while self._reorder_buffer.size > concurrency_limit:
+            try:
+                discarded_seq = self._reorder_buffer.discard_oldest_gap()
+                logger.warning(
+                    "Discarded stale gap at seq=%d to reduce buffer pressure "
+                    "(buffer size now: %d).",
+                    discarded_seq,
+                    self._reorder_buffer.size,
+                )
+            except ValueError:
+                # No more gaps to discard
+                logger.warning(
+                    "No more gaps to discard, buffer size: %d.",
+                    self._reorder_buffer.size,
+                )
+                break
+
+        await self._drain_reorder_buffer()
+
+    async def _submit_to_reorder_buffer(
+        self, seq: int, record: Any, frame_b64: str | None
+    ) -> None:
+        """Submit a processed result to the reorder buffer and drain.
+
+        Creates a BufferedResult and inserts it into the reorder buffer.
+        If the buffer is full, logs a warning. Then triggers a drain to
+        broadcast any consecutively available results. Also checks for
+        stale gaps and buffer overflow conditions.
+
+        Args:
+            seq: Frame sequence number.
+            record: The assembled TelemetryRecord.
+            frame_b64: Base64-encoded JPEG frame, or None if unavailable.
+        """
+        if self._reorder_buffer is None:
+            logger.warning("Reorder buffer not initialized, skipping submit.")
+            return
+
+        # Check for stale gaps on each frame arrival (piggyback approach)
+        await self._handle_stale_gap()
+
+        buffered = BufferedResult(
+            record=record,
+            frame_b64=frame_b64,
+            inserted_at=time.monotonic(),
+        )
+
+        try:
+            self._reorder_buffer.insert(seq, buffered)
+        except BufferOverflowError:
+            logger.warning(
+                "Reorder buffer overflow at seq=%d (size=%d). Discarding oldest gap.",
+                seq,
+                self._reorder_buffer.size,
+            )
+            self._reorder_buffer.discard_oldest_gap()
+            # Retry insertion after freeing space
+            try:
+                self._reorder_buffer.insert(seq, buffered)
+            except BufferOverflowError:
+                logger.error(
+                    "Reorder buffer still full after discard, dropping frame seq=%d.",
+                    seq,
+                )
+                return
+
+        # After inserting, check for buffer overflow
+        await self._handle_buffer_overflow()
+
+        # Drain consecutive results
+        await self._drain_reorder_buffer()
+
+        # After draining, check for stale gaps (may have a gap at next_expected)
+        await self._handle_stale_gap()
+
+    async def _drain_reorder_buffer(self) -> None:
+        """Drain consecutive results from the reorder buffer and broadcast.
+
+        For each drained result, assigns a monotonic broadcast sequence number,
+        records the broadcast timestamp in FPSMeter, updates processing FPS,
+        and broadcasts the telemetry record and frame preview via WebSocket.
+        """
+        if self._reorder_buffer is None:
+            return
+
+        drained = self._reorder_buffer.drain()
+
+        for result in drained:
+            # Assign monotonic broadcast sequence number
+            self._broadcast_sequence += 1
+            result.record.sequence_number = self._broadcast_sequence
+
+            # Update pipeline state
+            self._state.current_sequence = self._broadcast_sequence
+
+            # Record broadcast timestamp and update FPS
+            self._fps_meter.record_broadcast(time.monotonic())
+            self._state.processing_fps = self._fps_meter.get_fps()
+
+            # Broadcast telemetry record
+            await self._broadcast({
+                "type": "telemetry",
+                "payload": result.record.model_dump(),
+            })
+
+            # Broadcast frame preview if available
+            if result.frame_b64 is not None:
+                try:
+                    await self._broadcast({
+                        "type": "frame",
+                        "payload": {
+                            "image": result.frame_b64,
+                            "sequence": self._broadcast_sequence,
+                            "processing_fps": self._state.processing_fps,
+                        },
+                    })
+                except Exception as frame_err:
+                    logger.warning(f"Failed to broadcast frame: {frame_err}")
+
     async def _process_frame_parallel(self, frame: np.ndarray, seq: int) -> None:
         """Process a frame with intra-frame parallelism using asyncio.gather.
 
@@ -259,8 +473,6 @@ class PipelineOrchestrator:
         if self._roi_config is None:
             logger.warning("No ROI configuration available, skipping frame.")
             return
-
-        frame_start_time = time.perf_counter()
 
         try:
             # Step 1: Run engine analysis and OCR extraction concurrently
@@ -338,41 +550,20 @@ class PipelineOrchestrator:
                 stage_sep_found=stage_result.separation_state == SeparationState.POST_SEPARATION,
             )
 
-            # Step 7: Update state
-            self._state.current_sequence = record.sequence_number
+            # Step 7: Update separation state
             self._state.separation_state = stage_result.separation_state
 
-            # Compute FPS measurement
-            frame_duration = time.perf_counter() - frame_start_time
-            self._fps_samples.append(frame_duration)
-            if len(self._fps_samples) > 10:
-                self._fps_samples = self._fps_samples[-10:]
-            avg_duration = sum(self._fps_samples) / len(self._fps_samples)
-            self._state.processing_fps = round(1.0 / avg_duration, 2) if avg_duration > 0 else 0.0
-
-            # Step 8: Broadcast telemetry record
-            await self._broadcast({
-                "type": "telemetry",
-                "payload": record.model_dump(),
-            })
-
-            # Step 9: Broadcast frame preview (use JPEG result from gather)
+            # Step 8: Handle frame_b64 exception (only pass str | None to buffer)
+            actual_frame_b64: str | None = None
             if isinstance(frame_b64, BaseException):
                 logger.warning(
                     "Failed to encode frame %d: %s", seq, frame_b64
                 )
             else:
-                try:
-                    await self._broadcast({
-                        "type": "frame",
-                        "payload": {
-                            "image": frame_b64,
-                            "sequence": record.sequence_number,
-                            "processing_fps": self._state.processing_fps,
-                        },
-                    })
-                except Exception as frame_err:
-                    logger.warning(f"Failed to broadcast frame: {frame_err}")
+                actual_frame_b64 = frame_b64
+
+            # Step 9: Submit to reorder buffer for ordered broadcast
+            await self._submit_to_reorder_buffer(seq, record, actual_frame_b64)
 
         except Exception as e:
             logger.error(f"Error processing frame {seq}: {e}", exc_info=True)
@@ -437,6 +628,12 @@ class PipelineOrchestrator:
         self._frame_sequence_counter = 0
         self._t_zero_detected = False
 
+        # Initialize reorder buffer for sequential broadcasting
+        self._reorder_buffer = ReorderBuffer(max_size=self._parallel_config.max_buffer_size)
+        self._broadcast_sequence = 0
+        self._fps_meter = FPSMeter()
+        self._gap_detected_at = None
+
         # Create frame extractor config and start
         config = FrameExtractorConfig(
             source_url=source_url,
@@ -475,6 +672,10 @@ class PipelineOrchestrator:
 
         self._stage_assigner.reset()
         self._record_assembler.reset()
+
+        # Clear the reorder buffer
+        if self._reorder_buffer is not None:
+            self._reorder_buffer = None
 
         self._state.status = PipelineStatus.STOPPED
         self._state.current_sequence = 0
@@ -569,8 +770,6 @@ class PipelineOrchestrator:
             logger.warning("No ROI configuration available, skipping frame.")
             return
 
-        frame_start_time = time.perf_counter()
-
         try:
             # Step 1: Run engine analysis and OCR extraction concurrently
             # (intra-frame parallelism), plus JPEG encoding
@@ -656,41 +855,20 @@ class PipelineOrchestrator:
                 stage_sep_found=stage_result.separation_state == SeparationState.POST_SEPARATION,
             )
 
-            # Step 8: Update state
-            self._state.current_sequence = record.sequence_number
+            # Step 8: Update separation state
             self._state.separation_state = stage_result.separation_state
 
-            # Compute FPS measurement
-            frame_duration = time.perf_counter() - frame_start_time
-            self._fps_samples.append(frame_duration)
-            if len(self._fps_samples) > 10:
-                self._fps_samples = self._fps_samples[-10:]
-            avg_duration = sum(self._fps_samples) / len(self._fps_samples)
-            self._state.processing_fps = round(1.0 / avg_duration, 2) if avg_duration > 0 else 0.0
-
-            # Step 9: Broadcast telemetry record
-            await self._broadcast({
-                "type": "telemetry",
-                "payload": record.model_dump(),
-            })
-
-            # Step 10: Broadcast frame preview
+            # Step 9: Handle frame_b64 exception (only pass str | None to buffer)
+            actual_frame_b64: str | None = None
             if isinstance(frame_b64, BaseException):
                 logger.warning(
                     "Failed to encode frame %d: %s", seq, frame_b64
                 )
             else:
-                try:
-                    await self._broadcast({
-                        "type": "frame",
-                        "payload": {
-                            "image": frame_b64,
-                            "sequence": record.sequence_number,
-                            "processing_fps": self._state.processing_fps,
-                        },
-                    })
-                except Exception as frame_err:
-                    logger.warning(f"Failed to broadcast frame: {frame_err}")
+                actual_frame_b64 = frame_b64
+
+            # Step 10: Submit to reorder buffer for ordered broadcast
+            await self._submit_to_reorder_buffer(seq, record, actual_frame_b64)
 
         except Exception as e:
             logger.error(f"Error processing frame {seq}: {e}", exc_info=True)

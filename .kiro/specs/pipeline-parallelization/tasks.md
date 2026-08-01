@@ -134,14 +134,14 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - **Validates: Requirements 5.1**
 
 - [ ] 8. Wire reorder buffer and broadcast ordering
-  - [ ] 8.1 Integrate `ReorderBuffer` into `PipelineOrchestrator`
+  - [x] 8.1 Integrate `ReorderBuffer` into `PipelineOrchestrator`
     - Implement `_submit_to_reorder_buffer(seq, record)` to insert and trigger drain
     - Implement `_drain_reorder_buffer()` to broadcast consecutive results via WebSocket
     - Assign monotonic broadcast sequence numbers during drain (not at assembly time)
     - Record broadcast timestamps in `FPSMeter`
     - _Requirements: 4.2, 4.3, 4.4, 6.1, 6.2_
 
-  - [ ] 8.2 Implement stale gap handling and buffer overflow logic
+  - [x] 8.2 Implement stale gap handling and buffer overflow logic
     - If a gap is pending for >5 seconds, advance past it and drain
     - If buffer exceeds max capacity (120) or 2× concurrency_limit, discard oldest gaps until within limits
     - Log warnings for each discarded frame
