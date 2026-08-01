@@ -187,6 +187,15 @@ def create_app() -> FastAPI:
                     }
                     await websocket.send_json(result)
 
+                elif action == "set_interval":
+                    interval_ms = data.get("interval_ms", 1000)
+                    orchestrator.set_interval(interval_ms)
+
+                    await manager.broadcast_json({
+                        "type": "status",
+                        "payload": orchestrator.build_status_payload(),
+                    })
+
                 else:
                     await websocket.send_json({
                         "type": "error",

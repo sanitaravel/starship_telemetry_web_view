@@ -238,9 +238,19 @@ class TestEasyOCREngineExtractText:
         """Speed/altitude fields should be parsed as float."""
         mock_reader = MagicMock()
         mock_reader_cls.return_value = mock_reader
-        mock_reader.readtext.return_value = [
-            ([[0, 0], [100, 0], [100, 30], [0, 30]], "1523.5", 0.88)
-        ]
+
+        # First call is for the time ROI (must succeed to pass early-exit gate),
+        # subsequent calls return a numeric value.
+        def readtext_side_effect(img):
+            # Return a valid time for the time ROI (detected by call order: first call)
+            if readtext_side_effect.call_count == 0:
+                readtext_side_effect.call_count += 1
+                return [([[0, 0], [100, 0], [100, 30], [0, 30]], "T+00:01:30", 0.95)]
+            readtext_side_effect.call_count += 1
+            return [([[0, 0], [100, 0], [100, 30], [0, 30]], "1523.5", 0.88)]
+
+        readtext_side_effect.call_count = 0
+        mock_reader.readtext.side_effect = readtext_side_effect
 
         engine = EasyOCREngine(cpu_capabilities)
         result = engine.extract_text(sample_frame, text_regions, [])
@@ -287,9 +297,16 @@ class TestEasyOCREngineExtractText:
         """Unit fields should keep raw text as parsed value."""
         mock_reader = MagicMock()
         mock_reader_cls.return_value = mock_reader
-        mock_reader.readtext.return_value = [
-            ([[0, 0], [50, 0], [50, 20], [0, 20]], "KM/H", 0.90)
-        ]
+
+        def readtext_side_effect(img):
+            if readtext_side_effect.call_count == 0:
+                readtext_side_effect.call_count += 1
+                return [([[0, 0], [100, 0], [100, 30], [0, 30]], "T+00:01:30", 0.95)]
+            readtext_side_effect.call_count += 1
+            return [([[0, 0], [50, 0], [50, 20], [0, 20]], "KM/H", 0.90)]
+
+        readtext_side_effect.call_count = 0
+        mock_reader.readtext.side_effect = readtext_side_effect
 
         engine = EasyOCREngine(cpu_capabilities)
         result = engine.extract_text(sample_frame, text_regions, [])
@@ -304,9 +321,16 @@ class TestEasyOCREngineExtractText:
         """Stage labels should be extracted as strings."""
         mock_reader = MagicMock()
         mock_reader_cls.return_value = mock_reader
-        mock_reader.readtext.return_value = [
-            ([[0, 0], [100, 0], [100, 30], [0, 30]], "SUPER HEAVY", 0.85)
-        ]
+
+        def readtext_side_effect(img):
+            if readtext_side_effect.call_count == 0:
+                readtext_side_effect.call_count += 1
+                return [([[0, 0], [100, 0], [100, 30], [0, 30]], "T+00:01:30", 0.95)]
+            readtext_side_effect.call_count += 1
+            return [([[0, 0], [100, 0], [100, 30], [0, 30]], "SUPER HEAVY", 0.85)]
+
+        readtext_side_effect.call_count = 0
+        mock_reader.readtext.side_effect = readtext_side_effect
 
         engine = EasyOCREngine(cpu_capabilities)
         result = engine.extract_text(sample_frame, text_regions, [])
@@ -321,9 +345,16 @@ class TestEasyOCREngineExtractText:
         """Stage separation text should be extracted as string."""
         mock_reader = MagicMock()
         mock_reader_cls.return_value = mock_reader
-        mock_reader.readtext.return_value = [
-            ([[0, 0], [100, 0], [100, 30], [0, 30]], "STAGE SEP", 0.80)
-        ]
+
+        def readtext_side_effect(img):
+            if readtext_side_effect.call_count == 0:
+                readtext_side_effect.call_count += 1
+                return [([[0, 0], [100, 0], [100, 30], [0, 30]], "T+00:01:30", 0.95)]
+            readtext_side_effect.call_count += 1
+            return [([[0, 0], [100, 0], [100, 30], [0, 30]], "STAGE SEP", 0.80)]
+
+        readtext_side_effect.call_count = 0
+        mock_reader.readtext.side_effect = readtext_side_effect
 
         engine = EasyOCREngine(cpu_capabilities)
         result = engine.extract_text(sample_frame, text_regions, [])

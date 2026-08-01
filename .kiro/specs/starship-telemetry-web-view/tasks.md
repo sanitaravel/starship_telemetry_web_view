@@ -155,36 +155,36 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - Forward status changes to all connected Dashboard clients
     - _Requirements: 2.3, 2.4, 2.5, 2.6, 7.4, 7.5, 7.17_
 
-- [ ] 10. Implement Frontend Dashboard
-  - [-] 10.1 Set up frontend project structure and build tooling
+- [x] 10. Implement Frontend Dashboard
+  - [x] 10.1 Set up frontend project structure and build tooling
     - Create `frontend/` with TypeScript config, HTML entry point, CSS with design tokens
     - Apply design tokens: JetBrains Mono font, #262626 background, #FEFEFE text, #FF8014 accent
     - Set up Vitest and fast-check for frontend testing
     - Define TypeScript interfaces: `TelemetryRecord`, `WebSocketMessage`, `PipelineStatus`, `ControlCommand`
     - _Requirements: 7.1_
 
-  - [ ] 10.2 Implement WebSocket client and state management
+  - [x] 10.2 Implement WebSocket client and state management
     - Create WebSocket connection module with auto-reconnection
     - Parse incoming `WebSocketMessage` and dispatch to state handlers
     - Implement `ControlCommand` sending (start, stop, validate_url)
     - Maintain frontend state: pipeline status, latest telemetry record, time-series store
     - _Requirements: 7.15, 9.2_
 
-  - [ ] 10.3 Implement Pipeline Controls UI
+  - [x] 10.3 Implement Pipeline Controls UI
     - Create URL input field with submit functionality
     - Display stream validation status (active, unreachable, checking)
     - Show Start button when validated (pipeline stopped), Stop button when running
     - Display pipeline status badge (stopped, running, disconnected)
     - _Requirements: 7.2, 7.3, 7.4, 7.5, 7.17_
 
-  - [ ] 10.4 Implement Telemetry Display
+  - [x] 10.4 Implement Telemetry Display
     - Display mission elapsed time prominently
     - Display speed and altitude values with units for both vehicles
     - Display stage labels for left and right stages
     - Show placeholder "--" for unavailable or occluded fields
     - _Requirements: 7.6, 7.7, 7.11, 7.16_
 
-  - [ ] 10.5 Implement Engine Visualizer with SVG diagrams
+  - [x] 10.5 Implement Engine Visualizer with SVG diagrams
     - Render Super Heavy engine diagram (3 rings: inner/middle/outer) from superheavy_engine_diagram.svg layout coordinates
     - Render Starship engine diagram (atmo + vacuum groups) from starship_engine_diagram.svg layout coordinates
     - Scale diagrams to readable display size (not native SVG viewport dimensions)
@@ -192,7 +192,7 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - Color-code circles by status: active (bright fill), inactive (dimmed/dark), undetected (grey)
     - _Requirements: 7.12, 7.13, 7.14_
 
-  - [ ] 10.6 Implement Time-Series Graphs
+  - [x] 10.6 Implement Time-Series Graphs
     - Create interactive line charts for speed and altitude per vehicle (Super Heavy and Starship)
     - Use mission elapsed time on x-axis, update as new records arrive
     - Implement zoom via mouse drag or scroll interaction

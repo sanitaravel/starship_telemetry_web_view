@@ -187,7 +187,11 @@ class EasyOCREngine:
     ) -> OCRResult:
         """Extract text from non-occluded ROI regions.
 
-        For each text region:
+        Processes the 'time' region first. If the time region yields no text,
+        all other regions are skipped and marked UNAVAILABLE (early exit to
+        avoid wasting OCR cycles on frames without telemetry overlay).
+
+        For each remaining text region:
         1. Check if it intersects any engine bounding box → mark OCCLUDED_BY_ENGINES
         2. Crop frame to ROI rect
         3. Call self.reader.readtext(cropped_image) to get text predictions
@@ -202,16 +206,42 @@ class EasyOCREngine:
         Returns:
             OCRResult with extraction results for all text fields
         """
+        unavailable = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
         field_results: dict[str, OCRFieldResult] = {}
 
+        # Process time ROI first as a gate check
+        if "time" in text_regions:
+            time_result = self._process_field(
+                frame, "time", text_regions["time"], engine_bounding_boxes
+            )
+            field_results["time"] = time_result
+
+            # Early exit: if time has no text, skip all other regions
+            if time_result.status != OCRFieldStatus.AVAILABLE:
+                return OCRResult(
+                    time=time_result,
+                    speed_l=unavailable,
+                    speed_l_unit=unavailable,
+                    speed_r=unavailable,
+                    speed_r_unit=unavailable,
+                    altitude_l=unavailable,
+                    altitude_l_unit=unavailable,
+                    altitude_r=unavailable,
+                    altitude_r_unit=unavailable,
+                    stage_l=unavailable,
+                    stage_r=unavailable,
+                    stage_sep_text=unavailable,
+                )
+
+        # Process remaining text regions
         for field_name, roi in text_regions.items():
+            if field_name == "time":
+                continue  # already processed
             field_results[field_name] = self._process_field(
                 frame, field_name, roi, engine_bounding_boxes
             )
 
         # Build OCRResult, using UNAVAILABLE for any fields not in text_regions
-        unavailable = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
-
         return OCRResult(
             time=field_results.get("time", unavailable),
             speed_l=field_results.get("speed_l", unavailable),

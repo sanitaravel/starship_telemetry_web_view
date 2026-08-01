@@ -7,10 +7,13 @@ Handles Start/Stop control commands and manages PipelineState including
 status transitions, current template, and sequence counter.
 """
 
+import base64
 import logging
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
+import cv2
 import numpy as np
 
 from src.engine_analyzer import EngineAnalyzerConfig, analyze_engines
@@ -39,6 +42,7 @@ class PipelineState:
     separation_state: SeparationState = SeparationState.PRE_SEPARATION
     active_template_name: str = "starship_rois"
     gpu_capabilities: GPUCapabilities | None = None
+    processing_fps: float = 0.0  # actual frames processed per second
 
 
 class PipelineOrchestrator:
@@ -76,6 +80,10 @@ class PipelineOrchestrator:
 
         # Pipeline state
         self._state = PipelineState(gpu_capabilities=gpu_capabilities)
+
+        # FPS tracking
+        self._last_frame_time: float = 0.0
+        self._fps_samples: list[float] = []  # recent frame durations for averaging
 
         # Active ROI configuration (resolved from template on start)
         self._roi_config: ROIConfiguration | None = None
@@ -180,6 +188,21 @@ class PipelineOrchestrator:
         self._state.current_sequence = 0
         self._state.separation_state = SeparationState.PRE_SEPARATION
 
+    def set_interval(self, interval_ms: int) -> None:
+        """Update the frame capture interval.
+
+        Updates both the pipeline state and the frame extractor's active config.
+        Takes effect on the next frame capture cycle.
+
+        Args:
+            interval_ms: New interval between frame captures in milliseconds.
+        """
+        interval_ms = max(100, min(interval_ms, 10000))
+        self._state.frame_interval_ms = interval_ms
+        if self._frame_extractor._config is not None:
+            self._frame_extractor._config.interval_ms = interval_ms
+        logger.info(f"Frame capture interval set to {interval_ms}ms")
+
     async def _on_frame(self, frame: np.ndarray, seq: int) -> None:
         """Process a single captured frame through the full pipeline.
 
@@ -200,6 +223,8 @@ class PipelineOrchestrator:
         if self._roi_config is None:
             logger.warning("No ROI configuration available, skipping frame.")
             return
+
+        frame_start_time = time.perf_counter()
 
         try:
             # Step 1: Engine Analysis
@@ -239,6 +264,29 @@ class PipelineOrchestrator:
                 "payload": record.model_dump(),
             })
 
+            # Step 6: Broadcast current frame as JPEG for live preview
+            try:
+                _, jpeg_buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                frame_b64 = base64.b64encode(jpeg_buf.tobytes()).decode('ascii')
+                await self._broadcast({
+                    "type": "frame",
+                    "payload": {
+                        "image": frame_b64,
+                        "sequence": record.sequence_number,
+                    },
+                })
+            except Exception as frame_err:
+                logger.warning(f"Failed to encode/broadcast frame: {frame_err}")
+
+            # Step 7: Update FPS measurement
+            frame_duration = time.perf_counter() - frame_start_time
+            self._fps_samples.append(frame_duration)
+            # Keep only the last 10 samples for a rolling average
+            if len(self._fps_samples) > 10:
+                self._fps_samples = self._fps_samples[-10:]
+            avg_duration = sum(self._fps_samples) / len(self._fps_samples)
+            self._state.processing_fps = round(1.0 / avg_duration, 2) if avg_duration > 0 else 0.0
+
         except Exception as e:
             logger.error(f"Error processing frame {seq}: {e}", exc_info=True)
             # Skip this frame, pipeline continues
@@ -266,7 +314,7 @@ class PipelineOrchestrator:
 
         Returns:
             Dictionary with status, gpu info, frame_interval_ms,
-            and current_sequence for API and WebSocket responses.
+            current_sequence, and processing_fps for API and WebSocket responses.
         """
         return {
             "status": self._state.status.value,
@@ -276,4 +324,5 @@ class PipelineOrchestrator:
             },
             "frame_interval_ms": self._state.frame_interval_ms,
             "current_sequence": self._state.current_sequence,
+            "processing_fps": self._state.processing_fps,
         }
