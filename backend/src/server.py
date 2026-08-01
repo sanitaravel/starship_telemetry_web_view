@@ -4,9 +4,12 @@ Provides:
 - /ws/telemetry: WebSocket endpoint for real-time telemetry broadcast and control commands
 - /api/status: GET endpoint returning pipeline status and GPU capabilities
 - /api/validate-url: POST endpoint for livestream URL validation
+- /api/previous-flights: GET endpoint listing available previous flight data
+- /api/previous-flights/{name}: GET endpoint serving a specific previous flight JSON
 - /static: Mounted frontend static files
 """
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -209,6 +212,53 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
             manager.disconnect(websocket)
+
+    # --- Previous Flights Endpoints ---
+
+    previous_flights_dir = Path(__file__).parent.parent.parent / "results_previous"
+
+    @app.get("/api/previous-flights")
+    async def list_previous_flights() -> list[dict[str, str]]:
+        """List available previous flight data files.
+
+        Returns:
+            List of objects with 'name' (display name) and 'filename' fields.
+        """
+        if not previous_flights_dir.exists():
+            return []
+
+        flights = []
+        for f in sorted(previous_flights_dir.glob("*.json")):
+            flights.append({
+                "name": f.stem.upper().replace("-", " "),
+                "filename": f.stem,
+            })
+        return flights
+
+    @app.get("/api/previous-flights/{name}")
+    async def get_previous_flight(name: str) -> Any:
+        """Serve a previous flight JSON data file.
+
+        Args:
+            name: The filename stem (e.g., 'ift-13') of the flight data.
+
+        Returns:
+            The parsed JSON array of flight telemetry records.
+        """
+        # Sanitize: only allow alphanumeric and hyphens
+        safe_name = "".join(c for c in name if c.isalnum() or c == "-")
+        file_path = previous_flights_dir / f"{safe_name}.json"
+
+        if not file_path.exists() or not file_path.is_file():
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=404,
+                content={"detail": f"Flight data '{name}' not found."},
+            )
+
+        with open(file_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data
 
     @app.get("/api/status")
     async def get_pipeline_status() -> dict[str, Any]:

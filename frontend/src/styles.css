@@ -543,6 +543,69 @@ input:focus {
   border-color: var(--color-accent);
 }
 
+.time-series-graphs__select--compare {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.time-series-graphs__compare-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.time-series-graphs__compare-label {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.time-series-graphs__compare-options {
+  display: flex;
+  gap: 0.625rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.time-series-graphs__compare-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  transition: border-color 0.15s;
+}
+
+.time-series-graphs__compare-item:hover {
+  border-color: var(--color-accent);
+}
+
+.time-series-graphs__compare-item:has(input:checked) {
+  border-color: var(--color-accent);
+  background-color: rgba(255, 128, 20, 0.08);
+}
+
+.time-series-graphs__compare-checkbox {
+  width: 0.875rem;
+  height: 0.875rem;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.time-series-graphs__compare-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .time-series-graphs__reset-btn {
   font-size: 0.6875rem;
   padding: 0.375rem 0.625rem;
@@ -561,7 +624,7 @@ input:focus {
 
 .time-series-graphs__canvas-container {
   position: relative;
-  height: 400px;
+  height: 800px;
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 6px;
