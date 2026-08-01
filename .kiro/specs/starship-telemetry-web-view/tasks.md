@@ -77,8 +77,8 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - **Property 3: Frame Resize Invariant**
     - **Validates: Requirements 2.8**
 
-- [ ] 5. Implement Engine Analyzer
-  - [ ] 5.1 Implement Engine Analyzer with Hough Circle Detection
+- [x] 5. Implement Engine Analyzer
+  - [x] 5.1 Implement Engine Analyzer with Hough Circle Detection
     - Create `backend/src/engine_analyzer.py` with `analyze_engines()` function and `EngineAnalyzerConfig`
     - Crop frame to engine group bounding box, convert to grayscale
     - Apply HoughCircles with user-tuned params (dp=1.0, minDist=7, param1=50, param2=10)
@@ -88,7 +88,7 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - Produce complete status map: 6 Starship engines + 33 Super Heavy engines
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
 
-  - [ ]* 5.2 Write property tests for Engine Analyzer
+  - [x] 5.2 Write property tests for Engine Analyzer
     - **Property 4: Engine Color Classification Correctness**
     - **Property 5: Circle Position Matching Determinism**
     - **Property 6: Engine Status Map Completeness**
