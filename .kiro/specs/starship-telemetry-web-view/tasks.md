@@ -94,8 +94,8 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - **Property 6: Engine Status Map Completeness**
     - **Validates: Requirements 3.4, 3.6, 3.7, 3.9**
 
-- [ ] 6. Implement OCR Engine
-  - [ ] 6.1 Implement EasyOCR-based text extraction
+- [x] 6. Implement OCR Engine
+  - [x] 6.1 Implement EasyOCR-based text extraction
     - Create `backend/src/ocr_engine.py` with `EasyOCREngine` class
     - Initialize EasyOCR Reader with GPU flag from `GPUCapabilities`
     - Implement ROI intersection check: skip OCR for text regions overlapping engine bounding boxes with detected engines
@@ -104,7 +104,7 @@ This plan implements a real-time telemetry extraction and display system for Spa
     - Mark low-confidence or empty results as `UNAVAILABLE`, engine-occluded as `OCCLUDED_BY_ENGINES`
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
 
-  - [ ]* 6.2 Write property tests for OCR Engine logic
+  - [x] 6.2 Write property tests for OCR Engine logic
     - **Property 7: OCR Occlusion Logic Consistency**
     - **Property 8: Numeric and Time Parsing Correctness**
     - **Validates: Requirements 4.1, 4.4, 4.5, 4.7**
