@@ -23,8 +23,8 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - Generate timestamp sequences, verify FPS equals `(count - 1) / (last - first)` over most recent 10 entries, rounded to 2 decimal places; 0.0 if fewer than 2 broadcasts
     - **Validates: Requirements 6.1, 6.4**
 
-- [ ] 2. Implement ReorderBuffer component
-  - [ ] 2.1 Create `ReorderBuffer` class with `BufferedResult` dataclass
+- [x] 2. Implement ReorderBuffer component
+  - [x] 2.1 Create `ReorderBuffer` class with `BufferedResult` dataclass
     - Implement `insert(seq, result)` to store completed results keyed by sequence number
     - Implement `drain()` to return all consecutively available results starting from `next_expected` and advance the pointer
     - Implement `advance_past_gap(gap_seq)` to skip a stalled frame
@@ -33,35 +33,35 @@ This plan implements parallelism in the `PipelineOrchestrator` at two levels: in
     - Enforce `max_size` of 120 entries
     - _Requirements: 4.2, 4.3, 4.5, 4.6_
 
-  - [ ] 2.2 Write property test for reorder buffer ordering (Property 7)
+  - [x] 2.2 Write property test for reorder buffer ordering (Property 7)
     - **Property 7: Reorder Buffer Preserves Capture Order**
     - Generate permutations of completion order, verify output is always in strictly ascending sequence number order
     - **Validates: Requirements 4.2, 4.3, 4.4**
 
-  - [ ] 2.3 Write property test for buffer overflow handling (Property 8)
+  - [x] 2.3 Write property test for buffer overflow handling (Property 8)
     - **Property 8: Buffer Overflow Triggers Discard and Drain**
     - Generate buffer states at/above capacity, verify discard of oldest gap and drain behavior
     - **Validates: Requirements 4.6, 8.2**
 
-  - [ ] 2.4 Write property test for frame sequence contiguity (Property 6)
+  - [x] 2.4 Write property test for frame sequence contiguity (Property 6)
     - **Property 6: Frame Sequence Number Contiguity**
     - Generate N frames dispatched, verify assigned sequence numbers form contiguous [1..N]
     - **Validates: Requirements 4.1**
 
-- [ ] 3. Implement ConcurrencyController component
-  - [ ] 3.1 Create `ConcurrencyController` class
+- [x] 3. Implement ConcurrencyController component
+  - [x] 3.1 Create `ConcurrencyController` class
     - Implement `try_acquire()` as non-blocking slot acquisition returning bool
     - Implement `release()` to free a processing slot
     - Implement `set_limit(new_limit)` with validation for range [1, 10]
     - Add `in_flight` and `limit` properties
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-  - [ ] 3.2 Write property test for admission control invariant (Property 4)
+  - [x] 3.2 Write property test for admission control invariant (Property 4)
     - **Property 4: Admission Control Invariant**
     - Generate in-flight counts and limits, verify frame dispatched when in_flight < limit and discarded when in_flight == limit
     - **Validates: Requirements 3.1, 3.2**
 
-  - [ ] 3.3 Write property test for in-flight count conservation (Property 5)
+  - [x] 3.3 Write property test for in-flight count conservation (Property 5)
     - **Property 5: In-Flight Count Conservation**
     - Generate sequences of dispatch/complete/cancel events, verify count == dispatched - completed and never negative or exceeds limit
     - **Validates: Requirements 3.4**
