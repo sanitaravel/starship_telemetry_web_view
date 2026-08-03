@@ -66,8 +66,8 @@ This implementation introduces structured, centralized logging across the backen
 - [ ] 4. Checkpoint - Backend verification
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Frontend logging utility
-  - [ ] 5.1 Create `src/logger.ts` with Logger class and log level management
+- [x] 5. Frontend logging utility
+  - [-] 5.1 Create `src/logger.ts` with Logger class and log level management
     - Export `LogLevel` type: `'DEBUG' | 'INFO' | 'WARN' | 'ERROR'`
     - Implement `Logger` class with constructor taking module name (truncated to 64 chars)
     - Implement `debug()`, `info()`, `warn()`, `error()` methods wrapping `console.*`
