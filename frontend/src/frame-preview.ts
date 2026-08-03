@@ -50,8 +50,9 @@ export class FramePreview {
       this.sequenceLabel.textContent = `#${frame.sequence}`;
 
       const fpsEl = this.container.querySelector('.frame-preview__fps') as HTMLElement;
-      if (fpsEl && frame.processing_fps) {
-        fpsEl.textContent = `${frame.processing_fps.toFixed(1)} FPS`;
+      if (fpsEl) {
+        const fps = state.processingFps;
+        fpsEl.textContent = fps > 0 ? `${fps.toFixed(1)} FPS` : '';
       }
     }
   }

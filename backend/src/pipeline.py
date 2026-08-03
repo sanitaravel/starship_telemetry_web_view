@@ -802,9 +802,9 @@ class PipelineOrchestrator:
         1. Assigns a Frame_Sequence_Number (starting at 1, incrementing by 1)
         2. Checks T-0 detection via the OCR engine's t_zero_detected property
         3. Pre-T-0: processes frame sequentially via _process_frame_sequential
-        4. Post-T-0: uses ConcurrencyController for admission control
+        4. Post-T-0: waits for a concurrency slot (backpressure) with timeout
            - If slot acquired: spawns _process_frame_parallel as async task
-           - If at capacity: discards frame and logs warning
+           - If wait times out: discards frame and logs warning
 
         Args:
             frame: BGR numpy array (1920x1080).
@@ -828,30 +828,41 @@ class PipelineOrchestrator:
             # Pre-T-0: sequential processing
             await self._process_frame_sequential(frame, frame_seq)
         else:
-            # Post-T-0: attempt parallel dispatch with concurrency control
-            if self._concurrency_controller is not None and self._concurrency_controller.try_acquire():
-                # Spawn parallel processing as a fire-and-forget async task
-                task = asyncio.create_task(
-                    self._process_frame_with_timeout(frame, frame_seq)
+            # Post-T-0: wait for a concurrency slot with backpressure.
+            # This pauses the capture loop until processing capacity is available,
+            # preventing frame waste on sources faster than real-time (local files,
+            # local HLS streams). Timeout prevents indefinite blocking if processing
+            # is permanently stuck.
+            if self._concurrency_controller is not None:
+                acquired = await self._concurrency_controller.wait_acquire(
+                    timeout=self._parallel_config.frame_timeout_seconds
                 )
+                if acquired:
+                    # Spawn parallel processing as a fire-and-forget async task
+                    task = asyncio.create_task(
+                        self._process_frame_with_timeout(frame, frame_seq)
+                    )
 
-                # Track the task for graceful shutdown
-                self._in_flight_tasks.add(task)
+                    # Track the task for graceful shutdown
+                    self._in_flight_tasks.add(task)
 
-                # Add done callback to release the concurrency slot and remove from tracking
-                def _on_task_done(t: asyncio.Task) -> None:
-                    self._in_flight_tasks.discard(t)
-                    if self._concurrency_controller is not None:
-                        self._concurrency_controller.release()
+                    # Add done callback to release the concurrency slot and remove from tracking
+                    def _on_task_done(t: asyncio.Task) -> None:
+                        self._in_flight_tasks.discard(t)
+                        if self._concurrency_controller is not None:
+                            self._concurrency_controller.release()
 
-                task.add_done_callback(_on_task_done)
-            else:
-                # At capacity: discard frame
-                logger.warning(
-                    "Frame %d discarded: concurrency limit reached (%d in-flight).",
-                    frame_seq,
-                    self._concurrency_controller.in_flight if self._concurrency_controller else 0,
-                )
+                    task.add_done_callback(_on_task_done)
+                else:
+                    # Timed out waiting for a slot: discard frame
+                    self._state.frames_discarded += 1
+                    logger.warning(
+                        "Frame %d discarded: timed out waiting for concurrency slot "
+                        "(%d in-flight, limit=%d).",
+                        frame_seq,
+                        self._concurrency_controller.in_flight,
+                        self._concurrency_controller.limit,
+                    )
 
     async def _process_frame_sequential(self, frame: np.ndarray, seq: int) -> None:
         """Process a single frame sequentially (pre-T-0 mode).

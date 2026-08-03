@@ -300,11 +300,17 @@ export class PipelineControls {
    * Render the processing FPS indicator.
    */
   private renderFps(pipelineStatus: PipelineStatus | null): void {
-    if (!pipelineStatus || pipelineStatus.status !== 'running' || !pipelineStatus.processing_fps) {
+    if (!pipelineStatus || pipelineStatus.status !== 'running') {
       this.fpsIndicator.textContent = '';
       return;
     }
-    this.fpsIndicator.textContent = `${pipelineStatus.processing_fps.toFixed(1)} FPS`;
+    const state = this.stateManager.getState();
+    const fps = state.processingFps;
+    if (fps <= 0) {
+      this.fpsIndicator.textContent = '';
+      return;
+    }
+    this.fpsIndicator.textContent = `${fps.toFixed(1)} FPS`;
   }
 
   /**

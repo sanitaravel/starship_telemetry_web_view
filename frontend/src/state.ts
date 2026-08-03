@@ -1,4 +1,5 @@
 import type { TelemetryRecord, PipelineStatus, ErrorPayload, ValidationResult, FramePayload, WebSocketMessage } from './types';
+import { FPSMeter } from './fps-meter';
 
 /**
  * A single data point in the time-series store.
@@ -30,6 +31,8 @@ export interface AppState {
   latestValidationResult: ValidationResult | null;
   latestFrame: FramePayload | null;
   timeSeries: TimeSeriesStore;
+  /** Frames processed per second, measured from actual message arrivals */
+  processingFps: number;
 }
 
 export type StateChangeHandler = (state: AppState) => void;
@@ -42,6 +45,7 @@ export type StateChangeHandler = (state: AppState) => void;
 export class StateManager {
   private state: AppState;
   private subscribers: StateChangeHandler[] = [];
+  private fpsMeter: FPSMeter = new FPSMeter();
 
   constructor() {
     this.state = createInitialState();
@@ -91,23 +95,31 @@ export class StateManager {
    * Reset state to initial values.
    */
   reset(): void {
+    this.fpsMeter.reset();
     this.state = createInitialState();
     this.notifySubscribers();
   }
 
   private handleTelemetry(record: TelemetryRecord): void {
+    this.fpsMeter.tick();
     this.state = {
       ...this.state,
       latestTelemetry: record,
       timeSeries: appendToTimeSeries(this.state.timeSeries, record),
+      processingFps: this.fpsMeter.getFps(),
     };
     this.notifySubscribers();
   }
 
   private handleStatus(status: PipelineStatus): void {
+    // Reset FPS meter when pipeline stops or disconnects
+    if (status.status === 'stopped' || status.status === 'disconnected') {
+      this.fpsMeter.reset();
+    }
     this.state = {
       ...this.state,
       pipelineStatus: status,
+      processingFps: this.fpsMeter.getFps(),
     };
     this.notifySubscribers();
   }
@@ -159,6 +171,7 @@ export function createInitialState(): AppState {
       altitudeSuperHeavy: [],
       altitudeStarship: [],
     },
+    processingFps: 0,
   };
 }
 

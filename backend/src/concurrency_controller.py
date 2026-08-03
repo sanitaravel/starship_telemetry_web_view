@@ -1,22 +1,23 @@
 """Concurrency controller for inter-frame pipeline parallelism.
 
 Provides ConcurrencyController class that manages slot-based admission control
-for concurrent frame processing. Uses non-blocking try_acquire/release semantics
-with frame discard when at capacity. The concurrency limit is dynamically
-configurable within the range [1, 10].
+for concurrent frame processing. Supports both non-blocking try_acquire (for
+discard semantics) and async wait_acquire (for backpressure semantics). The
+concurrency limit is dynamically configurable within the range [1, 10].
 """
+
+import asyncio
 
 
 class ConcurrencyController:
-    """Controls inter-frame concurrency with frame discard semantics.
+    """Controls inter-frame concurrency with configurable admission semantics.
 
-    When a new frame arrives, try_acquire() is called to check if a processing
-    slot is available. If the number of in-flight frames is below the limit,
-    the slot is acquired and the frame proceeds. If at capacity, the frame
-    should be discarded by the caller.
+    When a new frame arrives, the caller can either:
+    - Use try_acquire() for non-blocking check (discard on full)
+    - Use wait_acquire(timeout) to wait for a slot with backpressure
 
     After frame processing completes or is cancelled, release() frees the slot
-    for subsequent frames.
+    for subsequent frames and wakes any waiters.
     """
 
     def __init__(self, limit: int = 3) -> None:
@@ -28,6 +29,8 @@ class ConcurrencyController:
         """
         self._limit: int = limit
         self._in_flight: int = 0
+        self._slot_available: asyncio.Event = asyncio.Event()
+        self._slot_available.set()  # Initially slots are available
 
     def try_acquire(self) -> bool:
         """Non-blocking attempt to acquire a processing slot.
@@ -41,16 +44,47 @@ class ConcurrencyController:
         if self._in_flight >= self._limit:
             return False
         self._in_flight += 1
+        if self._in_flight >= self._limit:
+            self._slot_available.clear()
+        return True
+
+    async def wait_acquire(self, timeout: float | None = None) -> bool:
+        """Wait for a processing slot to become available.
+
+        Blocks the caller until a slot is free or the timeout expires.
+        Provides backpressure to the capture loop so that frame reads
+        are naturally throttled to match processing capacity.
+
+        Args:
+            timeout: Maximum seconds to wait. None means wait indefinitely.
+                If timeout expires, returns False (frame should be discarded).
+
+        Returns:
+            True if a slot was acquired, False if timed out.
+        """
+        try:
+            await asyncio.wait_for(self._slot_available.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            return False
+
+        # Slot is available, acquire it
+        self._in_flight += 1
+        if self._in_flight >= self._limit:
+            self._slot_available.clear()
         return True
 
     def release(self) -> None:
         """Release a processing slot after frame completion or cancellation.
 
         Decrements the in-flight count, making capacity available for the
-        next arriving frame. Does not decrement below zero.
+        next arriving frame. Signals any waiters that a slot is free.
+        Does not decrement below zero.
         """
         if self._in_flight > 0:
             self._in_flight -= 1
+        # Signal that a slot is now available
+        if self._in_flight < self._limit:
+            self._slot_available.set()
 
     @property
     def in_flight(self) -> int:
@@ -78,4 +112,9 @@ class ConcurrencyController:
         if not isinstance(new_limit, int) or not (1 <= new_limit <= 10):
             return False
         self._limit = new_limit
+        # Update event state based on new limit
+        if self._in_flight < self._limit:
+            self._slot_available.set()
+        else:
+            self._slot_available.clear()
         return True
