@@ -100,8 +100,8 @@ This implementation introduces structured, centralized logging across the backen
     - **Property 11: Generated correlation IDs are unique UUID v4**
     - **Validates: Requirements 7.1, 7.2, 7.4**
 
-- [ ] 7. Frontend WebSocket logging integration
-  - [ ] 7.1 Modify `src/websocket.ts` for WebSocket event logging
+- [x] 7. Frontend WebSocket logging integration
+  - [-] 7.1 Modify `src/websocket.ts` for WebSocket event logging
     - Create logger instance via `createLogger('websocket')`
     - Log connection state transitions (previous → new) at INFO
     - Log parsed message types at DEBUG
