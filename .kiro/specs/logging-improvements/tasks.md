@@ -88,8 +88,8 @@ This implementation introduces structured, centralized logging across the backen
     - **Property 9: Invalid frontend log level change is rejected**
     - **Validates: Requirements 5.3, 5.4, 5.5, 5.7**
 
-- [ ] 6. Frontend correlation ID generation
-  - [ ] 6.1 Create `src/correlation.ts` with correlation ID generation
+- [x] 6. Frontend correlation ID generation
+  - [-] 6.1 Create `src/correlation.ts` with correlation ID generation
     - Implement `generateCorrelationId(): string` using `crypto.randomUUID()`
     - Fall back to timestamp-based ID (`ts-{Date.now()}-{random4hex}`) if `crypto.randomUUID` unavailable
     - Log fallback usage at WARN level via logger
