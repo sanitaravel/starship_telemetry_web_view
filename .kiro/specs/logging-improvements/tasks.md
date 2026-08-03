@@ -6,14 +6,14 @@ This implementation introduces structured, centralized logging across the backen
 
 ## Tasks
 
-- [ ] 1. Backend logging infrastructure
-  - [ ] 1.1 Create `src/logging_context.py` with context variables
+- [x] 1. Backend logging infrastructure
+  - [x] 1.1 Create `src/logging_context.py` with context variables
     - Define `correlation_id_var` and `frame_seq_var` using `contextvars.ContextVar`
     - `correlation_id_var` defaults to `None`, type `str | None`
     - `frame_seq_var` defaults to `None`, type `int | None`
     - _Requirements: 2.1, 2.2, 2.5_
 
-  - [ ] 1.2 Create `src/logging_config.py` with JSONFormatter and `configure_logging()`
+  - [x] 1.2 Create `src/logging_config.py` with JSONFormatter and `configure_logging()`
     - Implement `JSONFormatter(logging.Formatter)` that outputs single-line JSON per record
     - Include fields: `timestamp` (ISO 8601 UTC), `level`, `logger_name`, `module`, `message`
     - Conditionally include `correlation_id`, `frame_seq` from context vars (omit if None)
@@ -32,7 +32,7 @@ This implementation introduces structured, centralized logging across the backen
     - **Property 4: Exception logging includes type and traceback**
     - **Validates: Requirements 1.3, 1.4, 1.6, 1.7, 2.1, 2.2, 2.4, 2.5**
 
-  - [ ] 1.4 Integrate `configure_logging()` in application startup
+  - [x] 1.4 Integrate `configure_logging()` in application startup
     - Call `configure_logging()` in `src/main.py` (or application entry point) before any HTTP/WebSocket processing begins
     - _Requirements: 1.2_
 

@@ -19,8 +19,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from src.gpu_detector import GPUCapabilities, detect_gpu
+from src.logging_config import configure_logging
 from src.pipeline import PipelineOrchestrator
 from src.template_registry import TemplateRegistry, load_default_template
+
+# Initialize structured logging before any HTTP/WebSocket processing
+configure_logging()
 
 logger = logging.getLogger(__name__)
 
