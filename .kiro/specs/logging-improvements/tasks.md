@@ -48,8 +48,8 @@ This implementation introduces structured, centralized logging across the backen
     - **Property 6: Correlation ID validation accepts valid UUID v4 and rejects others**
     - **Validates: Requirements 4.4, 4.5**
 
-- [ ] 3. Backend performance logging
-  - [ ] 3.1 Add timing instrumentation to `src/pipeline.py`
+- [x] 3. Backend performance logging
+  - [x] 3.1 Add timing instrumentation to `src/pipeline.py`
     - Set `frame_seq_var` before processing each frame
     - Wrap OCR extraction with timing, log frame_seq and duration_ms at DEBUG on completion
     - Wrap engine analysis with timing, log frame_seq and duration_ms at DEBUG on completion

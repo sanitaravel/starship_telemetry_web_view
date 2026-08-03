@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 
 from src.concurrency_controller import ConcurrencyController
+from src.logging_context import frame_seq_var
 from src.engine_analyzer import EngineAnalyzerConfig, EngineAnalysisResult, analyze_engines
 from src.enums import OCRFieldStatus, PipelineStatus, SeparationState
 from src.frame_extractor import FrameExtractor, FrameExtractorConfig
@@ -117,6 +118,9 @@ class PipelineOrchestrator:
         # FPS tracking (legacy, kept for compatibility)
         self._last_frame_time: float = 0.0
 
+        # FPS logging: track last logged value for 10% delta check
+        self._last_logged_fps: float | None = None
+
         # Active ROI configuration (resolved from template on start)
         self._roi_config: ROIConfiguration | None = None
 
@@ -160,6 +164,7 @@ class PipelineOrchestrator:
             Returns a default result with empty statuses on timeout.
         """
         loop = asyncio.get_running_loop()
+        start = time.monotonic()
         try:
             result = await asyncio.wait_for(
                 loop.run_in_executor(
@@ -172,10 +177,21 @@ class PipelineOrchestrator:
                 ),
                 timeout=self._parallel_config.stage_timeout_seconds,
             )
+            end = time.monotonic()
+            duration_ms = int((end - start) * 1000)
+            seq = frame_seq_var.get()
+            logger.debug(
+                "Engine analysis completed",
+                extra={"frame_seq": seq, "duration_ms": duration_ms},
+            )
             return result
         except asyncio.TimeoutError:
+            seq = frame_seq_var.get()
             logger.warning(
-                "Engine analysis timed out after %.1f seconds",
+                "Engine analysis timed out after %.1f seconds"
+                " (stage=engine_analysis, frame_seq=%s, stage_timeout_seconds=%.1f)",
+                self._parallel_config.stage_timeout_seconds,
+                seq,
                 self._parallel_config.stage_timeout_seconds,
             )
             return EngineAnalysisResult(
@@ -207,6 +223,7 @@ class PipelineOrchestrator:
                 k: v for k, v in text_regions.items() if k != "stage_sep_text"
             }
 
+        start = time.monotonic()
         try:
             result = await asyncio.wait_for(
                 loop.run_in_executor(
@@ -217,10 +234,21 @@ class PipelineOrchestrator:
                 ),
                 timeout=self._parallel_config.stage_timeout_seconds,
             )
+            end = time.monotonic()
+            duration_ms = int((end - start) * 1000)
+            seq = frame_seq_var.get()
+            logger.debug(
+                "OCR extraction completed",
+                extra={"frame_seq": seq, "duration_ms": duration_ms},
+            )
             return result
         except asyncio.TimeoutError:
+            seq = frame_seq_var.get()
             logger.warning(
-                "OCR extraction timed out after %.1f seconds",
+                "OCR extraction timed out after %.1f seconds"
+                " (stage=ocr_extraction, frame_seq=%s, stage_timeout_seconds=%.1f)",
+                self._parallel_config.stage_timeout_seconds,
+                seq,
                 self._parallel_config.stage_timeout_seconds,
             )
             unavailable = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
@@ -443,7 +471,19 @@ class PipelineOrchestrator:
 
             # Record broadcast timestamp and update FPS
             self._fps_meter.record_broadcast(time.monotonic())
-            self._state.processing_fps = self._fps_meter.get_fps()
+            current_fps = self._fps_meter.get_fps()
+            self._state.processing_fps = current_fps
+
+            # FPS logging: first value at INFO, subsequent at INFO only when >10% delta
+            if current_fps > 0:
+                if self._last_logged_fps is None:
+                    logger.info("Processing FPS: %.1f", current_fps, extra={"fps": current_fps})
+                    self._last_logged_fps = current_fps
+                else:
+                    delta = abs(current_fps - self._last_logged_fps) / self._last_logged_fps
+                    if delta > 0.10:
+                        logger.info("Processing FPS: %.1f", current_fps, extra={"fps": current_fps})
+                        self._last_logged_fps = current_fps
 
             # Broadcast telemetry record
             await self._broadcast({
@@ -489,7 +529,9 @@ class PipelineOrchestrator:
         except asyncio.TimeoutError:
             logger.warning(
                 "Frame %d timed out after %.1f seconds (frame-level timeout). "
-                "Advancing past frame.",
+                "Advancing past frame. (frame_seq=%d, frame_timeout_seconds=%.1f)",
+                seq,
+                self._parallel_config.frame_timeout_seconds,
                 seq,
                 self._parallel_config.frame_timeout_seconds,
             )
@@ -514,6 +556,7 @@ class PipelineOrchestrator:
             logger.warning("No ROI configuration available, skipping frame.")
             return
 
+        frame_start = time.monotonic()
         try:
             # Step 1: Run engine analysis and OCR extraction concurrently
             # Also start JPEG encoding concurrently
@@ -605,6 +648,14 @@ class PipelineOrchestrator:
             # Step 9: Submit to reorder buffer for ordered broadcast
             await self._submit_to_reorder_buffer(seq, record, actual_frame_b64)
 
+            # Log total frame processing duration
+            frame_end = time.monotonic()
+            total_duration_ms = int((frame_end - frame_start) * 1000)
+            logger.debug(
+                "Frame processing completed",
+                extra={"frame_seq": seq, "duration_ms": total_duration_ms},
+            )
+
         except Exception as e:
             logger.error(f"Error processing frame {seq}: {e}", exc_info=True)
             # Skip this frame, pipeline continues
@@ -672,6 +723,7 @@ class PipelineOrchestrator:
         self._reorder_buffer = ReorderBuffer(max_size=self._parallel_config.max_buffer_size)
         self._broadcast_sequence = 0
         self._fps_meter = FPSMeter()
+        self._last_logged_fps = None
         self._gap_detected_at = None
 
         # Create frame extractor config and start
@@ -818,6 +870,9 @@ class PipelineOrchestrator:
         self._frame_sequence_counter += 1
         frame_seq = self._frame_sequence_counter
 
+        # Set frame_seq context variable for structured logging
+        frame_seq_var.set(frame_seq)
+
         # Check T-0 detection state from the OCR engine
         ocr_engine = self._ensure_ocr_engine()
         if not self._t_zero_detected and ocr_engine.t_zero_detected:
@@ -884,6 +939,7 @@ class PipelineOrchestrator:
             logger.warning("No ROI configuration available, skipping frame.")
             return
 
+        frame_start = time.monotonic()
         try:
             # Step 1: Run engine analysis and OCR extraction concurrently
             # (intra-frame parallelism), plus JPEG encoding
@@ -983,6 +1039,14 @@ class PipelineOrchestrator:
 
             # Step 10: Submit to reorder buffer for ordered broadcast
             await self._submit_to_reorder_buffer(seq, record, actual_frame_b64)
+
+            # Log total frame processing duration
+            frame_end = time.monotonic()
+            total_duration_ms = int((frame_end - frame_start) * 1000)
+            logger.debug(
+                "Frame processing completed",
+                extra={"frame_seq": seq, "duration_ms": total_duration_ms},
+            )
 
         except Exception as e:
             logger.error(f"Error processing frame {seq}: {e}", exc_info=True)
