@@ -78,19 +78,16 @@ def _safe_serialize(obj: object) -> str:
 
 
 def configure_logging() -> None:
-    """Configure the root logger with JSON formatting and level from environment.
+    """Configure application loggers with JSON formatting and level from environment.
 
     Reads LOG_LEVEL from the environment, validates it, and attaches a
-    StreamHandler with JSONFormatter to the root logger. Idempotent on
-    repeated calls — clears existing handlers before reconfiguring.
+    StreamHandler with JSONFormatter to the 'src' logger (application namespace).
+    Uvicorn's access/error loggers are left untouched so they retain their
+    default plain-text format.
+
+    Idempotent on repeated calls — clears existing handlers before reconfiguring.
     """
     global _configured
-
-    root_logger = logging.getLogger()
-
-    # Remove pre-existing handlers (idempotent behavior)
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
 
     # Determine log level from environment
     env_level = os.environ.get("LOG_LEVEL", "").strip()
@@ -103,16 +100,26 @@ def configure_logging() -> None:
             # Invalid value — will emit warning after handler is attached
             level = logging.INFO
 
-    root_logger.setLevel(level)
+    # Configure the application namespace logger ('src') with JSON output.
+    # This leaves uvicorn.access / uvicorn.error loggers with their default
+    # plain-text format (e.g. "INFO:     127.0.0.1:... - "GET ..." 200").
+    app_logger = logging.getLogger("src")
+
+    # Remove pre-existing handlers (idempotent behavior)
+    for handler in app_logger.handlers[:]:
+        app_logger.removeHandler(handler)
+
+    app_logger.setLevel(level)
+    app_logger.propagate = False  # Don't propagate to root / uvicorn handlers
 
     # Attach StreamHandler with JSONFormatter to stdout
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JSONFormatter())
-    root_logger.addHandler(handler)
+    app_logger.addHandler(handler)
 
     # Emit warning for invalid LOG_LEVEL after handler is ready
     if env_level and env_level.upper() not in _VALID_LEVELS:
-        logging.warning(
+        app_logger.warning(
             "Invalid LOG_LEVEL '%s' ignored, falling back to INFO", env_level
         )
 
