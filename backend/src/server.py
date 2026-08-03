@@ -11,6 +11,9 @@ Provides:
 
 import json
 import logging
+import re
+import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +23,7 @@ from pydantic import BaseModel
 
 from src.gpu_detector import GPUCapabilities, detect_gpu
 from src.logging_config import configure_logging
+from src.logging_context import correlation_id_var
 from src.pipeline import PipelineOrchestrator
 from src.template_registry import TemplateRegistry, load_default_template
 
@@ -27,6 +31,16 @@ from src.template_registry import TemplateRegistry, load_default_template
 configure_logging()
 
 logger = logging.getLogger(__name__)
+
+# UUID v4 lowercase hyphenated format validation pattern
+_UUID4_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+)
+
+
+def _is_valid_uuid4(value: str) -> bool:
+    """Check if a string is a valid UUID v4 in lowercase hyphenated format."""
+    return bool(_UUID4_PATTERN.match(value))
 
 
 class ConnectionManager:
@@ -160,11 +174,41 @@ def create_app() -> FastAPI:
         - {"action": "stop"}
         - {"action": "validate_url", "url": "..."}
         """
+        # Generate correlation ID for this session and record connect time
+        session_correlation_id = str(uuid.uuid4())
+        correlation_id_var.set(session_correlation_id)
+        connect_time = time.monotonic()
+
+        logger.info(
+            "WebSocket session started",
+            extra={"correlation_id": session_correlation_id},
+        )
+
         await manager.connect(websocket)
         try:
             while True:
                 data = await websocket.receive_json()
                 action = data.get("action")
+
+                # Check for client-provided correlation_id in the payload
+                client_cid = data.get("correlation_id")
+                if client_cid is not None:
+                    if isinstance(client_cid, str) and _is_valid_uuid4(client_cid):
+                        # Valid client-provided UUID v4 — adopt it
+                        correlation_id_var.set(client_cid)
+                        session_correlation_id = client_cid
+                    else:
+                        # Invalid — reject, keep server-generated, log WARNING
+                        logger.warning(
+                            "Rejected invalid client correlation_id: %s",
+                            client_cid,
+                        )
+
+                # Log the command type and correlation_id at INFO
+                logger.info(
+                    "Control command received: %s",
+                    action,
+                )
 
                 if action == "start":
                     source_url = data.get("source_url", "")
@@ -212,8 +256,24 @@ def create_app() -> FastAPI:
                     })
 
         except WebSocketDisconnect:
+            duration_ms = int((time.monotonic() - connect_time) * 1000)
+            logger.info(
+                "WebSocket session disconnected",
+                extra={
+                    "correlation_id": session_correlation_id,
+                    "duration_ms": duration_ms,
+                },
+            )
             manager.disconnect(websocket)
         except Exception as e:
+            duration_ms = int((time.monotonic() - connect_time) * 1000)
+            logger.info(
+                "WebSocket session disconnected",
+                extra={
+                    "correlation_id": session_correlation_id,
+                    "duration_ms": duration_ms,
+                },
+            )
             logger.error(f"WebSocket error: {e}")
             manager.disconnect(websocket)
 

@@ -36,8 +36,8 @@ This implementation introduces structured, centralized logging across the backen
     - Call `configure_logging()` in `src/main.py` (or application entry point) before any HTTP/WebSocket processing begins
     - _Requirements: 1.2_
 
-- [ ] 2. Backend correlation ID propagation
-  - [ ] 2.1 Modify `src/server.py` for WebSocket correlation ID lifecycle
+- [x] 2. Backend correlation ID propagation
+  - [x] 2.1 Modify `src/server.py` for WebSocket correlation ID lifecycle
     - On WebSocket connect: generate UUID v4, store in `correlation_id_var`, log session start at INFO
     - On control command received: log command type and correlation_id at INFO
     - On control command: check for client-provided `correlation_id` in payload, validate as UUID v4 (lowercase hyphenated format), replace context var if valid, reject with WARNING if invalid
