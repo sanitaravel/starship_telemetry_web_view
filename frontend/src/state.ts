@@ -1,5 +1,8 @@
 import type { TelemetryRecord, PipelineStatus, ErrorPayload, ValidationResult, FramePayload, WebSocketMessage } from './types';
 import { FPSMeter } from './fps-meter';
+import { createLogger } from './logger';
+
+const logger = createLogger('state');
 
 /**
  * A single data point in the time-series store.
@@ -49,6 +52,7 @@ export class StateManager {
 
   constructor() {
     this.state = createInitialState();
+    logger.debug('StateManager initialized');
   }
 
   /**
@@ -100,6 +104,17 @@ export class StateManager {
     this.notifySubscribers();
   }
 
+  /**
+   * Log a rendering error for a component.
+   */
+  logRenderError(componentName: string, error: Error): void {
+    logger.error('Rendering error', {
+      component: componentName,
+      message: error.message,
+      stack: error.stack ?? null,
+    });
+  }
+
   private handleTelemetry(record: TelemetryRecord): void {
     this.fpsMeter.tick();
     this.state = {
@@ -108,10 +123,16 @@ export class StateManager {
       timeSeries: appendToTimeSeries(this.state.timeSeries, record),
       processingFps: this.fpsMeter.getFps(),
     };
+    logger.debug('Telemetry update applied', { sequence_number: record.sequence_number });
     this.notifySubscribers();
   }
 
   private handleStatus(status: PipelineStatus): void {
+    const previous = this.state.pipelineStatus?.status ?? 'none';
+    const next = status.status;
+    if (previous !== next) {
+      logger.info(`Pipeline status: ${previous} → ${next}`);
+    }
     // Reset FPS meter when pipeline stops or disconnects
     if (status.status === 'stopped' || status.status === 'disconnected') {
       this.fpsMeter.reset();
@@ -125,6 +146,7 @@ export class StateManager {
   }
 
   private handleError(error: ErrorPayload): void {
+    logger.error('WebSocket error received', { code: error.code, message: error.message });
     this.state = {
       ...this.state,
       latestError: error,

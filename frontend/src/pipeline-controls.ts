@@ -1,6 +1,10 @@
 import type { TelemetryWebSocket } from './websocket';
 import type { StateManager, AppState } from './state';
 import type { PipelineStatus } from './types';
+import { generateCorrelationId } from './correlation';
+import { createLogger, setCorrelationId } from './logger';
+
+const logger = createLogger('pipeline-controls');
 
 /**
  * Validation status for a submitted livestream URL.
@@ -152,7 +156,14 @@ export class PipelineControls {
 
     this.currentUrl = url;
     this.setValidationStatus('checking');
-    this.ws.sendCommand({ action: 'validate_url', url });
+
+    const correlationId = generateCorrelationId();
+    const command = { action: 'validate_url' as const, url, correlation_id: correlationId };
+
+    logger.debug(`Sending command: ${command.action}`, { correlation_id: correlationId });
+    setCorrelationId(correlationId);
+    this.ws.sendCommand(command);
+    setCorrelationId(null);
   }
 
   /**
@@ -162,11 +173,21 @@ export class PipelineControls {
     const state = this.stateManager.getState();
     const pipelineStatus = state.pipelineStatus?.status;
 
+    const correlationId = generateCorrelationId();
+
     if (pipelineStatus === 'running') {
-      this.ws.sendCommand({ action: 'stop' });
+      const command = { action: 'stop' as const, correlation_id: correlationId };
+      logger.debug(`Sending command: ${command.action}`, { correlation_id: correlationId });
+      setCorrelationId(correlationId);
+      this.ws.sendCommand(command);
+      setCorrelationId(null);
     } else {
       const skipFrames = parseInt(this.intervalInput.value, 10) || 30;
-      this.ws.sendCommand({ action: 'start', source_url: this.currentUrl, skip_frames: skipFrames });
+      const command = { action: 'start' as const, source_url: this.currentUrl, skip_frames: skipFrames, correlation_id: correlationId };
+      logger.debug(`Sending command: ${command.action}`, { correlation_id: correlationId });
+      setCorrelationId(correlationId);
+      this.ws.sendCommand(command);
+      setCorrelationId(null);
     }
   }
 

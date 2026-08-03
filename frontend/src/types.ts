@@ -72,7 +72,7 @@ export interface PipelineStatus {
  * Commands sent from the frontend to control the pipeline.
  */
 export type ControlCommand =
-  | { action: 'start'; source_url: string; skip_frames?: number }
-  | { action: 'stop' }
-  | { action: 'validate_url'; url: string }
-  | { action: 'set_interval'; skip_frames: number };
+  | { action: 'start'; source_url: string; skip_frames?: number; correlation_id?: string }
+  | { action: 'stop'; correlation_id?: string }
+  | { action: 'validate_url'; url: string; correlation_id?: string }
+  | { action: 'set_interval'; skip_frames: number; correlation_id?: string };

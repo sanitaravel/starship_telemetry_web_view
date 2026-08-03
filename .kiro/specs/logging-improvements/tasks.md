@@ -115,15 +115,15 @@ This implementation introduces structured, centralized logging across the backen
     - **Property 10: WebSocket message parse failure logs truncated raw content**
     - **Validates: Requirements 6.4**
 
-- [ ] 8. Frontend command correlation and lifecycle logging
-  - [ ] 8.1 Modify `src/pipeline-controls.ts` to attach correlation IDs to commands
+- [x] 8. Frontend command correlation and lifecycle logging
+  - [x] 8.1 Modify `src/pipeline-controls.ts` to attach correlation IDs to commands
     - Import `generateCorrelationId` from `src/correlation.ts`
     - Generate and attach `correlation_id` to every control command payload before sending
     - Log command action and correlation_id at DEBUG
     - Set active correlation_id in logger context between send and response/timeout
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 6.3_
 
-  - [ ] 8.2 Modify `src/state.ts` for component lifecycle logging
+  - [x] 8.2 Modify `src/state.ts` for component lifecycle logging
     - Create logger instance via `createLogger('state')`
     - Log component initialization at DEBUG with component name
     - Log pipeline status changes (previous → new) at INFO
