@@ -5,6 +5,34 @@ import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightInfo } 
 
 Chart.register(zoomPlugin);
 
+/**
+ * Custom Chart.js plugin that draws a vertical crosshair line at the mouse position.
+ */
+const crosshairPlugin = {
+  id: 'crosshair',
+  afterDraw(chart: Chart) {
+    const tooltip = chart.tooltip;
+    if (!tooltip || !tooltip.opacity) return;
+
+    const ctx = chart.ctx;
+    const x = tooltip.caretX;
+    const topY = chart.scales.y.top;
+    const bottomY = chart.scales.y.bottom;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, topY);
+    ctx.lineTo(x, bottomY);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.setLineDash([4, 3]);
+    ctx.stroke();
+    ctx.restore();
+  },
+};
+
+Chart.register(crosshairPlugin);
+
 type DatasetKey = 'speedSuperHeavy' | 'speedStarship' | 'altitudeSuperHeavy' | 'altitudeStarship';
 
 interface SeriesOption {
@@ -79,6 +107,43 @@ function formatSecondsToMET(totalSeconds: number): string {
   return `${sign}${m}:${String(s).padStart(2, '0')}`;
 }
 
+/**
+ * Sort points by x-value, deduplicate (first value per x wins), and insert
+ * NaN gap markers where consecutive points are more than GAP_THRESHOLD_SECONDS apart.
+ * This causes Chart.js to break the line at data gaps.
+ */
+const GAP_THRESHOLD_SECONDS = 5;
+
+function deduplicateByX(points: { x: number; y: number }[]): { x: number; y: number | null }[] {
+  if (points.length === 0) return [];
+
+  // Use a Map to keep the first y value for each x
+  const map = new Map<number, number>();
+  for (const p of points) {
+    if (!map.has(p.x)) {
+      map.set(p.x, p.y);
+    }
+  }
+
+  // Convert back to sorted array
+  const sorted: { x: number; y: number }[] = [];
+  for (const [x, y] of map) {
+    sorted.push({ x, y });
+  }
+  sorted.sort((a, b) => a.x - b.x);
+
+  // Insert NaN gap markers between points that are too far apart
+  const result: { x: number; y: number | null }[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i].x - sorted[i - 1].x > GAP_THRESHOLD_SECONDS) {
+      // Insert a gap point midway to break the line
+      result.push({ x: (sorted[i - 1].x + sorted[i].x) / 2, y: null });
+    }
+    result.push(sorted[i]);
+  }
+  return result;
+}
+
 interface LoadedComparison {
   filename: string;
   name: string;
@@ -124,7 +189,7 @@ export class TimeSeriesGraphs {
     const wrapper = document.createElement('div');
     wrapper.className = 'time-series-graphs';
 
-    // Header row with title, dropdown, and reset button
+    // Row 1: Title + primary controls (select + reset)
     const header = document.createElement('div');
     header.className = 'time-series-graphs__header';
 
@@ -150,23 +215,8 @@ export class TimeSeriesGraphs {
     this.selectElement.addEventListener('change', () => {
       this.selectedKey = this.selectElement.value as DatasetKey;
       this.rebuildChart();
-      if (this.latestTimeSeries) {
-        this.updateChart(this.latestTimeSeries);
-      }
+      this.updateChart(this.latestTimeSeries ?? TimeSeriesGraphs.EMPTY_STORE);
     });
-
-    // Compare flights checkbox list
-    const compareWrapper = document.createElement('div');
-    compareWrapper.className = 'time-series-graphs__compare-wrapper';
-
-    const compareLabel = document.createElement('span');
-    compareLabel.className = 'time-series-graphs__compare-label';
-    compareLabel.textContent = 'Compare:';
-    compareWrapper.appendChild(compareLabel);
-
-    this.compareContainer = document.createElement('div');
-    this.compareContainer.className = 'time-series-graphs__compare-options';
-    compareWrapper.appendChild(this.compareContainer);
 
     const resetBtn = document.createElement('button');
     resetBtn.className = 'time-series-graphs__reset-btn';
@@ -179,11 +229,33 @@ export class TimeSeriesGraphs {
     });
 
     controls.appendChild(this.selectElement);
-    controls.appendChild(compareWrapper);
     controls.appendChild(resetBtn);
 
     header.appendChild(title);
     header.appendChild(controls);
+
+    // Row 2: Compare flights + zoom hint
+    const toolbar = document.createElement('div');
+    toolbar.className = 'time-series-graphs__toolbar';
+
+    const compareWrapper = document.createElement('div');
+    compareWrapper.className = 'time-series-graphs__compare-wrapper';
+
+    const compareLabel = document.createElement('span');
+    compareLabel.className = 'time-series-graphs__compare-label';
+    compareLabel.textContent = 'Compare:';
+    compareWrapper.appendChild(compareLabel);
+
+    this.compareContainer = document.createElement('div');
+    this.compareContainer.className = 'time-series-graphs__compare-options';
+    compareWrapper.appendChild(this.compareContainer);
+
+    const zoomHint = document.createElement('span');
+    zoomHint.className = 'time-series-graphs__zoom-hint';
+    zoomHint.textContent = 'Drag to pan · Ctrl+Drag to zoom · Scroll to zoom';
+
+    toolbar.appendChild(compareWrapper);
+    toolbar.appendChild(zoomHint);
 
     // Canvas container
     const canvasContainer = document.createElement('div');
@@ -194,6 +266,7 @@ export class TimeSeriesGraphs {
     canvasContainer.appendChild(canvas);
 
     wrapper.appendChild(header);
+    wrapper.appendChild(toolbar);
     wrapper.appendChild(canvasContainer);
     this.container.appendChild(wrapper);
   }
@@ -215,7 +288,8 @@ export class TimeSeriesGraphs {
         maintainAspectRatio: false,
         animation: false,
         interaction: {
-          mode: 'index',
+          mode: 'nearest',
+          axis: 'x',
           intersect: false,
         },
         scales: {
@@ -284,6 +358,7 @@ export class TimeSeriesGraphs {
               },
               drag: {
                 enabled: true,
+                modifierKey: 'ctrl',
                 backgroundColor: 'rgba(255, 128, 20, 0.15)',
                 borderColor: '#FF8014',
                 borderWidth: 1,
@@ -313,24 +388,37 @@ export class TimeSeriesGraphs {
 
   /**
    * Convert live TimeSeriesPoints to {x, y} scatter data using MET string → seconds.
+   * Sorted by x and deduplicated (last value wins) to prevent line looping.
    */
-  private livePointsToXY(points: TimeSeriesPoint[]): { x: number; y: number }[] {
-    return points.map((p) => ({
-      x: parseMETToSeconds(p.missionElapsedTime),
-      y: p.value,
-    }));
+  private livePointsToXY(points: TimeSeriesPoint[]): { x: number; y: number | null }[] {
+    return deduplicateByX(
+      points.map((p) => ({
+        x: parseMETToSeconds(p.missionElapsedTime),
+        y: p.value,
+      })),
+    );
   }
 
   /**
    * Convert previous flight TimeSeriesPoints to {x, y} scatter data.
-   * Previous flight data stores real_time_seconds in the timestamp field.
+   * Uses parseMETToSeconds for a consistent time axis with live data.
+   * Sorted by x and deduplicated to prevent line looping.
    */
-  private compPointsToXY(points: TimeSeriesPoint[]): { x: number; y: number }[] {
-    return points.map((p) => ({
-      x: p.timestamp,
-      y: p.value,
-    }));
+  private compPointsToXY(points: TimeSeriesPoint[]): { x: number; y: number | null }[] {
+    return deduplicateByX(
+      points.map((p) => ({
+        x: parseMETToSeconds(p.missionElapsedTime),
+        y: p.value,
+      })),
+    );
   }
+
+  private static readonly EMPTY_STORE: TimeSeriesStore = {
+    speedSuperHeavy: [],
+    speedStarship: [],
+    altitudeSuperHeavy: [],
+    altitudeStarship: [],
+  };
 
   private updateChart(timeSeries: TimeSeriesStore): void {
     if (!this.chart) return;
@@ -339,8 +427,11 @@ export class TimeSeriesGraphs {
     const points: TimeSeriesPoint[] = timeSeries[this.selectedKey] ?? [];
     const liveXY = this.livePointsToXY(points);
 
-    const datasets: any[] = [
-      {
+    const datasets: any[] = [];
+
+    // Only include the live dataset if there's actual data
+    if (liveXY.length > 0) {
+      datasets.push({
         label: option.label,
         data: liveXY,
         borderColor: option.lineColor,
@@ -350,8 +441,9 @@ export class TimeSeriesGraphs {
         pointHoverRadius: 4,
         tension: 0.2,
         fill: true,
-      },
-    ];
+        spanGaps: false,
+      });
+    }
 
     // Add each comparison flight as an overlay dataset
     for (let i = 0; i < this.loadedComparisons.length; i++) {
@@ -373,6 +465,7 @@ export class TimeSeriesGraphs {
         pointHoverRadius: 3,
         tension: 0.2,
         fill: false,
+        spanGaps: false,
       });
     }
 
@@ -449,9 +542,7 @@ export class TimeSeriesGraphs {
 
     await Promise.all(loadPromises);
 
-    // Refresh chart
-    if (this.latestTimeSeries) {
-      this.updateChart(this.latestTimeSeries);
-    }
+    // Refresh chart (use empty store if no live data yet)
+    this.updateChart(this.latestTimeSeries ?? TimeSeriesGraphs.EMPTY_STORE);
   }
 }

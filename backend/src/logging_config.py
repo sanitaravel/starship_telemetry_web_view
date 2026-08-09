@@ -1,15 +1,13 @@
-"""Centralized logging configuration with JSON-structured output.
+"""Centralized logging configuration aligned with uvicorn's log style.
 
-Provides a JSONFormatter that outputs single-line JSON log records and a
-configure_logging() function that sets up the root logger from environment.
+Provides a UvicornStyleFormatter that outputs colored, human-readable log
+records matching uvicorn's default output format, and a configure_logging()
+function that sets up the root logger from the environment.
 """
 
-import json
 import logging
 import os
 import sys
-import traceback
-from datetime import datetime, timezone
 
 from src.logging_context import correlation_id_var, frame_seq_var
 
@@ -17,73 +15,91 @@ _VALID_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
 _configured = False
 
+# ANSI color codes matching uvicorn's color scheme
+COLORS = {
+    "DEBUG": "\033[36m",      # cyan
+    "INFO": "\033[32m",       # green
+    "WARNING": "\033[33m",    # yellow
+    "ERROR": "\033[31m",      # red
+    "CRITICAL": "\033[1;31m", # bold red
+}
+RESET = "\033[0m"
 
-class JSONFormatter(logging.Formatter):
-    """Formats log records as single-line JSON objects to stdout."""
+
+def _supports_color() -> bool:
+    """Detect whether the output stream supports ANSI colors."""
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    if sys.platform == "win32":
+        # Windows 10+ supports ANSI via virtual terminal processing
+        return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
+class UvicornStyleFormatter(logging.Formatter):
+    """Formats log records in uvicorn's style: LEVEL:     message.
+
+    Matches uvicorn's default access/error log appearance with optional
+    ANSI color support and contextual fields (correlation_id, frame_seq).
+    """
+
+    def __init__(self, use_colors: bool = True) -> None:
+        super().__init__()
+        self.use_colors = use_colors and _supports_color()
 
     def format(self, record: logging.LogRecord) -> str:
-        """Produce a JSON string with required and contextual fields.
+        """Format the log record in uvicorn style."""
+        levelname = record.levelname
+        # Pad the level to 9 chars (matches uvicorn's padding for "CRITICAL")
+        padded_level = levelname.ljust(9)
 
-        Falls back to the default Formatter output if JSON serialization
-        fails, to avoid silently swallowing log entries.
-        """
-        try:
-            return self._format_json(record)
-        except Exception:
-            # Fallback to default formatter to avoid silent swallowing
-            return super().format(record)
+        if self.use_colors:
+            color = COLORS.get(levelname, "")
+            colored_level = f"{color}{padded_level}{RESET}"
+        else:
+            colored_level = padded_level
 
-    def _format_json(self, record: logging.LogRecord) -> str:
-        """Build the JSON log entry from the record."""
-        # Required fields present in every entry
-        entry: dict = {
-            "timestamp": datetime.fromtimestamp(
-                record.created, tz=timezone.utc
-            ).isoformat(),
-            "level": record.levelname,
-            "logger_name": record.name,
-            "module": record.name,
-            "message": record.getMessage(),
-        }
+        # Build the message
+        message = record.getMessage()
 
-        # Contextual fields from contextvars (omit if None)
+        # Append contextual info if present (correlation_id, frame_seq, duration_ms)
+        extras = []
         cid = correlation_id_var.get()
         if cid is not None:
-            entry["correlation_id"] = cid
+            extras.append(f"cid={cid[:8]}")
 
         seq = frame_seq_var.get()
         if seq is not None:
-            entry["frame_seq"] = seq
+            extras.append(f"seq={seq}")
 
-        # Exception info (only when present)
+        duration_ms = record.__dict__.get("duration_ms")
+        if duration_ms is not None:
+            extras.append(f"{duration_ms}ms")
+
+        fps = record.__dict__.get("fps")
+        if fps is not None:
+            extras.append(f"fps={fps:.1f}")
+
+        if extras:
+            context = " ".join(extras)
+            message = f"{message} [{context}]"
+
+        # Format exception info if present
         if record.exc_info and record.exc_info[0] is not None:
-            entry["exc_type"] = record.exc_info[0].__name__
-            entry["exc_traceback"] = "".join(
-                traceback.format_exception(*record.exc_info)
-            )
+            exc_text = self.formatException(record.exc_info)
+            message = f"{message}\n{exc_text}"
 
-        # Extra fields from record.__dict__ (duration_ms, fps, etc.)
-        for key in ("duration_ms", "fps"):
-            value = record.__dict__.get(key)
-            if value is not None:
-                entry[key] = value
-
-        # Serialize, handling non-serializable values
-        return json.dumps(entry, default=_safe_serialize)
-
-
-def _safe_serialize(obj: object) -> str:
-    """Convert non-serializable objects to their string representation."""
-    return str(obj)
+        return f"{colored_level} {message}"
 
 
 def configure_logging() -> None:
-    """Configure application loggers with JSON formatting and level from environment.
+    """Configure application loggers with uvicorn-style formatting.
 
     Reads LOG_LEVEL from the environment, validates it, and attaches a
-    StreamHandler with JSONFormatter to the 'src' logger (application namespace).
-    Uvicorn's access/error loggers are left untouched so they retain their
-    default plain-text format.
+    StreamHandler with UvicornStyleFormatter to the 'src' logger (application
+    namespace). Uvicorn's own access/error loggers are left untouched.
 
     Idempotent on repeated calls — clears existing handlers before reconfiguring.
     """
@@ -100,9 +116,8 @@ def configure_logging() -> None:
             # Invalid value — will emit warning after handler is attached
             level = logging.INFO
 
-    # Configure the application namespace logger ('src') with JSON output.
-    # This leaves uvicorn.access / uvicorn.error loggers with their default
-    # plain-text format (e.g. "INFO:     127.0.0.1:... - "GET ..." 200").
+    # Configure the application namespace logger ('src') with uvicorn-style output.
+    # This leaves uvicorn.access / uvicorn.error loggers with their default format.
     app_logger = logging.getLogger("src")
 
     # Remove pre-existing handlers (idempotent behavior)
@@ -112,9 +127,9 @@ def configure_logging() -> None:
     app_logger.setLevel(level)
     app_logger.propagate = False  # Don't propagate to root / uvicorn handlers
 
-    # Attach StreamHandler with JSONFormatter to stdout
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(JSONFormatter())
+    # Attach StreamHandler with UvicornStyleFormatter to stderr (matching uvicorn)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(UvicornStyleFormatter(use_colors=True))
     app_logger.addHandler(handler)
 
     # Emit warning for invalid LOG_LEVEL after handler is ready

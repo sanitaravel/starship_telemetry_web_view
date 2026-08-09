@@ -79,6 +79,17 @@ function transformToTimeSeries(records: PreviousFlightRecord[]): TimeSeriesStore
   };
 
   for (const record of records) {
+    // Skip records with missing or invalid time data
+    if (
+      !record.time ||
+      record.time.sign == null ||
+      record.time.hours == null ||
+      record.time.minutes == null ||
+      record.time.seconds == null
+    ) {
+      continue;
+    }
+
     const met = formatMET(
       record.time.sign,
       record.time.hours,

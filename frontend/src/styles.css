@@ -504,7 +504,7 @@ input:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .time-series-graphs__heading {
@@ -519,6 +519,14 @@ input:focus {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+}
+
+.time-series-graphs__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  min-height: 1.5rem;
 }
 
 .time-series-graphs__select {
@@ -620,6 +628,14 @@ input:focus {
 .time-series-graphs__reset-btn:hover {
   border-color: var(--color-accent);
   color: var(--color-text);
+}
+
+.time-series-graphs__zoom-hint {
+  font-size: 0.625rem;
+  color: var(--color-muted);
+  opacity: 0.7;
+  align-self: center;
+  white-space: nowrap;
 }
 
 .time-series-graphs__canvas-container {
