@@ -36,6 +36,25 @@ order via a reorder buffer, so parallel OCR/vision work does not scramble the te
 
 ## Getting Started
 
+### Prerequisites: Git LFS
+
+The stored telemetry in `results_previous/` is tracked with [Git LFS](https://git-lfs.com/).
+Install it **before cloning** so those files are pulled as real data instead of pointer stubs:
+
+```bash
+# Install Git LFS (see https://git-lfs.com for other platforms)
+# macOS:            brew install git-lfs
+# Debian/Ubuntu:    sudo apt install git-lfs
+# Windows:          winget install GitHub.GitLFS  (or use Git for Windows)
+
+# Enable it once per machine, then clone as usual
+git lfs install
+git clone <repo-url>
+```
+
+If you cloned before installing Git LFS, run `git lfs install` followed by `git lfs pull` to
+fetch the actual `results_previous/` files.
+
 All helper scripts live under `scripts/`, split by platform: `scripts/windows/` and `scripts/unix/`.
 
 ### One-time setup
@@ -119,7 +138,7 @@ uvicorn src.server:app --reload
 │   ├── src/              # Dashboard modules + Vitest specs
 │   └── package.json      # Frontend dependencies
 ├── diagrams/             # SVG engine diagrams and ROI templates
-├── results_previous/     # Stored telemetry from past runs
+├── results_previous/     # Stored telemetry from past runs (Git LFS)
 ├── scripts/
 │   ├── windows/          # setup / start scripts (.bat, .ps1)
 │   └── unix/             # setup / start scripts (.sh)

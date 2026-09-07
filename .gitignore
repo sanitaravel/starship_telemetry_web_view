@@ -49,4 +49,4 @@ htmlcov/
 *.log
 
 # Folders
-results_previous/
+# results_previous/ is tracked via Git LFS (see .gitattributes)
