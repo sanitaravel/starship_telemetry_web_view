@@ -44,13 +44,18 @@ if ($IsWindows -or $env:OS -match "Windows") {
     $activateScript = Join-Path $venvDir "bin/Activate.ps1"
 }
 
+# Log file the backend window writes to, so this launcher can detect readiness.
+$backendLog = Join-Path ([System.IO.Path]::GetTempPath()) "starship-backend-$PID.log"
+if (Test-Path $backendLog) { Remove-Item $backendLog -Force -ErrorAction SilentlyContinue }
+
 $backendCmd = @"
 `$Host.UI.RawUI.WindowTitle = 'Starship Backend'
 Set-Location '$backendDir'
 & '$activateScript'
 Write-Host 'Backend running at http://127.0.0.1:8000' -ForegroundColor Green
 Write-Host ''
-uvicorn src.server:app --reload
+# Tee output so the window stays interactive while the launcher watches the log.
+uvicorn src.server:app --reload 2>&1 | Tee-Object -FilePath '$backendLog'
 "@
 
 $backendProcess = Start-Process pwsh -ArgumentList "-NoProfile", "-Command", $backendCmd -PassThru
@@ -61,6 +66,33 @@ Start-Sleep -Seconds 1
 if ($backendProcess.MainWindowHandle -ne [IntPtr]::Zero) {
     [WinPos]::MoveWindow($backendProcess.MainWindowHandle, $leftX, 0, $halfWidth, $height, $true) | Out-Null
 }
+
+# Wait until Uvicorn reports the app lifespan has finished starting up.
+# Time out after 120s so a failed backend doesn't hang the launcher forever.
+Write-Host "  Waiting for backend to finish startup..." -ForegroundColor Yellow
+$readyTimeoutSeconds = 120
+$waited = 0
+$backendReady = $false
+while ($waited -lt $readyTimeoutSeconds) {
+    if ($backendProcess.HasExited) {
+        Write-Host "  ERROR: Backend exited before startup completed. See its window for details." -ForegroundColor Red
+        exit 1
+    }
+    if ((Test-Path $backendLog) -and
+        (Select-String -Path $backendLog -Pattern 'Application startup complete.' -SimpleMatch -Quiet)) {
+        $backendReady = $true
+        break
+    }
+    Start-Sleep -Seconds 1
+    $waited++
+}
+
+if (-not $backendReady) {
+    Write-Host "  ERROR: Timed out after $readyTimeoutSeconds`s waiting for backend startup." -ForegroundColor Red
+    Stop-Process -Id $backendProcess.Id -Force -ErrorAction SilentlyContinue
+    exit 1
+}
+Write-Host "  Backend startup complete." -ForegroundColor Green
 
 # --- Frontend ---
 Write-Host "[2/2] Starting frontend (Vite dev server)..." -ForegroundColor Yellow
@@ -110,5 +142,7 @@ function Stop-Tree($proc) {
 
 Stop-Tree $backendProcess
 Stop-Tree $frontendProcess
+
+if (Test-Path $backendLog) { Remove-Item $backendLog -Force -ErrorAction SilentlyContinue }
 
 Write-Host "Done." -ForegroundColor Green

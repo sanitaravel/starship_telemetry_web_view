@@ -2,10 +2,9 @@
 
 Takes results from engine analysis, OCR extraction, and stage assignment,
 and assembles them into a single TelemetryRecord with a monotonically
-increasing sequence number and current timestamp.
+increasing sequence number and a timestamp derived from the frame's position
+in the video stream.
 """
-
-import time
 
 from src.engine_analyzer import EngineAnalysisResult
 from src.enums import EngineStatus, OCRFieldStatus
@@ -170,6 +169,8 @@ class RecordAssembler:
         ocr_result: OCRResult,
         stage_result: StageAssignmentResult,
         engine_groups: list[EngineGroup],
+        frame_number: int,
+        source_fps: float,
         t_zero_found: bool = False,
         stage_sep_found: bool = False,
     ) -> TelemetryRecord:
@@ -177,13 +178,21 @@ class RecordAssembler:
 
         Combines engine analysis, OCR extraction, and stage assignment results
         into a single structured record. Assigns the next sequence number and
-        current timestamp.
+        a timestamp derived from the frame's position in the video stream.
+
+        The timestamp is the frame's offset within the source video, in
+        milliseconds, computed as ``frame_number / source_fps * 1000``. Basing
+        the timestamp on the video stream position (rather than the wall-clock
+        time at which OCR ran) keeps timing aligned to the footage and allows
+        more than one snapshot per real-time second.
 
         Args:
             engine_result: Output from the Engine Analyzer.
             ocr_result: Output from the OCR Engine.
             stage_result: Output from the Stage Assigner.
             engine_groups: Engine groups from ROI configuration (for splitting).
+            frame_number: Absolute frame index of this frame in the source stream.
+            source_fps: Frame rate of the source video, in frames per second.
             t_zero_found: Whether T-0 (00:00:00) has been detected in this session.
             stage_sep_found: Whether stage separation has been detected in this session.
 
@@ -215,8 +224,13 @@ class RecordAssembler:
             engine_result.engine_statuses, engine_groups
         )
 
-        # Current timestamp in Unix milliseconds
-        timestamp = int(time.time() * 1000)
+        # Timestamp derived from the frame's position in the video stream,
+        # in milliseconds. Falls back to the frame number itself if the FPS
+        # is not usable, so timestamps remain monotonic per frame.
+        if source_fps > 0:
+            timestamp = round(frame_number / source_fps * 1000)
+        else:
+            timestamp = frame_number
 
         return TelemetryRecord(
             sequence_number=self._sequence_counter,

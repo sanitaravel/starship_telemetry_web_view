@@ -505,7 +505,9 @@ class PipelineOrchestrator:
                 except Exception as frame_err:
                     logger.warning(f"Failed to broadcast frame: {frame_err}")
 
-    async def _process_frame_with_timeout(self, frame: np.ndarray, seq: int) -> None:
+    async def _process_frame_with_timeout(
+        self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float
+    ) -> None:
         """Wrap frame processing with a configurable timeout.
 
         Calls _process_frame_parallel within asyncio.wait_for using
@@ -520,10 +522,12 @@ class PipelineOrchestrator:
         Args:
             frame: BGR numpy array (1920x1080).
             seq: Frame sequence number from the extractor.
+            frame_number: Absolute source frame index in the original stream.
+            source_fps: Source video frame rate in frames per second.
         """
         try:
             await asyncio.wait_for(
-                self._process_frame_parallel(frame, seq),
+                self._process_frame_parallel(frame, seq, frame_number, source_fps),
                 timeout=self._parallel_config.frame_timeout_seconds,
             )
         except asyncio.TimeoutError:
@@ -539,7 +543,9 @@ class PipelineOrchestrator:
                 self._reorder_buffer.advance_past_gap(seq)
                 await self._drain_reorder_buffer()
 
-    async def _process_frame_parallel(self, frame: np.ndarray, seq: int) -> None:
+    async def _process_frame_parallel(
+        self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float
+    ) -> None:
         """Process a frame with intra-frame parallelism using asyncio.gather.
 
         Runs engine analysis and OCR extraction concurrently. If one stage
@@ -551,6 +557,8 @@ class PipelineOrchestrator:
         Args:
             frame: BGR numpy array (1920x1080).
             seq: Frame sequence number from the extractor.
+            frame_number: Absolute source frame index in the original stream.
+            source_fps: Source video frame rate in frames per second.
         """
         if self._roi_config is None:
             logger.warning("No ROI configuration available, skipping frame.")
@@ -629,6 +637,8 @@ class PipelineOrchestrator:
                 ocr_result=ocr_result,
                 stage_result=stage_result,
                 engine_groups=self._roi_config.engine_groups,
+                frame_number=frame_number,
+                source_fps=source_fps,
                 t_zero_found=ocr_engine.t_zero_detected,
                 stage_sep_found=stage_result.separation_state == SeparationState.POST_SEPARATION,
             )
@@ -847,7 +857,9 @@ class PipelineOrchestrator:
             self._frame_extractor._config.skip_frames = skip_frames
         logger.info(f"Frame skip set to every {skip_frames} frames")
 
-    async def _on_frame(self, frame: np.ndarray, seq: int) -> None:
+    async def _on_frame(
+        self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float
+    ) -> None:
         """Dispatch a captured frame for processing based on T-0 state.
 
         Implements the frame dispatch logic:
@@ -861,6 +873,8 @@ class PipelineOrchestrator:
         Args:
             frame: BGR numpy array (1920x1080).
             seq: Frame sequence number from the extractor.
+            frame_number: Absolute source frame index in the original stream.
+            source_fps: Source video frame rate in frames per second.
         """
         if self._roi_config is None:
             logger.warning("No ROI configuration available, skipping frame.")
@@ -881,7 +895,7 @@ class PipelineOrchestrator:
 
         if not self._t_zero_detected:
             # Pre-T-0: sequential processing
-            await self._process_frame_sequential(frame, frame_seq)
+            await self._process_frame_sequential(frame, frame_seq, frame_number, source_fps)
         else:
             # Post-T-0: wait for a concurrency slot with backpressure.
             # This pauses the capture loop until processing capacity is available,
@@ -895,7 +909,9 @@ class PipelineOrchestrator:
                 if acquired:
                     # Spawn parallel processing as a fire-and-forget async task
                     task = asyncio.create_task(
-                        self._process_frame_with_timeout(frame, frame_seq)
+                        self._process_frame_with_timeout(
+                            frame, frame_seq, frame_number, source_fps
+                        )
                     )
 
                     # Track the task for graceful shutdown
@@ -919,7 +935,9 @@ class PipelineOrchestrator:
                         self._concurrency_controller.limit,
                     )
 
-    async def _process_frame_sequential(self, frame: np.ndarray, seq: int) -> None:
+    async def _process_frame_sequential(
+        self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float
+    ) -> None:
         """Process a single frame sequentially (pre-T-0 mode).
 
         Uses the same intra-frame parallelism as _process_frame_parallel
@@ -934,6 +952,8 @@ class PipelineOrchestrator:
         Args:
             frame: BGR numpy array (1920x1080).
             seq: Frame sequence number.
+            frame_number: Absolute source frame index in the original stream.
+            source_fps: Source video frame rate in frames per second.
         """
         if self._roi_config is None:
             logger.warning("No ROI configuration available, skipping frame.")
@@ -1021,6 +1041,8 @@ class PipelineOrchestrator:
                 ocr_result=ocr_result,
                 stage_result=stage_result,
                 engine_groups=self._roi_config.engine_groups,
+                frame_number=frame_number,
+                source_fps=source_fps,
                 t_zero_found=ocr_engine.t_zero_detected,
                 stage_sep_found=stage_result.separation_state == SeparationState.POST_SEPARATION,
             )

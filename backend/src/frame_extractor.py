@@ -36,6 +36,12 @@ class FrameExtractorConfig:
     target_height: int = 1080
 
 
+# Fallback source FPS used when the video backend does not report a usable
+# frame rate (e.g. some live streams return 0 for CAP_PROP_FPS). 29.97 is the
+# standard NTSC broadcast rate used by the SpaceX webcast.
+DEFAULT_SOURCE_FPS: float = 30000.0 / 1001.0
+
+
 @dataclass
 class ConnectionError:
     """Describes a failure to connect to a video source.
@@ -79,7 +85,10 @@ class FrameExtractor:
         self._capture: cv2.VideoCapture | None = None
         self._capture_task: asyncio.Task | None = None  # type: ignore[type-arg]
         self._sequence_number: int = 0
-        self._frame_callbacks: list[Callable[[np.ndarray, int], Awaitable[None]]] = []
+        self._source_fps: float = DEFAULT_SOURCE_FPS
+        self._frame_callbacks: list[
+            Callable[[np.ndarray, int, int, float], Awaitable[None]]
+        ] = []
         self._status_callbacks: list[Callable[[PipelineStatus], Awaitable[None]]] = []
         self._stop_event: asyncio.Event = asyncio.Event()
 
@@ -92,6 +101,15 @@ class FrameExtractor:
     def sequence_number(self) -> int:
         """Current frame sequence number."""
         return self._sequence_number
+
+    @property
+    def source_fps(self) -> float:
+        """Frame rate of the active video source, in frames per second.
+
+        Falls back to DEFAULT_SOURCE_FPS when the backend does not report a
+        usable value.
+        """
+        return self._source_fps
 
     async def validate(self, url: str) -> None | ConnectionError:
         """Check whether the video source is reachable and active.
@@ -194,14 +212,18 @@ class FrameExtractor:
         self._release_capture()
         self._status = PipelineStatus.STOPPED
 
-    def on_frame(self, callback: Callable[[np.ndarray, int], Awaitable[None]]) -> None:
+    def on_frame(
+        self, callback: Callable[[np.ndarray, int, int, float], Awaitable[None]]
+    ) -> None:
         """Register a callback for each captured frame.
 
-        The callback receives a BGR numpy array (1920×1080) and the frame
-        sequence number.
+        The callback receives a BGR numpy array (1920×1080), the processed-frame
+        sequence number, the absolute source frame number (its 0-based index in
+        the original video stream), and the source frame rate in FPS.
 
         Args:
-            callback: Async function accepting (frame: np.ndarray, seq: int).
+            callback: Async function accepting
+                (frame: np.ndarray, seq: int, frame_number: int, source_fps: float).
         """
         self._frame_callbacks.append(callback)
 
@@ -232,6 +254,36 @@ class FrameExtractor:
         """
         return cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
 
+    @staticmethod
+    def _parse_source_fps(reported_fps: object) -> float:
+        """Coerce a backend-reported frame rate into a usable FPS value.
+
+        OpenCV backends may report 0, NaN, or (in tests) non-numeric values for
+        CAP_PROP_FPS. Any of these are treated as "unknown" and fall back to
+        DEFAULT_SOURCE_FPS so downstream timing stays well-defined.
+
+        Args:
+            reported_fps: The raw value returned by ``VideoCapture.get(CAP_PROP_FPS)``.
+
+        Returns:
+            A positive, finite frame rate in frames per second.
+        """
+        try:
+            fps = float(reported_fps)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            fps = 0.0
+
+        if fps > 0 and not np.isnan(fps) and not np.isinf(fps):
+            return fps
+
+        logger.warning(
+            "Video source did not report a usable frame rate "
+            "(CAP_PROP_FPS=%r). Falling back to %.3f FPS for timing.",
+            reported_fps,
+            DEFAULT_SOURCE_FPS,
+        )
+        return DEFAULT_SOURCE_FPS
+
     async def _set_status(self, new_status: PipelineStatus) -> None:
         """Update pipeline status and notify registered callbacks.
 
@@ -251,16 +303,20 @@ class FrameExtractor:
             except Exception as e:
                 logger.error(f"Error in status change callback: {e}")
 
-    async def _notify_frame(self, frame: np.ndarray, seq: int) -> None:
+    async def _notify_frame(
+        self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float
+    ) -> None:
         """Invoke all registered frame callbacks.
 
         Args:
             frame: The captured and resized BGR frame.
-            seq: The frame sequence number.
+            seq: The processed-frame sequence number.
+            frame_number: Absolute source frame index in the original stream.
+            source_fps: Source video frame rate in frames per second.
         """
         for callback in self._frame_callbacks:
             try:
-                await callback(frame, seq)
+                await callback(frame, seq, frame_number, source_fps)
             except Exception as e:
                 logger.error(f"Error in frame callback: {e}")
 
@@ -293,6 +349,13 @@ class FrameExtractor:
             # Request 1080p from source (hint — not all backends honor this)
             self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, self._config.target_width)
             self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self._config.target_height)
+
+            # Read the source frame rate. Some backends/streams report 0, NaN,
+            # or an unparseable value; fall back to the NTSC default in that case.
+            self._source_fps = self._parse_source_fps(
+                self._capture.get(cv2.CAP_PROP_FPS)
+            )
+            logger.info("Source frame rate: %.3f FPS.", self._source_fps)
 
             actual_w = self._capture.get(cv2.CAP_PROP_FRAME_WIDTH)
             actual_h = self._capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -340,9 +403,14 @@ class FrameExtractor:
                         frame, self._config.target_width, self._config.target_height
                     )
 
-                # Increment sequence and notify
+                # Increment sequence and notify. frame_counter counts every
+                # frame read from the source, so its 0-based index is the
+                # absolute frame number in the original stream.
                 self._sequence_number += 1
-                await self._notify_frame(resized, self._sequence_number)
+                frame_number = frame_counter - 1
+                await self._notify_frame(
+                    resized, self._sequence_number, frame_number, self._source_fps
+                )
 
                 # Yield control briefly to check for stop event
                 await asyncio.sleep(0)

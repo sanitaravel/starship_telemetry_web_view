@@ -1,7 +1,5 @@
 """Unit tests for the Record Assembler module."""
 
-import time
-
 import pytest
 
 from src.engine_analyzer import EngineAnalysisResult
@@ -16,6 +14,12 @@ from src.record_assembler import (
     _split_engine_statuses,
 )
 from src.stage_assignment import StageAssignmentResult
+
+
+# Frame-based timing constants used across assemble() calls in these tests.
+# 1200 frames at 30 fps => 40_000 ms video-stream offset.
+_TEST_FRAME_NUMBER = 1200
+_TEST_SOURCE_FPS = 30.0
 
 
 # --- Fixtures ---
@@ -236,7 +240,7 @@ class TestRecordAssembler:
         stage_result = _make_stage_result()
         groups = _make_engine_groups()
 
-        record = assembler.assemble(engine_result, ocr_result, stage_result, groups)
+        record = assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
 
         assert record.sequence_number == 1
         assert record.mission_elapsed_time == "T+00:01:30"
@@ -267,9 +271,9 @@ class TestRecordAssembler:
         stage_result = _make_stage_result()
         groups = _make_engine_groups()
 
-        r1 = assembler.assemble(engine_result, ocr_result, stage_result, groups)
-        r2 = assembler.assemble(engine_result, ocr_result, stage_result, groups)
-        r3 = assembler.assemble(engine_result, ocr_result, stage_result, groups)
+        r1 = assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
+        r2 = assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
+        r3 = assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
 
         assert r1.sequence_number == 1
         assert r2.sequence_number == 2
@@ -282,10 +286,10 @@ class TestRecordAssembler:
         stage_result = _make_stage_result()
         groups = _make_engine_groups()
 
-        assembler.assemble(engine_result, ocr_result, stage_result, groups)
+        assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
         assembler.reset()
 
-        record = assembler.assemble(engine_result, ocr_result, stage_result, groups)
+        record = assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
         assert record.sequence_number == 1
 
     def test_current_sequence_property(self):
@@ -297,7 +301,7 @@ class TestRecordAssembler:
         stage_result = _make_stage_result()
         groups = _make_engine_groups()
 
-        assembler.assemble(engine_result, ocr_result, stage_result, groups)
+        assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
         assert assembler.current_sequence == 1
 
     def test_unavailable_ocr_fields(self):
@@ -325,7 +329,7 @@ class TestRecordAssembler:
             "super_heavy", "super_heavy", SeparationState.PRE_SEPARATION
         )
 
-        record = assembler.assemble(engine_result, ocr_result, stage_result, groups)
+        record = assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
 
         assert record.mission_elapsed_time is None
         assert record.speed_left.value is None
@@ -335,18 +339,53 @@ class TestRecordAssembler:
         assert record.stage_separation_text is None
         assert record.separation_state == "pre_separation"
 
-    def test_timestamp_is_recent(self):
+    def test_timestamp_is_frame_based(self):
+        """Timestamp is derived from the frame's position in the video stream."""
         assembler = RecordAssembler()
         engine_result = _make_engine_result()
         ocr_result = _make_ocr_result()
         stage_result = _make_stage_result()
         groups = _make_engine_groups()
 
-        before = int(time.time() * 1000)
-        record = assembler.assemble(engine_result, ocr_result, stage_result, groups)
-        after = int(time.time() * 1000)
+        # frame 900 at 30 fps => 30_000 ms into the stream.
+        record = assembler.assemble(
+            engine_result, ocr_result, stage_result, groups, 900, 30.0
+        )
 
-        assert before <= record.timestamp <= after
+        assert record.timestamp == 30_000
+
+    def test_timestamp_scales_with_frame_number(self):
+        """A later frame yields a strictly larger timestamp at the same FPS."""
+        assembler = RecordAssembler()
+        engine_result = _make_engine_result()
+        ocr_result = _make_ocr_result()
+        stage_result = _make_stage_result()
+        groups = _make_engine_groups()
+
+        early = assembler.assemble(
+            engine_result, ocr_result, stage_result, groups, 30, 30.0
+        )
+        late = assembler.assemble(
+            engine_result, ocr_result, stage_result, groups, 60, 30.0
+        )
+
+        assert early.timestamp == 1_000
+        assert late.timestamp == 2_000
+        assert late.timestamp > early.timestamp
+
+    def test_timestamp_falls_back_to_frame_number_when_fps_zero(self):
+        """When source FPS is unusable (0), the raw frame number is used."""
+        assembler = RecordAssembler()
+        engine_result = _make_engine_result()
+        ocr_result = _make_ocr_result()
+        stage_result = _make_stage_result()
+        groups = _make_engine_groups()
+
+        record = assembler.assemble(
+            engine_result, ocr_result, stage_result, groups, 4242, 0.0
+        )
+
+        assert record.timestamp == 4242
 
 
 # ─── Property-Based Tests (Hypothesis) ────────────────────────────────────────
@@ -522,7 +561,7 @@ class TestRecordAssemblyCompleteness:
         assembler = RecordAssembler()
         groups = _make_engine_groups()
 
-        record = assembler.assemble(engine_result, ocr_result, stage_result, groups)
+        record = assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
 
         # Verify record is a TelemetryRecord
         from src.telemetry_record import TelemetryRecord
@@ -628,7 +667,7 @@ class TestSequenceNumberMonotonicity:
 
         records = []
         for engine_result, ocr_result, stage_result in inputs:
-            record = assembler.assemble(engine_result, ocr_result, stage_result, groups)
+            record = assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
             records.append(record)
 
         # Verify strict monotonic increase
@@ -657,7 +696,7 @@ class TestSequenceNumberMonotonicity:
         groups = _make_engine_groups()
 
         for idx, (engine_result, ocr_result, stage_result) in enumerate(inputs, start=1):
-            record = assembler.assemble(engine_result, ocr_result, stage_result, groups)
+            record = assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
             assert record.sequence_number == idx, (
                 f"Expected sequence_number={idx}, got {record.sequence_number}"
             )

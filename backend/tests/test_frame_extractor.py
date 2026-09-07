@@ -12,7 +12,12 @@ import numpy as np
 import pytest
 
 from src.enums import PipelineStatus
-from src.frame_extractor import ConnectionError, FrameExtractor, FrameExtractorConfig
+from src.frame_extractor import (
+    DEFAULT_SOURCE_FPS,
+    ConnectionError,
+    FrameExtractor,
+    FrameExtractorConfig,
+)
 
 
 @pytest.fixture
@@ -25,6 +30,31 @@ def extractor() -> FrameExtractor:
 def config() -> FrameExtractorConfig:
     """Create a default config for tests."""
     return FrameExtractorConfig(source_url="http://example.com/stream")
+
+
+class TestParseSourceFps:
+    """Tests for FrameExtractor._parse_source_fps FPS coercion/fallback."""
+
+    def test_valid_fps_is_used(self) -> None:
+        assert FrameExtractor._parse_source_fps(29.97) == pytest.approx(29.97)
+
+    def test_integer_fps_is_used(self) -> None:
+        assert FrameExtractor._parse_source_fps(30) == 30.0
+
+    def test_zero_falls_back_to_default(self) -> None:
+        assert FrameExtractor._parse_source_fps(0.0) == DEFAULT_SOURCE_FPS
+
+    def test_negative_falls_back_to_default(self) -> None:
+        assert FrameExtractor._parse_source_fps(-1.0) == DEFAULT_SOURCE_FPS
+
+    def test_nan_falls_back_to_default(self) -> None:
+        assert FrameExtractor._parse_source_fps(float("nan")) == DEFAULT_SOURCE_FPS
+
+    def test_inf_falls_back_to_default(self) -> None:
+        assert FrameExtractor._parse_source_fps(float("inf")) == DEFAULT_SOURCE_FPS
+
+    def test_non_numeric_falls_back_to_default(self) -> None:
+        assert FrameExtractor._parse_source_fps(object()) == DEFAULT_SOURCE_FPS
 
 
 class TestFrameExtractorConfig:
@@ -269,6 +299,14 @@ class TestCaptureLoop:
         # Sequence numbers should be 1, 2, 3
         seq_nums = [call[0][1] for call in frame_callback.call_args_list]
         assert seq_nums == [1, 2, 3]
+
+        # Absolute source frame numbers are the 0-based read indices (skip=1)
+        frame_numbers = [call[0][2] for call in frame_callback.call_args_list]
+        assert frame_numbers == [0, 1, 2]
+
+        # Source FPS is delivered as the 4th positional arg and is positive
+        source_fps_values = [call[0][3] for call in frame_callback.call_args_list]
+        assert all(fps > 0 for fps in source_fps_values)
 
     @patch("src.frame_extractor.cv2.VideoCapture")
     async def test_capture_loop_transitions_to_running(
