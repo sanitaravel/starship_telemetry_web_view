@@ -3,11 +3,15 @@
 # Press Enter in this window to stop both services.
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host " Starship Telemetry Web View - Starting..." -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
+Write-Host ""
+
+# Ensure dependencies are installed before launching
+& (Join-Path $PSScriptRoot "setup.ps1")
 Write-Host ""
 
 # Get screen dimensions
@@ -31,7 +35,7 @@ public class WinPos {
 # --- Backend ---
 Write-Host "[1/2] Starting backend (FastAPI + Uvicorn)..." -ForegroundColor Yellow
 
-$backendDir = Join-Path $ScriptDir "backend"
+$backendDir = Join-Path $Root "backend"
 $venvDir = Join-Path $backendDir ".venv"
 
 if ($IsWindows -or $env:OS -match "Windows") {
@@ -43,14 +47,7 @@ if ($IsWindows -or $env:OS -match "Windows") {
 $backendCmd = @"
 `$Host.UI.RawUI.WindowTitle = 'Starship Backend'
 Set-Location '$backendDir'
-if (-not (Test-Path '.venv')) {
-    Write-Host 'Creating virtual environment...' -ForegroundColor Yellow
-    python3 -m venv .venv
-    & '$activateScript'
-    pip install -e '.[dev]'
-} else {
-    & '$activateScript'
-}
+& '$activateScript'
 Write-Host 'Backend running at http://127.0.0.1:8000' -ForegroundColor Green
 Write-Host ''
 uvicorn src.server:app --reload
@@ -68,15 +65,11 @@ if ($backendProcess.MainWindowHandle -ne [IntPtr]::Zero) {
 # --- Frontend ---
 Write-Host "[2/2] Starting frontend (Vite dev server)..." -ForegroundColor Yellow
 
-$frontendDir = Join-Path $ScriptDir "frontend"
+$frontendDir = Join-Path $Root "frontend"
 
 $frontendCmd = @"
 `$Host.UI.RawUI.WindowTitle = 'Starship Frontend'
 Set-Location '$frontendDir'
-if (-not (Test-Path 'node_modules')) {
-    Write-Host 'Installing dependencies...' -ForegroundColor Yellow
-    npm install
-}
 Write-Host 'Frontend running at http://localhost:5173' -ForegroundColor Green
 Write-Host ''
 npm run dev

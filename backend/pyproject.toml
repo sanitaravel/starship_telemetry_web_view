@@ -1,18 +1,47 @@
 [project]
 name = "starship-telemetry-backend"
 version = "0.1.0"
-description = "Backend for Starship Telemetry Web View - extracts telemetry from SpaceX livestream frames"
+description = "Extracts real-time telemetry (speed, altitude, mission time, engine status) from SpaceX Starship livestream frames via computer vision and OCR."
 requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Starship Telemetry Web View contributors" }]
+keywords = [
+    "starship",
+    "spacex",
+    "telemetry",
+    "ocr",
+    "computer-vision",
+    "easyocr",
+    "opencv",
+    "fastapi",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: GPU :: NVIDIA CUDA",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Multimedia :: Video",
+]
 dependencies = [
     "fastapi>=0.104.0,<1.0.0",
     "uvicorn[standard]>=0.24.0,<1.0.0",
     "opencv-python-headless>=4.8.0,<5.0.0",
     "easyocr>=1.7.0,<2.0.0",
     "torch>=2.1.0,<3.0.0",
+    "torchvision>=0.16.0,<1.0.0",
     "numpy>=1.26.0,<2.0.0",
     "pydantic>=2.5.0,<3.0.0",
     "websockets>=12.0,<13.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/your-org/starship_telemetry_web_view"
+Issues = "https://github.com/your-org/starship_telemetry_web_view/issues"
 
 [project.optional-dependencies]
 dev = [

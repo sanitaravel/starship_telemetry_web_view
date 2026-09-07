@@ -2,18 +2,26 @@
 REM Start both frontend and backend for Starship Telemetry Web View (Windows)
 REM Opens side-by-side windows. Press any key in this window to stop both.
 
+setlocal
+set ROOT=%~dp0..\..
+
 echo ============================================
 echo  Starship Telemetry Web View - Starting...
 echo ============================================
 echo.
 
+REM Ensure dependencies are installed before launching
+call "%~dp0setup.bat"
+if errorlevel 1 exit /b 1
+echo.
+
 echo [1/2] Starting backend (FastAPI + Uvicorn)...
-start "Starship Backend" cmd /c "cd /d %~dp0backend && if not exist .venv (echo Creating virtual environment... && python -m venv .venv && call .venv\Scripts\activate && pip install -e ".[dev]") else (call .venv\Scripts\activate) && uvicorn src.server:app --reload"
+start "Starship Backend" cmd /c "cd /d "%ROOT%\backend" && call .venv\Scripts\activate && uvicorn src.server:app --reload"
 
 timeout /t 1 /nobreak >nul
 
 echo [2/2] Starting frontend (Vite dev server)...
-start "Starship Frontend" cmd /c "cd /d %~dp0frontend && if not exist node_modules (echo Installing dependencies... && npm install) && npm run dev"
+start "Starship Frontend" cmd /c "cd /d "%ROOT%\frontend" && npm run dev"
 
 timeout /t 1 /nobreak >nul
 
@@ -49,3 +57,4 @@ taskkill /fi "WINDOWTITLE eq Starship Frontend*" /f >nul 2>&1
 taskkill /im uvicorn.exe /f >nul 2>&1
 taskkill /im node.exe /f >nul 2>&1
 echo Done.
+endlocal

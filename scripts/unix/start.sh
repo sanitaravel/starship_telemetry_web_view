@@ -4,42 +4,32 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 echo "============================================"
 echo " Starship Telemetry Web View - Starting..."
 echo "============================================"
 echo ""
 
+# Ensure dependencies are installed
+"$SCRIPT_DIR/setup.sh"
+echo ""
+
 # --- Backend ---
 echo "[1/2] Starting backend (FastAPI + Uvicorn)..."
-
-cd "$SCRIPT_DIR/backend"
-
-if [ ! -d ".venv" ]; then
-    echo "  Creating virtual environment..."
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -e ".[dev]"
-else
-    source .venv/bin/activate
-fi
-
+cd "$ROOT/backend"
+# shellcheck disable=SC1091
+source .venv/bin/activate
 uvicorn src.server:app --reload &
 BACKEND_PID=$!
+deactivate || true
 echo "  Backend PID: $BACKEND_PID"
 echo "  Backend running at http://127.0.0.1:8000"
 echo ""
 
 # --- Frontend ---
 echo "[2/2] Starting frontend (Vite dev server)..."
-
-cd "$SCRIPT_DIR/frontend"
-
-if [ ! -d "node_modules" ]; then
-    echo "  Installing dependencies..."
-    npm install
-fi
-
+cd "$ROOT/frontend"
 npm run dev &
 FRONTEND_PID=$!
 echo "  Frontend PID: $FRONTEND_PID"
