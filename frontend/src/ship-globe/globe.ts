@@ -95,11 +95,17 @@ export class ShipGlobe {
         <div class="ship-globe__map">
           <div class="ship-globe__canvas-wrap">
             <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom."></canvas>
-            <div class="ship-globe__zoom" role="group" aria-label="Zoom">
-              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in">+</button>
-              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out">&minus;</button>
-              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom">1.0&times;</button>
-              <button type="button" class="ship-globe__center-btn" disabled>Center on ship</button>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship" disabled>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7" />
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">&minus;</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.0&times;</button>
             </div>
           </div>
           <p class="ship-globe__hint">Drag to rotate &middot; Scroll to zoom</p>

@@ -648,24 +648,24 @@ input:focus {
   right: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
   gap: 0.25rem;
 }
 
-.ship-globe__center-btn {
+/* Every control on the globe is the same square. */
+.ship-globe__zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
   height: 2.25rem;
-  margin-top: 0.25rem;
-  padding: 0 0.75rem;
-  font-size: 0.75rem;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
   white-space: nowrap;
 }
 
-.ship-globe__zoom-btn {
-  min-width: 2.25rem;
-  height: 2.25rem;
-  padding: 0 0.5rem;
-  font-size: 1rem;
-  line-height: 1;
+.ship-globe__center-btn {
+  margin-bottom: 0.25rem;
 }
 
 .ship-globe__zoom-level {
