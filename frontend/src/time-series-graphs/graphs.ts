@@ -4,6 +4,7 @@ import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightInfo } 
 import type { DatasetKey, LoadedComparison, SeriesKey, SeriesOption } from './types';
 import { COMPARE_COLORS, SERIES_OPTIONS } from './panels';
 import { computeAcceleration, deduplicateByX, formatSecondsToMET, parseMETToSeconds } from './series-math';
+import { chartFilename, saveCanvasAsPng } from './export-png';
 import { createLogger } from '../logger';
 
 const logger = createLogger('time-series-graphs');
@@ -90,8 +91,15 @@ export class TimeSeriesGraphs {
       }
     });
 
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'time-series-graphs__save-btn';
+    saveBtn.textContent = 'Save PNG';
+    saveBtn.setAttribute('aria-label', 'Save chart as PNG image');
+    saveBtn.addEventListener('click', () => this.saveAsPng());
+
     controls.appendChild(this.selectElement);
     controls.appendChild(resetBtn);
+    controls.appendChild(saveBtn);
 
     header.appendChild(title);
     header.appendChild(controls);
@@ -445,6 +453,17 @@ export class TimeSeriesGraphs {
     } finally {
       this.pendingLoads.delete(filename);
     }
+  }
+
+  /**
+   * Download the chart as currently shown (series, zoom level, comparison
+   * overlays) as a PNG, on the same background colour as the chart panel.
+   */
+  private saveAsPng(): void {
+    if (!this.chart) return;
+    const background =
+      getComputedStyle(this.canvasContainer).backgroundColor || '#333333';
+    saveCanvasAsPng(this.chart.canvas, chartFilename(this.selectedKey), background);
   }
 
   private setLoading(loading: boolean): void {

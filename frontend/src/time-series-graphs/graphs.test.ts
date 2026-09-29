@@ -11,6 +11,7 @@ vi.mock('chart.js/auto', () => {
     destroy = vi.fn();
     resetZoom = vi.fn();
     static register = vi.fn();
+    constructor(public canvas: HTMLCanvasElement) {}
   }
   return { Chart };
 });
@@ -20,8 +21,14 @@ vi.mock('../previous-flights', () => ({
   fetchPreviousFlightData: vi.fn(),
 }));
 
+vi.mock('./export-png', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./export-png')>()),
+  saveCanvasAsPng: vi.fn(),
+}));
+
 import { TimeSeriesGraphs } from './graphs';
 import { fetchPreviousFlightList, fetchPreviousFlightData } from '../previous-flights';
+import { saveCanvasAsPng } from './export-png';
 
 const EMPTY: TimeSeriesStore = {
   speedSuperHeavy: [],
@@ -138,5 +145,26 @@ describe('TimeSeriesGraphs comparison loading overlay', () => {
 
     const calls = vi.mocked(fetchPreviousFlightData).mock.calls.map((c) => c[0]);
     expect(calls).toEqual(['flight-a.json', 'flight-b.json']);
+  });
+});
+
+describe('TimeSeriesGraphs Save PNG button', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    vi.mocked(saveCanvasAsPng).mockReset();
+  });
+
+  it('exports the chart canvas named after the selected series', async () => {
+    const container = await setup();
+    const select = container.querySelector('.time-series-graphs__select') as HTMLSelectElement;
+    select.value = 'accelerationStarship';
+    select.dispatchEvent(new Event('change'));
+
+    (container.querySelector('.time-series-graphs__save-btn') as HTMLButtonElement).click();
+
+    expect(saveCanvasAsPng).toHaveBeenCalledTimes(1);
+    const [canvas, filename] = vi.mocked(saveCanvasAsPng).mock.calls[0];
+    expect(canvas).toBe(container.querySelector('#chart-main'));
+    expect(filename).toMatch(/^starship-accelerationStarship-.*\.png$/);
   });
 });
