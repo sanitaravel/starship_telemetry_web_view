@@ -83,7 +83,6 @@ export class ShipGlobe {
     container.innerHTML = `
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
-        <button type="button" class="ship-globe__center-btn" disabled>Center on ship</button>
       </div>
       <div class="ship-globe__history" hidden>
         <span class="ship-globe__history-label">Previous ships:</span>
@@ -100,6 +99,7 @@ export class ShipGlobe {
               <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in">+</button>
               <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out">&minus;</button>
               <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom">1.0&times;</button>
+              <button type="button" class="ship-globe__center-btn" disabled>Center on ship</button>
             </div>
           </div>
           <p class="ship-globe__hint">Drag to rotate &middot; Scroll to zoom</p>
