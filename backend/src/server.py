@@ -6,6 +6,8 @@ Provides:
 - /api/validate-url: POST endpoint for livestream URL validation
 - /api/previous-flights: GET endpoint listing available previous flight data
 - /api/previous-flights/{name}: GET endpoint serving a specific previous flight JSON
+- /api/trajectories: GET endpoint listing recorded ship trajectories
+- /api/trajectories/{name}: GET endpoint serving one ship's trajectory points
 - /static: Mounted frontend static files
 """
 
@@ -26,6 +28,7 @@ from src.logging_config import configure_logging
 from src.logging_context import correlation_id_var
 from src.pipeline import PipelineOrchestrator
 from src.template_registry import TemplateRegistry, load_default_template
+from src import trajectories
 
 # Initialize structured logging before any HTTP/WebSocket processing
 configure_logging()
@@ -323,6 +326,25 @@ def create_app() -> FastAPI:
         with open(file_path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
         return data
+
+    # --- Ship Trajectory Endpoints ---
+
+    @app.get("/api/trajectories")
+    async def list_trajectories() -> list[dict[str, Any]]:
+        """List recorded ship trajectories from the trajectories/ directory."""
+        return trajectories.list_trajectories(trajectories.TRAJECTORIES_DIR)
+
+    @app.get("/api/trajectories/{name}")
+    async def get_trajectory(name: str) -> Any:
+        """Serve one ship's trajectory (e.g. 'ship39') as a list of points."""
+        points = trajectories.load_trajectory(name, trajectories.TRAJECTORIES_DIR)
+        if points is None:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=404,
+                content={"detail": f"Trajectory '{name}' not found."},
+            )
+        return points
 
     @app.get("/api/status")
     async def get_pipeline_status() -> dict[str, Any]:

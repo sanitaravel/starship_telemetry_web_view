@@ -12,6 +12,7 @@ import {
   rotationToCenter,
   type Rotation,
 } from './geo';
+import type { HistoricalTrajectory } from './history';
 import type { ShipTrack, ShipTracker } from './tracker';
 
 const COLORS = {
@@ -37,15 +38,20 @@ const DEFAULT_ROTATION: Rotation = rotationToCenter(-97.157, 25.997);
 
 /**
  * Rotatable globe showing the live position and track of each ship reported
- * by the SpaceX tracker feed. Drag to rotate; "Center on ship" re-focuses.
+ * by the SpaceX tracker feed, plus toggleable paths of previously recorded
+ * flights. Drag to rotate; "Center on ship" re-focuses.
  */
 export class ShipGlobe {
   private readonly canvas: HTMLCanvasElement;
   private readonly readout: HTMLElement;
   private readonly centerButton: HTMLButtonElement;
+  private readonly historyBar: HTMLElement;
+  private readonly historyToggles: HTMLElement;
   private readonly projection = geoOrthographic().clipAngle(90).precision(0.5);
   private rotation: Rotation = DEFAULT_ROTATION;
   private tracks: ShipTrack[] = [];
+  private history: HistoricalTrajectory[] = [];
+  private hiddenHistory = new Set<string>();
   private followShip = true;
   private dragOrigin: { x: number; y: number; rotation: Rotation } | null = null;
   private size = 0;
@@ -58,6 +64,10 @@ export class ShipGlobe {
         <h2 class="ship-globe__heading">Ship Position</h2>
         <button type="button" class="ship-globe__center-btn" disabled>Center on ship</button>
       </div>
+      <div class="ship-globe__history" hidden>
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles"></div>
+      </div>
       <div class="ship-globe__body">
         <div class="ship-globe__canvas-wrap">
           <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate."></canvas>
@@ -68,6 +78,8 @@ export class ShipGlobe {
     this.canvas = container.querySelector('.ship-globe__canvas')!;
     this.readout = container.querySelector('.ship-globe__readout')!;
     this.centerButton = container.querySelector('.ship-globe__center-btn')!;
+    this.historyBar = container.querySelector('.ship-globe__history')!;
+    this.historyToggles = container.querySelector('.ship-globe__history-toggles')!;
 
     this.centerButton.addEventListener('click', () => {
       this.followShip = true;
@@ -75,12 +87,38 @@ export class ShipGlobe {
       this.requestDraw();
     });
     this.bindDrag();
+    this.historyToggles.addEventListener('change', (e) => {
+      const input = e.target as HTMLInputElement;
+      const name = input.dataset.trajectory;
+      if (!name) return;
+      if (input.checked) this.hiddenHistory.delete(name);
+      else this.hiddenHistory.add(name);
+      this.requestDraw();
+    });
 
     const wrap = container.querySelector<HTMLElement>('.ship-globe__canvas-wrap')!;
     new ResizeObserver(() => this.resize(wrap)).observe(wrap);
     this.resize(wrap);
 
     tracker.subscribe((tracks) => this.update(tracks));
+  }
+
+  /** Replaces the recorded flight paths and their on/off toggles. All start visible. */
+  setHistory(trajectories: HistoricalTrajectory[]): void {
+    this.history = trajectories;
+    this.hiddenHistory.clear();
+    this.historyBar.hidden = trajectories.length === 0;
+    this.historyToggles.innerHTML = trajectories
+      .map(
+        (t) => `
+        <label class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" data-trajectory="${t.name}" checked />
+          <span class="ship-globe__history-swatch" style="background-color: ${t.color}"></span>
+          ${t.label}
+        </label>`,
+      )
+      .join('');
+    this.requestDraw();
   }
 
   private update(tracks: ShipTrack[]): void {
@@ -186,6 +224,13 @@ export class ShipGlobe {
     ctx.fillStyle = COLORS.land;
     ctx.fill();
 
+    for (const trajectory of this.history) {
+      if (this.hiddenHistory.has(trajectory.name)) continue;
+      stroke({ type: 'LineString', coordinates: trajectory.coordinates }, trajectory.color, 2);
+      const [lon, lat] = trajectory.coordinates[trajectory.coordinates.length - 1];
+      this.drawPointLabel(ctx, lon, lat, 3.5, trajectory.color, `S${trajectory.number}`);
+    }
+
     for (const track of this.tracks) {
       if (track.positions.length >= 2) {
         stroke(
@@ -223,6 +268,31 @@ export class ShipGlobe {
     ctx.fillStyle = COLORS.label;
     ctx.textBaseline = 'middle';
     ctx.fillText(`S${track.number}`, x + 16, y);
+  }
+
+  /** Small dot with a label, used for where a recorded flight ended. */
+  private drawPointLabel(
+    ctx: CanvasRenderingContext2D,
+    longitude: number,
+    latitude: number,
+    radius: number,
+    color: string,
+    label: string,
+  ): void {
+    if (!isOnVisibleHemisphere(longitude, latitude, this.rotation)) return;
+    const point = this.projection([longitude, latitude]);
+    if (!point) return;
+    const [x, y] = point;
+
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    ctx.font = '500 11px "JetBrains Mono", monospace';
+    ctx.fillStyle = color;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x + radius + 5, y);
   }
 
   private renderReadout(): void {

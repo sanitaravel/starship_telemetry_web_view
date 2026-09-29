@@ -6,7 +6,7 @@ import { TelemetryDisplay } from './telemetry-display';
 import { EngineVisualizer } from './engine-visualizer';
 import { TimeSeriesGraphs } from './time-series-graphs';
 import { FramePreview } from './frame-preview';
-import { ShipGlobe, ShipTracker } from './ship-globe';
+import { ShipGlobe, ShipTracker, fetchHistoricalTrajectories } from './ship-globe';
 
 const app = document.getElementById('app');
 if (app) {
@@ -72,8 +72,9 @@ if (app) {
   const globeContainer = document.getElementById('ship-globe');
   if (globeContainer) {
     const tracker = new ShipTracker();
-    new ShipGlobe(globeContainer, tracker);
+    const globe = new ShipGlobe(globeContainer, tracker);
     tracker.start();
+    void fetchHistoricalTrajectories().then((trajectories) => globe.setHistory(trajectories));
   }
 
   // Initialize Time-Series Graphs UI
