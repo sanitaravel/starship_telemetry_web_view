@@ -1,6 +1,6 @@
 import { geoGraticule10, geoOrthographic, geoPath } from 'd3-geo';
 import type { GeoPermissibleObjects } from 'd3-geo';
-import { merge, mesh } from 'topojson-client';
+import { feature, merge, mesh } from 'topojson-client';
 import type { GeometryCollection, MultiPolygon, Polygon, Topology } from 'topojson-specification';
 import countriesTopology from 'world-atlas/countries-110m.json';
 import {
@@ -18,12 +18,15 @@ import {
   type Rotation,
 } from './geo';
 import type { HistoricalTrajectory } from './history';
+import { countryLabels, placeLabels, type Box } from './labels';
 import type { ShipTrack, ShipTracker } from './tracker';
 
 const COLORS = {
   ocean: '#1c1c1c',
   land: '#3d3d3d',
   border: 'rgba(254, 254, 254, 0.22)',
+  countryLabel: 'rgba(254, 254, 254, 0.55)',
+  countryLabelHalo: 'rgba(38, 38, 38, 0.7)',
   graticule: 'rgba(254, 254, 254, 0.07)',
   rim: '#444444',
   ship: '#FF8014',
@@ -37,6 +40,12 @@ const countries = countriesTopology as unknown as Topology<{ countries: CountryC
 const LAND = merge(countries, countries.objects.countries.geometries);
 /** Borders shared by two countries only, so coastlines are not outlined. */
 const BORDERS = mesh(countries, countries.objects.countries, (a, b) => a !== b);
+/** Country name labels, largest country first; which ones show depends on zoom. */
+const COUNTRY_LABELS = countryLabels(
+  feature(countries, countries.objects.countries).features as Parameters<typeof countryLabels>[0],
+);
+const LABEL_FONT = '400 10px "JetBrains Mono", monospace';
+const LABEL_HEIGHT = 10;
 const GRATICULE = geoGraticule10();
 
 /** Path gradient: number of slices, and opacity / line width at the start and the end. */
@@ -63,6 +72,7 @@ export class ShipGlobe {
   private readonly canvas: HTMLCanvasElement;
   private readonly readout: HTMLElement;
   private readonly zoomLevel: HTMLElement;
+  private readonly controls: HTMLElement;
   private readonly centerButton: HTMLButtonElement;
   private readonly historyBar: HTMLElement;
   private readonly historyToggles: HTMLElement;
@@ -77,6 +87,8 @@ export class ShipGlobe {
   private width = 0;
   private height = 0;
   private frameRequested = false;
+  /** Label widths in pixels for LABEL_FONT; cleared once web fonts load. */
+  private labelWidths = new Map<string, number>();
 
   constructor(container: HTMLElement, tracker: ShipTracker) {
     container.classList.add('ship-globe');
@@ -119,6 +131,7 @@ export class ShipGlobe {
     this.canvas = container.querySelector('.ship-globe__canvas')!;
     this.readout = container.querySelector('.ship-globe__readout')!;
     this.zoomLevel = container.querySelector('.ship-globe__zoom-level')!;
+    this.controls = container.querySelector('.ship-globe__zoom')!;
     this.centerButton = container.querySelector('.ship-globe__center-btn')!;
     this.historyBar = container.querySelector('.ship-globe__history')!;
     this.historyToggles = container.querySelector('.ship-globe__history-toggles')!;
@@ -142,6 +155,12 @@ export class ShipGlobe {
     const wrap = container.querySelector<HTMLElement>('.ship-globe__canvas-wrap')!;
     new ResizeObserver(() => this.resize(wrap)).observe(wrap);
     this.resize(wrap);
+
+    // Widths measured with the fallback font are wrong once JetBrains Mono loads.
+    void document.fonts?.ready.then(() => {
+      this.labelWidths.clear();
+      this.requestDraw();
+    });
 
     tracker.subscribe((tracks) => this.update(tracks));
   }
@@ -301,6 +320,7 @@ export class ShipGlobe {
     ctx.fill();
 
     stroke(BORDERS, COLORS.border, 0.75);
+    this.drawCountryLabels(ctx);
 
     // Paths fade in from launch to their latest point so direction is visible.
     const strokeGradient = (coordinates: [number, number][], color: string) => {
@@ -351,6 +371,55 @@ export class ShipGlobe {
     ctx.fillStyle = COLORS.label;
     ctx.textBaseline = 'middle';
     ctx.fillText(`S${track.number}`, x + 16, y);
+  }
+
+  /** Names of countries that are large enough on screen at the current zoom. */
+  private drawCountryLabels(ctx: CanvasRenderingContext2D): void {
+    ctx.font = LABEL_FONT;
+    const center: [number, number] = [-this.rotation[0], -this.rotation[1]];
+    const placed = placeLabels(
+      COUNTRY_LABELS,
+      center,
+      this.projection.scale(),
+      (point) => this.projection(point),
+      (name) => this.measureLabel(ctx, name),
+      LABEL_HEIGHT,
+      { width: this.width, height: this.height },
+      [this.controlsBox()],
+    );
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = COLORS.countryLabelHalo;
+    ctx.fillStyle = COLORS.countryLabel;
+    for (const { name, x, y } of placed) {
+      ctx.strokeText(name, x, y);
+      ctx.fillText(name, x, y);
+    }
+    ctx.textAlign = 'start';
+  }
+
+  /** Where the on-canvas control buttons sit, in canvas pixels. */
+  private controlsBox(): Box {
+    const canvas = this.canvas.getBoundingClientRect();
+    const controls = this.controls.getBoundingClientRect();
+    return {
+      x: controls.left - canvas.left,
+      y: controls.top - canvas.top,
+      w: controls.width,
+      h: controls.height,
+    };
+  }
+
+  private measureLabel(ctx: CanvasRenderingContext2D, name: string): number {
+    let width = this.labelWidths.get(name);
+    if (width === undefined) {
+      width = ctx.measureText(name).width;
+      this.labelWidths.set(name, width);
+    }
+    return width;
   }
 
   /** Small dot with a label, used for where a recorded flight ended. */
