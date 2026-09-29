@@ -6,12 +6,21 @@ import type { TimeSeriesStore } from '../state';
 
 vi.mock('chart.js/auto', () => {
   class Chart {
-    data: unknown = { datasets: [] };
+    static instances: Chart[] = [];
+    data: { datasets: unknown[] };
+    width = 800;
+    height = 400;
+    currentDevicePixelRatio = 2;
+    // A zoomed-in live chart: these ranges should carry over to the export
+    scales = { x: { min: 30, max: 90 }, y: { min: 0, max: 5000 } };
     update = vi.fn();
     destroy = vi.fn();
     resetZoom = vi.fn();
     static register = vi.fn();
-    constructor(public canvas: HTMLCanvasElement) {}
+    constructor(public canvas: HTMLCanvasElement, public config: any) {
+      this.data = config.data;
+      Chart.instances.push(this);
+    }
   }
   return { Chart };
 });
@@ -26,9 +35,13 @@ vi.mock('./export-png', async (importOriginal) => ({
   saveCanvasAsPng: vi.fn(),
 }));
 
+import { Chart } from 'chart.js/auto';
 import { TimeSeriesGraphs } from './graphs';
 import { fetchPreviousFlightList, fetchPreviousFlightData } from '../previous-flights';
-import { saveCanvasAsPng } from './export-png';
+import { EXPORT_THEMES, saveCanvasAsPng } from './export-png';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const chartInstances = (Chart as any).instances as any[];
 
 const EMPTY: TimeSeriesStore = {
   speedSuperHeavy: [],
@@ -148,23 +161,84 @@ describe('TimeSeriesGraphs comparison loading overlay', () => {
   });
 });
 
-describe('TimeSeriesGraphs Save PNG button', () => {
+describe('TimeSeriesGraphs PNG export', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
+    localStorage.clear();
+    chartInstances.length = 0;
     vi.mocked(saveCanvasAsPng).mockReset();
   });
 
-  it('exports the chart canvas named after the selected series', async () => {
+  function openMenuAndDownload(container: HTMLElement, fontSize?: string, background?: string): void {
+    (container.querySelector('.time-series-graphs__save-btn') as HTMLButtonElement).click();
+    if (fontSize) {
+      const font = container.querySelector('.time-series-graphs__export-font') as HTMLSelectElement;
+      font.value = fontSize;
+      font.dispatchEvent(new Event('change'));
+    }
+    if (background) {
+      const radio = container.querySelector(`input[value="${background}"]`) as HTMLInputElement;
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change'));
+    }
+    (container.querySelector('.time-series-graphs__export-download') as HTMLButtonElement).click();
+  }
+
+  it('renders the export off-screen with the chosen font size and background', async () => {
     const container = await setup();
     const select = container.querySelector('.time-series-graphs__select') as HTMLSelectElement;
     select.value = 'accelerationStarship';
     select.dispatchEvent(new Event('change'));
+    const live = chartInstances[chartInstances.length - 1];
+    const liveConfigBefore = JSON.stringify(live.config.options.scales);
 
-    (container.querySelector('.time-series-graphs__save-btn') as HTMLButtonElement).click();
+    openMenuAndDownload(container, '20', 'white');
 
+    // A separate chart was built for the export, sized and zoomed like the live one
+    const exported = chartInstances[chartInstances.length - 1];
+    expect(exported).not.toBe(live);
+    expect(exported.canvas).not.toBe(container.querySelector('#chart-main'));
+    expect([exported.canvas.width, exported.canvas.height]).toEqual([800, 400]);
+    const { options } = exported.config;
+    expect(options.responsive).toBe(false);
+    expect(options.devicePixelRatio).toBe(2);
+    expect([options.scales.x.min, options.scales.x.max]).toEqual([30, 90]);
+    expect([options.scales.y.min, options.scales.y.max]).toEqual([0, 5000]);
+
+    // ...styled with the chosen options
+    expect(options.scales.x.ticks.font.size).toBe(20);
+    expect(options.scales.x.title.font.size).toBe(21);
+    expect(options.plugins.legend.labels.font.size).toBe(21);
+    expect(options.scales.y.ticks.color).toBe(EXPORT_THEMES.white.text);
+    expect(options.scales.y.grid.color).toBe(EXPORT_THEMES.white.grid);
+
+    // ...saved with the matching background and watermark, then destroyed
     expect(saveCanvasAsPng).toHaveBeenCalledTimes(1);
-    const [canvas, filename] = vi.mocked(saveCanvasAsPng).mock.calls[0];
-    expect(canvas).toBe(container.querySelector('#chart-main'));
+    const [canvas, filename, style, ratio] = vi.mocked(saveCanvasAsPng).mock.calls[0];
+    expect(canvas).toBe(exported.canvas);
     expect(filename).toMatch(/^starship-accelerationStarship-.*\.png$/);
+    expect(style).toEqual({
+      fill: EXPORT_THEMES.white.fill,
+      watermarkColor: EXPORT_THEMES.white.watermark,
+      watermarkFontPx: 24,
+    });
+    expect(ratio).toBe(2);
+    expect(exported.destroy).toHaveBeenCalled();
+
+    // The on-screen chart is untouched
+    expect(live.destroy).not.toHaveBeenCalled();
+    expect(JSON.stringify(live.config.options.scales)).toBe(liveConfigBefore);
+    expect(live.config.options.scales.x.ticks.font.size).toBe(10);
+  });
+
+  it('defaults to the on-screen look: 10 px on the dark background', async () => {
+    const container = await setup();
+    openMenuAndDownload(container);
+
+    const exported = chartInstances[chartInstances.length - 1];
+    expect(exported.config.options.scales.x.ticks.font.size).toBe(10);
+    expect(exported.config.options.scales.x.ticks.color).toBe(EXPORT_THEMES.dark.text);
+    const [, , style] = vi.mocked(saveCanvasAsPng).mock.calls[0];
+    expect(style.fill).toBe(EXPORT_THEMES.dark.fill);
   });
 });

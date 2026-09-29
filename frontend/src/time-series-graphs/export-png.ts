@@ -12,53 +12,108 @@ export function chartFilename(seriesKey: string, now: Date = new Date()): string
 /** Attribution stamped onto every exported chart image. */
 export const WATERMARK_TEXT = '@sanitaravel';
 
-/** Watermark size and inset from the bottom-right corner, in CSS pixels. */
-const WATERMARK_FONT_PX = 12;
+/** Watermark inset from the bottom-right corner, in CSS pixels. */
 const WATERMARK_MARGIN_PX = 10;
 
+export type ExportBackground = 'dark' | 'white' | 'transparent';
+
+/** User-selectable settings for a PNG export. */
+export interface ExportOptions {
+  /** Tick label size in CSS px; titles, legend and watermark scale from it. */
+  fontSize: number;
+  background: ExportBackground;
+}
+
+/** Tick label font sizes offered in the export menu, in CSS px. */
+export const FONT_SIZE_CHOICES = [10, 12, 14, 16, 20, 24];
+
+/** Matches the on-screen chart: 10 px ticks on the dark panel. */
+export const DEFAULT_EXPORT_OPTIONS: ExportOptions = { fontSize: 10, background: 'dark' };
+
+/** Colours for chart text, gridlines and the watermark on a given background. */
+export interface ChartTheme {
+  /** Image background; null leaves the PNG transparent. */
+  fill: string | null;
+  text: string;
+  grid: string;
+  watermark: string;
+}
+
+export const EXPORT_THEMES: Record<ExportBackground, ChartTheme> = {
+  // Same colours as the on-screen chart panel
+  dark: { fill: '#333333', text: '#999999', grid: '#444444', watermark: 'rgba(153, 153, 153, 0.7)' },
+  // Darker text and light gridlines so the chart reads well on paper and slides
+  white: { fill: '#FFFFFF', text: '#555555', grid: '#E0E0E0', watermark: 'rgba(85, 85, 85, 0.7)' },
+  // True mid-grey text (~3.9:1 on white, ~5.3:1 on black) and a translucent grid
+  // stay legible whether the image lands on a light or a dark backdrop
+  transparent: { fill: null, text: '#808080', grid: 'rgba(128, 128, 128, 0.35)', watermark: 'rgba(128, 128, 128, 0.85)' },
+};
+
+/** Watermark size for a given tick font size (12 px at the default 10 px). */
+export function watermarkFontPx(fontSize: number): number {
+  return Math.round(fontSize * 1.2);
+}
+
+/** How the watermark and background are drawn onto a snapshot. */
+export interface SnapshotStyle {
+  fill: string | null;
+  watermarkColor: string;
+  watermarkFontPx: number;
+}
+
 /**
- * Draw a chart canvas onto a new opaque canvas and stamp the watermark.
+ * Copy a rendered chart canvas onto a new canvas, fill the background and
+ * stamp the watermark.
  *
- * The chart canvas itself is transparent (the panel colour comes from CSS),
- * so the snapshot is composited onto an opaque background first; otherwise
- * the grey axis text would be unreadable in most image viewers. The copy is
- * made at the canvas's backing resolution, so high-DPI screens export sharp,
- * and the watermark is scaled by the same ratio so it has the same visual
- * size on every screen.
+ * Chart.js canvases are transparent, so for the dark and white themes the
+ * chart is composited onto an opaque fill; the transparent theme skips the
+ * fill. The copy keeps the canvas's backing resolution, so high-DPI screens
+ * export sharp, and the watermark is scaled by the same pixel ratio so it has
+ * the same visual size on every screen.
  *
  * The watermark sits in the bottom-right corner, level with the centred
  * x-axis title and below the tick labels, so it never covers plotted data.
  */
-export function renderSnapshot(source: HTMLCanvasElement, background: string): HTMLCanvasElement | null {
+export function renderSnapshot(
+  source: HTMLCanvasElement,
+  style: SnapshotStyle,
+  pixelRatio: number,
+): HTMLCanvasElement | null {
   const out = document.createElement('canvas');
   out.width = source.width;
   out.height = source.height;
   const ctx = out.getContext('2d');
   if (!ctx) return null;
 
-  ctx.fillStyle = background;
-  ctx.fillRect(0, 0, out.width, out.height);
+  if (style.fill) {
+    ctx.fillStyle = style.fill;
+    ctx.fillRect(0, 0, out.width, out.height);
+  }
   ctx.drawImage(source, 0, 0);
 
-  const scale = source.clientWidth > 0 ? source.width / source.clientWidth : 1;
-  ctx.font = `${WATERMARK_FONT_PX * scale}px 'JetBrains Mono', monospace`;
-  ctx.fillStyle = 'rgba(153, 153, 153, 0.7)';
+  ctx.font = `${style.watermarkFontPx * pixelRatio}px 'JetBrains Mono', monospace`;
+  ctx.fillStyle = style.watermarkColor;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
   ctx.fillText(
     WATERMARK_TEXT,
-    out.width - WATERMARK_MARGIN_PX * scale,
-    out.height - WATERMARK_MARGIN_PX * scale,
+    out.width - WATERMARK_MARGIN_PX * pixelRatio,
+    out.height - WATERMARK_MARGIN_PX * pixelRatio,
   );
 
   return out;
 }
 
 /**
- * Save a chart canvas as a watermarked PNG download.
+ * Save a rendered chart canvas as a watermarked PNG download.
  */
-export function saveCanvasAsPng(source: HTMLCanvasElement, filename: string, background: string): void {
-  const out = renderSnapshot(source, background);
+export function saveCanvasAsPng(
+  source: HTMLCanvasElement,
+  filename: string,
+  style: SnapshotStyle,
+  pixelRatio: number,
+): void {
+  const out = renderSnapshot(source, style, pixelRatio);
   if (!out) return;
 
   out.toBlob((blob) => {

@@ -4,10 +4,32 @@ import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightInfo } 
 import type { DatasetKey, LoadedComparison, SeriesKey, SeriesOption } from './types';
 import { COMPARE_COLORS, SERIES_OPTIONS } from './panels';
 import { computeAcceleration, deduplicateByX, formatSecondsToMET, parseMETToSeconds } from './series-math';
-import { chartFilename, saveCanvasAsPng } from './export-png';
+import {
+  chartFilename,
+  DEFAULT_EXPORT_OPTIONS,
+  EXPORT_THEMES,
+  saveCanvasAsPng,
+  watermarkFontPx,
+  type ChartTheme,
+  type ExportOptions,
+} from './export-png';
+import { ExportMenu } from './export-menu';
 import { createLogger } from '../logger';
 
 const logger = createLogger('time-series-graphs');
+
+/** Font size and colours used to build a chart config. */
+interface ChartStyle {
+  /** Tick label size in px; axis titles and the legend are 1 px larger. */
+  fontSize: number;
+  theme: ChartTheme;
+}
+
+/** The on-screen chart: default font size on the dark panel. */
+const LIVE_STYLE: ChartStyle = {
+  fontSize: DEFAULT_EXPORT_OPTIONS.fontSize,
+  theme: EXPORT_THEMES.dark,
+};
 
 /**
  * Time-Series Graphs component.
@@ -91,15 +113,11 @@ export class TimeSeriesGraphs {
       }
     });
 
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'time-series-graphs__save-btn';
-    saveBtn.textContent = 'Save PNG';
-    saveBtn.setAttribute('aria-label', 'Save chart as PNG image');
-    saveBtn.addEventListener('click', () => this.saveAsPng());
+    const exportMenu = new ExportMenu((options) => this.saveAsPng(options));
 
     controls.appendChild(this.selectElement);
     controls.appendChild(resetBtn);
-    controls.appendChild(saveBtn);
+    controls.appendChild(exportMenu.element);
 
     header.appendChild(title);
     header.appendChild(controls);
@@ -163,7 +181,7 @@ export class TimeSeriesGraphs {
     return SERIES_OPTIONS.find((o) => o.key === this.selectedKey) ?? SERIES_OPTIONS[0];
   }
 
-  private createChartConfig(): ChartConfiguration<'line'> {
+  private createChartConfig(style: ChartStyle = LIVE_STYLE): ChartConfiguration<'line'> {
     const option = this.getSelectedOption();
 
     return {
@@ -186,32 +204,32 @@ export class TimeSeriesGraphs {
             title: {
               display: true,
               text: 'Mission Elapsed Time (T+seconds)',
-              color: '#999999',
-              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: style.theme.text,
+              font: { family: "'JetBrains Mono', monospace", size: style.fontSize + 1 },
             },
             ticks: {
-              color: '#999999',
-              font: { family: "'JetBrains Mono', monospace", size: 10 },
+              color: style.theme.text,
+              font: { family: "'JetBrains Mono', monospace", size: style.fontSize },
               maxTicksLimit: 12,
               callback: (value) => formatSecondsToMET(value as number),
             },
             grid: {
-              color: '#444444',
+              color: style.theme.grid,
             },
           },
           y: {
             title: {
               display: true,
               text: option.yLabel,
-              color: '#999999',
-              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: style.theme.text,
+              font: { family: "'JetBrains Mono', monospace", size: style.fontSize + 1 },
             },
             ticks: {
-              color: '#999999',
-              font: { family: "'JetBrains Mono', monospace", size: 10 },
+              color: style.theme.text,
+              font: { family: "'JetBrains Mono', monospace", size: style.fontSize },
             },
             grid: {
-              color: '#444444',
+              color: style.theme.grid,
             },
           },
         },
@@ -219,8 +237,8 @@ export class TimeSeriesGraphs {
           legend: {
             display: true,
             labels: {
-              color: '#999999',
-              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: style.theme.text,
+              font: { family: "'JetBrains Mono', monospace", size: style.fontSize + 1 },
               boxWidth: 12,
               boxHeight: 12,
             },
@@ -456,14 +474,56 @@ export class TimeSeriesGraphs {
   }
 
   /**
-   * Download the chart as currently shown (series, zoom level, comparison
-   * overlays) as a PNG, on the same background colour as the chart panel.
+   * Download the chart as currently shown (series, zoom/pan, comparison
+   * overlays) as a PNG with the chosen font size and background.
+   *
+   * The export is drawn by a separate, off-screen Chart.js instance built
+   * from the same config with the export style, sized like the live chart
+   * and pinned to its current axis ranges, so the on-screen chart is never
+   * restyled or redrawn.
    */
-  private saveAsPng(): void {
-    if (!this.chart) return;
-    const background =
-      getComputedStyle(this.canvasContainer).backgroundColor || '#333333';
-    saveCanvasAsPng(this.chart.canvas, chartFilename(this.selectedKey), background);
+  private saveAsPng(options: ExportOptions): void {
+    const live = this.chart;
+    if (!live) return;
+
+    const theme = EXPORT_THEMES[options.background];
+    const pixelRatio = live.currentDevicePixelRatio || window.devicePixelRatio || 1;
+    const config = this.createChartConfig({ fontSize: options.fontSize, theme });
+    const chartOptions = config.options!;
+    chartOptions.responsive = false;
+    chartOptions.devicePixelRatio = pixelRatio;
+
+    // Keep the current zoom/pan: pin both axes to the live chart's ranges
+    const scales = chartOptions.scales as Record<'x' | 'y', { min?: number; max?: number }>;
+    for (const axis of ['x', 'y'] as const) {
+      const liveScale = live.scales[axis];
+      if (liveScale) {
+        scales[axis].min = liveScale.min;
+        scales[axis].max = liveScale.max;
+      }
+    }
+
+    // Copy the datasets so the export chart doesn't share arrays with the live one
+    config.data.datasets = live.data.datasets.map((d) => ({ ...d, data: [...d.data] }));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = live.width;
+    canvas.height = live.height;
+    const exportChart = new Chart(canvas, config);
+    try {
+      saveCanvasAsPng(
+        exportChart.canvas,
+        chartFilename(this.selectedKey),
+        {
+          fill: theme.fill,
+          watermarkColor: theme.watermark,
+          watermarkFontPx: watermarkFontPx(options.fontSize),
+        },
+        pixelRatio,
+      );
+    } finally {
+      exportChart.destroy();
+    }
   }
 
   private setLoading(loading: boolean): void {

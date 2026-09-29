@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { chartFilename, renderSnapshot, WATERMARK_TEXT } from './export-png';
+import { chartFilename, EXPORT_THEMES, renderSnapshot, WATERMARK_TEXT, watermarkFontPx } from './export-png';
 
 describe('chartFilename', () => {
   it('names the file after the series and the local time, zero-padded', () => {
@@ -43,13 +43,18 @@ describe('renderSnapshot', () => {
     const source = document.createElement('canvas');
     source.width = 1600;
     source.height = 800;
-    Object.defineProperty(source, 'clientWidth', { value: 800 });
     return source;
   }
 
+  const DARK_STYLE = {
+    fill: EXPORT_THEMES.dark.fill,
+    watermarkColor: EXPORT_THEMES.dark.watermark,
+    watermarkFontPx: watermarkFontPx(10),
+  };
+
   it('stamps the watermark in the bottom-right corner, scaled to the pixel ratio', () => {
     const { ctx } = stubContext();
-    const out = renderSnapshot(hiDpiSource(), '#333333');
+    const out = renderSnapshot(hiDpiSource(), DARK_STYLE, 2);
 
     expect(out?.width).toBe(1600);
     expect(out?.height).toBe(800);
@@ -58,11 +63,32 @@ describe('renderSnapshot', () => {
     expect(ctx.textAlign).toBe('right');
     expect(ctx.textBaseline).toBe('bottom');
     expect(ctx.font).toMatch(/^24px /);
+    expect(ctx.fillStyle).toBe(EXPORT_THEMES.dark.watermark);
   });
 
   it('draws the background, then the chart, then the watermark on top', () => {
     const { calls } = stubContext();
-    renderSnapshot(hiDpiSource(), '#333333');
+    renderSnapshot(hiDpiSource(), DARK_STYLE, 2);
     expect(calls).toEqual(['fillRect', 'drawImage', 'fillText']);
+  });
+
+  it('skips the background fill for a transparent export', () => {
+    const { calls } = stubContext();
+    renderSnapshot(hiDpiSource(), { ...DARK_STYLE, fill: EXPORT_THEMES.transparent.fill }, 2);
+    expect(calls).toEqual(['drawImage', 'fillText']);
+  });
+
+  it('scales the watermark with the chosen font size', () => {
+    const { ctx } = stubContext();
+    renderSnapshot(hiDpiSource(), { ...DARK_STYLE, watermarkFontPx: watermarkFontPx(20) }, 2);
+    expect(ctx.font).toMatch(/^48px /);
+  });
+});
+
+describe('EXPORT_THEMES', () => {
+  it('fills dark and white exports and leaves transparent ones unfilled', () => {
+    expect(EXPORT_THEMES.dark.fill).toBe('#333333');
+    expect(EXPORT_THEMES.white.fill).toBe('#FFFFFF');
+    expect(EXPORT_THEMES.transparent.fill).toBeNull();
   });
 });
