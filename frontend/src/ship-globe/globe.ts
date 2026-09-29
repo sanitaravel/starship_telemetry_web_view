@@ -1,8 +1,8 @@
 import { geoGraticule10, geoOrthographic, geoPath } from 'd3-geo';
 import type { GeoPermissibleObjects } from 'd3-geo';
-import { feature } from 'topojson-client';
-import type { Topology, GeometryCollection } from 'topojson-specification';
-import landTopology from 'world-atlas/land-110m.json';
+import { merge, mesh } from 'topojson-client';
+import type { GeometryCollection, MultiPolygon, Polygon, Topology } from 'topojson-specification';
+import countriesTopology from 'world-atlas/countries-110m.json';
 import {
   applyDrag,
   formatLatitude,
@@ -20,6 +20,7 @@ import type { ShipTrack, ShipTracker } from './tracker';
 const COLORS = {
   ocean: '#1c1c1c',
   land: '#3d3d3d',
+  border: 'rgba(254, 254, 254, 0.22)',
   graticule: 'rgba(254, 254, 254, 0.07)',
   rim: '#444444',
   ship: '#FF8014',
@@ -27,8 +28,12 @@ const COLORS = {
   label: '#FEFEFE',
 };
 
-const topology = landTopology as unknown as Topology<{ land: GeometryCollection }>;
-const LAND = feature(topology, topology.objects.land);
+type CountryCollection = GeometryCollection & { geometries: (Polygon | MultiPolygon)[] };
+const countries = countriesTopology as unknown as Topology<{ countries: CountryCollection }>;
+/** All countries merged into one landmass for the fill. */
+const LAND = merge(countries, countries.objects.countries.geometries);
+/** Borders shared by two countries only, so coastlines are not outlined. */
+const BORDERS = mesh(countries, countries.objects.countries, (a, b) => a !== b);
 const GRATICULE = geoGraticule10();
 
 /** Path gradient: number of slices, and opacity / line width at the start and the end. */
@@ -232,6 +237,8 @@ export class ShipGlobe {
     path(LAND);
     ctx.fillStyle = COLORS.land;
     ctx.fill();
+
+    stroke(BORDERS, COLORS.border, 0.75);
 
     // Paths fade in from launch to their latest point so direction is visible.
     const strokeGradient = (coordinates: [number, number][], color: string) => {
