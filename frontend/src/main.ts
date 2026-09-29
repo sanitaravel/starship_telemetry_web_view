@@ -4,31 +4,11 @@ import { StateManager } from './state';
 import { PipelineControls } from './pipeline-controls';
 import { TelemetryDisplay } from './telemetry-display';
 import { EngineVisualizer } from './engine-visualizer';
-import { TimeSeriesGraphs, resolvePopoutKey, parseCompareParam } from './time-series-graphs';
+import { TimeSeriesGraphs } from './time-series-graphs';
 import { FramePreview } from './frame-preview';
 
 const app = document.getElementById('app');
-
-// OBS overlay mode: `?popout=<seriesKey>` renders a single transparent chart
-// that connects to the live telemetry feed on its own. An optional
-// `compare=<file1,file2>` param draws the same reference flights as the dashboard.
-const params = new URLSearchParams(window.location.search);
-const overlayKey = resolvePopoutKey(params.get('popout'));
-const compareFilenames = parseCompareParam(params.get('compare'));
-
-if (app && overlayKey) {
-  app.innerHTML = '<div id="time-series-graphs"></div>';
-
-  const stateManager = new StateManager();
-  const ws = createTelemetryWebSocket();
-  ws.onMessage((message) => stateManager.handleMessage(message));
-  ws.connect(getWebSocketUrl());
-
-  const graphsContainer = document.getElementById('time-series-graphs');
-  if (graphsContainer) {
-    new TimeSeriesGraphs(graphsContainer, stateManager, { overlayKey, compareFilenames });
-  }
-} else if (app) {
+if (app) {
   app.innerHTML = `
     <header class="dashboard-header">
       <h1>Starship Telemetry Dashboard</h1>
