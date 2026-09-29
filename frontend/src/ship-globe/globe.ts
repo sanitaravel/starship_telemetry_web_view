@@ -7,10 +7,13 @@ import {
   applyDrag,
   formatLatitude,
   formatLongitude,
+  formatMissionTime,
   gpsToUnixMs,
   gradientSegments,
   hexToRgba,
   isOnVisibleHemisphere,
+  MIN_ZOOM,
+  zoomBy,
   rotationToCenter,
   type Rotation,
 } from './geo';
@@ -44,6 +47,10 @@ const GRADIENT_WIDTH: [number, number] = [1.25, 3];
 /** Largest globe diameter in CSS pixels; smaller containers shrink it to fit. */
 const MAX_GLOBE_SIZE = 640;
 
+/** Zoom multiplier per +/− click, and per pixel of wheel delta (exponential). */
+const ZOOM_STEP = 1.5;
+const WHEEL_ZOOM_SENSITIVITY = 0.0015;
+
 /** Default view before any ship is known: Starbase, Texas. */
 const DEFAULT_ROTATION: Rotation = rotationToCenter(-97.157, 25.997);
 
@@ -55,6 +62,7 @@ const DEFAULT_ROTATION: Rotation = rotationToCenter(-97.157, 25.997);
 export class ShipGlobe {
   private readonly canvas: HTMLCanvasElement;
   private readonly readout: HTMLElement;
+  private readonly zoomLevel: HTMLElement;
   private readonly centerButton: HTMLButtonElement;
   private readonly historyBar: HTMLElement;
   private readonly historyToggles: HTMLElement;
@@ -64,6 +72,7 @@ export class ShipGlobe {
   private history: HistoricalTrajectory[] = [];
   private hiddenHistory = new Set<string>();
   private followShip = true;
+  private zoom = MIN_ZOOM;
   private dragOrigin: { x: number; y: number; rotation: Rotation } | null = null;
   private size = 0;
   private frameRequested = false;
@@ -83,14 +92,26 @@ export class ShipGlobe {
         </span>
       </div>
       <div class="ship-globe__body">
-        <div class="ship-globe__canvas-wrap">
-          <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate."></canvas>
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom."></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Zoom">
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out">&minus;</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom">1.0&times;</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate &middot; Scroll to zoom</p>
         </div>
-        <dl class="ship-globe__readout" aria-live="polite"></dl>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"></div>
+        </aside>
       </div>
     `;
     this.canvas = container.querySelector('.ship-globe__canvas')!;
     this.readout = container.querySelector('.ship-globe__readout')!;
+    this.zoomLevel = container.querySelector('.ship-globe__zoom-level')!;
     this.centerButton = container.querySelector('.ship-globe__center-btn')!;
     this.historyBar = container.querySelector('.ship-globe__history')!;
     this.historyToggles = container.querySelector('.ship-globe__history-toggles')!;
@@ -101,6 +122,7 @@ export class ShipGlobe {
       this.requestDraw();
     });
     this.bindDrag();
+    this.bindZoom(container);
     this.historyToggles.addEventListener('change', (e) => {
       const input = e.target as HTMLInputElement;
       const name = input.dataset.trajectory;
@@ -170,7 +192,8 @@ export class ShipGlobe {
     this.canvas.addEventListener('pointermove', (e) => {
       if (!this.dragOrigin) return;
       const { x, y, rotation } = this.dragOrigin;
-      this.rotation = applyDrag(rotation, e.clientX - x, e.clientY - y, this.size / 2);
+      // Scale by the zoomed radius so the surface tracks the pointer at any zoom.
+      this.rotation = applyDrag(rotation, e.clientX - x, e.clientY - y, (this.size / 2) * this.zoom);
       this.requestDraw();
     });
     const end = (e: PointerEvent) => {
@@ -181,6 +204,31 @@ export class ShipGlobe {
     };
     this.canvas.addEventListener('pointerup', end);
     this.canvas.addEventListener('pointercancel', end);
+  }
+
+  /** Scroll wheel and +/−/reset buttons; zoom is about the centre of the view. */
+  private bindZoom(container: HTMLElement): void {
+    this.canvas.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        this.setZoom(zoomBy(this.zoom, Math.exp(-e.deltaY * WHEEL_ZOOM_SENSITIVITY)));
+      },
+      { passive: false },
+    );
+    container.querySelector('.ship-globe__zoom')!.addEventListener('click', (e) => {
+      const action = (e.target as HTMLElement).closest<HTMLElement>('[data-zoom]')?.dataset.zoom;
+      if (action === 'in') this.setZoom(zoomBy(this.zoom, ZOOM_STEP));
+      else if (action === 'out') this.setZoom(zoomBy(this.zoom, 1 / ZOOM_STEP));
+      else if (action === 'reset') this.setZoom(MIN_ZOOM);
+    });
+  }
+
+  private setZoom(zoom: number): void {
+    if (zoom === this.zoom) return;
+    this.zoom = zoom;
+    this.zoomLevel.textContent = `${zoom.toFixed(1)}×`;
+    this.requestDraw();
   }
 
   private resize(wrap: HTMLElement): void {
@@ -214,7 +262,7 @@ export class ShipGlobe {
     ctx.clearRect(0, 0, this.size, this.size);
 
     this.projection
-      .scale(radius)
+      .scale(radius * this.zoom)
       .translate([this.size / 2, this.size / 2])
       .rotate(this.rotation);
     const path = geoPath(this.projection, ctx);
@@ -324,18 +372,25 @@ export class ShipGlobe {
       return;
     }
     const fields: [string, string][] = [
-      ['Vehicle', `Ship ${ship.number}`],
-      ['Latitude', formatLatitude(last.latitude)],
-      ['Longitude', formatLongitude(last.longitude)],
       ['Altitude', `${(last.altitude / 1000).toFixed(1)} km`],
       ['Speed', `${Math.round(last.speed * 3.6).toLocaleString('en-US')} km/h`],
+      ['Latitude', formatLatitude(last.latitude)],
+      ['Longitude', formatLongitude(last.longitude)],
+      ['Track points', ship.positions.length.toLocaleString('en-US')],
       ['Updated', new Date(gpsToUnixMs(last.gpsTime)).toISOString().slice(11, 19) + ' UTC'],
     ];
-    this.readout.innerHTML = fields
-      .map(
-        ([label, value]) =>
-          `<div class="ship-globe__field"><dt class="ship-globe__field-label">${label}</dt><dd class="ship-globe__field-value">${value}</dd></div>`,
-      )
-      .join('');
+    this.readout.innerHTML =
+      `<div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship ${ship.number}</span>
+        <span class="ship-globe__mission-time">${formatMissionTime(last.missionTime)}</span>
+      </div>
+      <dl class="ship-globe__fields">` +
+      fields
+        .map(
+          ([label, value]) =>
+            `<div class="ship-globe__field"><dt class="ship-globe__field-label">${label}</dt><dd class="ship-globe__field-value">${value}</dd></div>`,
+        )
+        .join('') +
+      `</dl>`;
   }
 }

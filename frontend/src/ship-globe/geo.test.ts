@@ -4,6 +4,10 @@ import {
   applyDrag,
   formatLatitude,
   formatLongitude,
+  formatMissionTime,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  zoomBy,
   gpsToUnixMs,
   gradientSegments,
   hexToRgba,
@@ -84,6 +88,29 @@ describe('geo helpers', () => {
         },
       ),
     );
+  });
+
+  it('clamps zoom to the allowed range', () => {
+    expect(zoomBy(1, 2)).toBe(2);
+    expect(zoomBy(1, 0.5)).toBe(MIN_ZOOM);
+    expect(zoomBy(6, 2)).toBe(MAX_ZOOM);
+  });
+
+  it('keeps zoom within range for any sequence of steps (property)', () => {
+    fc.assert(
+      fc.property(fc.array(fc.double({ min: 0.01, max: 100, noNaN: true })), (factors) => {
+        const zoom = factors.reduce(zoomBy, 1);
+        expect(zoom).toBeGreaterThanOrEqual(MIN_ZOOM);
+        expect(zoom).toBeLessThanOrEqual(MAX_ZOOM);
+      }),
+    );
+  });
+
+  it('formats mission time as T+/T- HH:MM:SS', () => {
+    expect(formatMissionTime(0)).toBe('T+00:00:00');
+    expect(formatMissionTime(3997.7)).toBe('T+01:06:37');
+    expect(formatMissionTime(-2.5)).toBe('T-00:00:02');
+    expect(formatMissionTime(11322.9)).toBe('T+03:08:42');
   });
 
   it('converts hex colours to rgba', () => {

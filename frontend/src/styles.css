@@ -601,20 +601,37 @@ input:focus {
 }
 
 .ship-globe__body {
-  display: flex;
-  gap: 2.5rem;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  .ship-globe__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ship-globe__map,
+.ship-globe__panel {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 1.5rem;
+  min-width: 0;
+}
+
+.ship-globe__map {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .ship-globe__canvas-wrap {
-  flex: 0 1 640px;
-  min-width: 200px;
+  position: relative;
+  width: 100%;
   display: flex;
   justify-content: center;
 }
@@ -623,17 +640,91 @@ input:focus {
   display: block;
   cursor: grab;
   touch-action: none;
+  border-radius: 50%;
 }
 
 .ship-globe__canvas--dragging {
   cursor: grabbing;
 }
 
-.ship-globe__readout {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(8rem, auto));
-  gap: 1.25rem 2.5rem;
-  flex: 0 1 auto;
+.ship-globe__zoom {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ship-globe__zoom-btn {
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.5rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.ship-globe__zoom-level {
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+
+.ship-globe__hint {
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+
+.ship-globe__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ship-globe__panel-title {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ship-globe__vehicle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ship-globe__vehicle-name {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  line-height: 1.2;
+}
+
+.ship-globe__mission-time {
+  font-size: 1.25rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.ship-globe__fields {
+  display: flex;
+  flex-direction: column;
+}
+
+.ship-globe__field {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ship-globe__field:last-child {
+  border-bottom: none;
 }
 
 .ship-globe__field-label {
@@ -647,13 +738,12 @@ input:focus {
   font-size: 1.125rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .ship-globe__empty {
-  grid-column: 1 / -1;
   font-size: 0.875rem;
   color: var(--color-muted);
-  max-width: 18rem;
 }
 
 

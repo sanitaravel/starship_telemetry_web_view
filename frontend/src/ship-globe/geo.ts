@@ -52,6 +52,24 @@ export function gpsToUnixMs(gpsSeconds: number): number {
   return GPS_EPOCH_UNIX_MS + (gpsSeconds - GPS_UTC_LEAP_SECONDS) * 1000;
 }
 
+export const MIN_ZOOM = 1;
+export const MAX_ZOOM = 8;
+
+/** Multiplies the zoom level by `factor`, clamped to [MIN_ZOOM, MAX_ZOOM]. */
+export function zoomBy(zoom: number, factor: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * factor));
+}
+
+/** Mission elapsed time as `T+HH:MM:SS` (or `T-` before launch). */
+export function formatMissionTime(seconds: number): string {
+  const sign = seconds < 0 ? '-' : '+';
+  const total = Math.floor(Math.abs(seconds));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  return `T${sign}${pad(h)}:${pad(m)}:${pad(total % 60)}`;
+}
+
 /** A slice of a path with its position along it: 0 at the start, 1 at the end. */
 export interface GradientSegment {
   coordinates: [number, number][];
