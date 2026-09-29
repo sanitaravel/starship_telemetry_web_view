@@ -1,9 +1,9 @@
 import { Chart, ChartConfiguration } from 'chart.js/auto';
 import type { StateManager, TimeSeriesPoint, TimeSeriesStore } from '../state';
 import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightInfo } from '../previous-flights';
-import type { DatasetKey, LoadedComparison, SeriesOption } from './types';
+import type { DatasetKey, LoadedComparison, SeriesKey, SeriesOption } from './types';
 import { COMPARE_COLORS, SERIES_OPTIONS } from './panels';
-import { deduplicateByX, formatSecondsToMET, parseMETToSeconds } from './series-math';
+import { computeAcceleration, deduplicateByX, formatSecondsToMET, parseMETToSeconds } from './series-math';
 
 /**
  * Time-Series Graphs component.
@@ -16,7 +16,7 @@ export class TimeSeriesGraphs {
   private chart: Chart<'line'> | null = null;
   private container: HTMLElement;
   private stateManager: StateManager;
-  private selectedKey: DatasetKey = 'speedSuperHeavy';
+  private selectedKey: SeriesKey = 'speedSuperHeavy';
   private selectElement!: HTMLSelectElement;
   private compareContainer!: HTMLElement;
   private latestTimeSeries: TimeSeriesStore | null = null;
@@ -68,7 +68,7 @@ export class TimeSeriesGraphs {
 
     this.selectElement.value = this.selectedKey;
     this.selectElement.addEventListener('change', () => {
-      this.selectedKey = this.selectElement.value as DatasetKey;
+      this.selectedKey = this.selectElement.value as SeriesKey;
       this.rebuildChart();
       this.updateChart(this.latestTimeSeries ?? TimeSeriesGraphs.EMPTY_STORE);
     });
@@ -255,17 +255,14 @@ export class TimeSeriesGraphs {
   }
 
   /**
-   * Convert previous flight TimeSeriesPoints to {x, y} scatter data.
-   * Uses parseMETToSeconds for a consistent time axis with live data.
-   * Sorted by x and deduplicated to prevent line looping.
+   * Build the {x, y} data for an option from a store, resolving derived series
+   * (acceleration) from their base speed series.
    */
-  private compPointsToXY(points: TimeSeriesPoint[]): { x: number; y: number | null }[] {
-    return deduplicateByX(
-      points.map((p) => ({
-        x: parseMETToSeconds(p.missionElapsedTime),
-        y: p.value,
-      })),
-    );
+  private optionXY(option: SeriesOption, store: TimeSeriesStore): { x: number; y: number | null }[] {
+    if (option.derive) {
+      return computeAcceleration(store[option.derive.from] ?? []);
+    }
+    return this.livePointsToXY(store[option.key as DatasetKey] ?? []);
   }
 
   private static readonly EMPTY_STORE: TimeSeriesStore = {
@@ -279,8 +276,7 @@ export class TimeSeriesGraphs {
     if (!this.chart) return;
 
     const option = this.getSelectedOption();
-    const points: TimeSeriesPoint[] = timeSeries[this.selectedKey] ?? [];
-    const liveXY = this.livePointsToXY(points);
+    const liveXY = this.optionXY(option, timeSeries);
 
     const datasets: any[] = [];
 
@@ -295,7 +291,8 @@ export class TimeSeriesGraphs {
         pointRadius: 0,
         pointHoverRadius: 4,
         tension: 0.2,
-        fill: true,
+        // Acceleration swings above and below zero, so skip the area fill.
+        fill: !option.derive,
         spanGaps: false,
       });
     }
@@ -303,8 +300,7 @@ export class TimeSeriesGraphs {
     // Add each comparison flight as an overlay dataset
     for (let i = 0; i < this.loadedComparisons.length; i++) {
       const comp = this.loadedComparisons[i];
-      const compPoints: TimeSeriesPoint[] = comp.data[this.selectedKey] ?? [];
-      const compXY = this.compPointsToXY(compPoints);
+      const compXY = this.optionXY(option, comp.data);
       // Use color matching the checkbox swatch (by position in previousFlights list)
       const flightIndex = this.previousFlights.findIndex((f) => f.filename === comp.filename);
       const color = COMPARE_COLORS[(flightIndex >= 0 ? flightIndex : i) % COMPARE_COLORS.length];

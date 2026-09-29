@@ -25,6 +25,20 @@ export const SERIES_OPTIONS: SeriesOption[] = [
     yLabel: 'Altitude',
     lineColor: '#FF8014',
   },
+  {
+    key: 'accelerationSuperHeavy',
+    label: 'Acceleration — Super Heavy',
+    yLabel: 'Acceleration (g)',
+    lineColor: '#FF8014',
+    derive: { from: 'speedSuperHeavy', kind: 'acceleration' },
+  },
+  {
+    key: 'accelerationStarship',
+    label: 'Acceleration — Starship',
+    yLabel: 'Acceleration (g)',
+    lineColor: '#FF8014',
+    derive: { from: 'speedStarship', kind: 'acceleration' },
+  },
 ];
 
 /** Colors for comparison flight overlays */
