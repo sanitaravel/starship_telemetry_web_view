@@ -44,7 +44,7 @@ const GRADIENT_STEPS = 48;
 const GRADIENT_ALPHA: [number, number] = [0.15, 1];
 const GRADIENT_WIDTH: [number, number] = [1.25, 3];
 
-/** Largest globe diameter in CSS pixels; smaller containers shrink it to fit. */
+/** Map area height, and so the globe's diameter at 1× zoom, in CSS pixels. */
 const MAX_GLOBE_SIZE = 640;
 
 /** Zoom multiplier per +/− click, and per pixel of wheel delta (exponential). */
@@ -74,7 +74,8 @@ export class ShipGlobe {
   private followShip = true;
   private zoom = MIN_ZOOM;
   private dragOrigin: { x: number; y: number; rotation: Rotation } | null = null;
-  private size = 0;
+  private width = 0;
+  private height = 0;
   private frameRequested = false;
 
   constructor(container: HTMLElement, tracker: ShipTracker) {
@@ -193,7 +194,7 @@ export class ShipGlobe {
       if (!this.dragOrigin) return;
       const { x, y, rotation } = this.dragOrigin;
       // Scale by the zoomed radius so the surface tracks the pointer at any zoom.
-      this.rotation = applyDrag(rotation, e.clientX - x, e.clientY - y, (this.size / 2) * this.zoom);
+      this.rotation = applyDrag(rotation, e.clientX - x, e.clientY - y, this.baseRadius() * this.zoom);
       this.requestDraw();
     });
     const end = (e: PointerEvent) => {
@@ -231,16 +232,24 @@ export class ShipGlobe {
     this.requestDraw();
   }
 
+  /** The canvas spans the column's full width so a zoomed-in globe fills the area. */
   private resize(wrap: HTMLElement): void {
-    const size = Math.floor(Math.min(wrap.clientWidth, MAX_GLOBE_SIZE));
-    if (size <= 0 || size === this.size) return;
-    this.size = size;
+    const width = Math.floor(wrap.clientWidth);
+    const height = Math.min(width, MAX_GLOBE_SIZE);
+    if (width <= 0 || (width === this.width && height === this.height)) return;
+    this.width = width;
+    this.height = height;
     const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = size * dpr;
-    this.canvas.height = size * dpr;
-    this.canvas.style.width = `${size}px`;
-    this.canvas.style.height = `${size}px`;
+    this.canvas.width = width * dpr;
+    this.canvas.height = height * dpr;
+    this.canvas.style.width = `${width}px`;
+    this.canvas.style.height = `${height}px`;
     this.requestDraw();
+  }
+
+  /** Globe radius in CSS pixels at 1× zoom. */
+  private baseRadius(): number {
+    return Math.min(this.width, this.height) / 2 - 2;
   }
 
   private requestDraw(): void {
@@ -254,16 +263,15 @@ export class ShipGlobe {
 
   private draw(): void {
     const ctx = this.canvas.getContext('2d');
-    if (!ctx || this.size === 0) return;
+    if (!ctx || this.width === 0) return;
     const dpr = window.devicePixelRatio || 1;
-    const radius = this.size / 2 - 2;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, this.size, this.size);
+    ctx.clearRect(0, 0, this.width, this.height);
 
     this.projection
-      .scale(radius * this.zoom)
-      .translate([this.size / 2, this.size / 2])
+      .scale(this.baseRadius() * this.zoom)
+      .translate([this.width / 2, this.height / 2])
       .rotate(this.rotation);
     const path = geoPath(this.projection, ctx);
     const stroke = (obj: GeoPermissibleObjects, color: string, width: number) => {

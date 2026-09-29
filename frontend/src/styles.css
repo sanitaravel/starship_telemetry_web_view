@@ -640,7 +640,7 @@ input:focus {
   display: block;
   cursor: grab;
   touch-action: none;
-  border-radius: 50%;
+  border-radius: 4px;
 }
 
 .ship-globe__canvas--dragging {
