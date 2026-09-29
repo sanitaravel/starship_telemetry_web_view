@@ -651,3 +651,53 @@ input:focus {
   width: 100% !important;
   height: 100% !important;
 }
+
+.time-series-graphs__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background-color: rgba(38, 38, 38, 0.7);
+  border-radius: 6px;
+  z-index: 1;
+}
+
+.time-series-graphs__loading[hidden] {
+  display: none;
+}
+
+.time-series-graphs__spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: time-series-graphs-spin 0.8s linear infinite;
+}
+
+.time-series-graphs__loading-text {
+  color: var(--color-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+}
+
+@keyframes time-series-graphs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes time-series-graphs-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .time-series-graphs__spinner {
+    animation: time-series-graphs-pulse 1.6s ease-in-out infinite;
+  }
+}

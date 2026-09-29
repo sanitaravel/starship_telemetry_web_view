@@ -4,6 +4,9 @@ import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightInfo } 
 import type { DatasetKey, LoadedComparison, SeriesKey, SeriesOption } from './types';
 import { COMPARE_COLORS, SERIES_OPTIONS } from './panels';
 import { computeAcceleration, deduplicateByX, formatSecondsToMET, parseMETToSeconds } from './series-math';
+import { createLogger } from '../logger';
+
+const logger = createLogger('time-series-graphs');
 
 /**
  * Time-Series Graphs component.
@@ -19,12 +22,16 @@ export class TimeSeriesGraphs {
   private selectedKey: SeriesKey = 'speedSuperHeavy';
   private selectElement!: HTMLSelectElement;
   private compareContainer!: HTMLElement;
+  private canvasContainer!: HTMLElement;
+  private loadingOverlay!: HTMLElement;
   private latestTimeSeries: TimeSeriesStore | null = null;
 
   // Previous flight comparison state
   private previousFlights: PreviousFlightInfo[] = [];
   private selectedCompareFilenames: Set<string> = new Set();
   private loadedComparisons: LoadedComparison[] = [];
+  /** In-flight comparison fetches, keyed by filename. */
+  private pendingLoads: Map<string, Promise<void>> = new Map();
 
   constructor(container: HTMLElement, stateManager: StateManager) {
     this.container = container;
@@ -113,16 +120,34 @@ export class TimeSeriesGraphs {
     toolbar.appendChild(zoomHint);
 
     // Canvas container
-    const canvasContainer = document.createElement('div');
-    canvasContainer.className = 'time-series-graphs__canvas-container';
+    this.canvasContainer = document.createElement('div');
+    this.canvasContainer.className = 'time-series-graphs__canvas-container';
 
     const canvas = document.createElement('canvas');
     canvas.id = 'chart-main';
-    canvasContainer.appendChild(canvas);
+    this.canvasContainer.appendChild(canvas);
+
+    // Loading overlay shown while comparison flights are being fetched
+    this.loadingOverlay = document.createElement('div');
+    this.loadingOverlay.className = 'time-series-graphs__loading';
+    this.loadingOverlay.setAttribute('role', 'status');
+    this.loadingOverlay.hidden = true;
+
+    const spinner = document.createElement('span');
+    spinner.className = 'time-series-graphs__spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+
+    const loadingText = document.createElement('span');
+    loadingText.className = 'time-series-graphs__loading-text';
+    loadingText.textContent = 'Loading comparison data…';
+
+    this.loadingOverlay.appendChild(spinner);
+    this.loadingOverlay.appendChild(loadingText);
+    this.canvasContainer.appendChild(this.loadingOverlay);
 
     wrapper.appendChild(header);
     wrapper.appendChild(toolbar);
-    wrapper.appendChild(canvasContainer);
+    wrapper.appendChild(this.canvasContainer);
     this.container.appendChild(wrapper);
   }
 
@@ -368,20 +393,46 @@ export class TimeSeriesGraphs {
    * Handle change on the checkboxes: load/unload comparison data as needed.
    */
   private async onCompareSelectionChange(): Promise<void> {
-    const selectedFilenames = Array.from(this.selectedCompareFilenames);
-
     // Remove comparisons that are no longer selected
     this.loadedComparisons = this.loadedComparisons.filter(
-      (c) => selectedFilenames.includes(c.filename),
+      (c) => this.selectedCompareFilenames.has(c.filename),
     );
 
-    // Load newly selected comparisons
+    // Start loading newly selected comparisons (skip ones already in flight)
     const alreadyLoaded = new Set(this.loadedComparisons.map((c) => c.filename));
-    const toLoad = selectedFilenames.filter((f) => !alreadyLoaded.has(f));
+    for (const filename of this.selectedCompareFilenames) {
+      if (!alreadyLoaded.has(filename) && !this.pendingLoads.has(filename)) {
+        this.pendingLoads.set(filename, this.loadComparison(filename));
+      }
+    }
 
-    const loadPromises = toLoad.map(async (filename) => {
+    // Refresh chart (use empty store if no live data yet) so removals show immediately
+    this.updateChart(this.latestTimeSeries ?? TimeSeriesGraphs.EMPTY_STORE);
+
+    if (this.pendingLoads.size === 0) return;
+
+    // Keep the loading overlay up until every fetch has settled, including
+    // fetches started by later selection changes while we were waiting.
+    this.setLoading(true);
+    while (this.pendingLoads.size > 0) {
+      await Promise.all(this.pendingLoads.values());
+    }
+
+    this.updateChart(this.latestTimeSeries ?? TimeSeriesGraphs.EMPTY_STORE);
+    this.setLoading(false);
+  }
+
+  /**
+   * Fetch one comparison flight and add it to the chart data if it is still
+   * selected when the fetch completes. Never rejects.
+   */
+  private async loadComparison(filename: string): Promise<void> {
+    try {
       const data = await fetchPreviousFlightData(filename);
-      if (data) {
+      const stillWanted =
+        this.selectedCompareFilenames.has(filename) &&
+        !this.loadedComparisons.some((c) => c.filename === filename);
+      if (data && stillWanted) {
         const info = this.previousFlights.find((f) => f.filename === filename);
         this.loadedComparisons.push({
           filename,
@@ -389,11 +440,15 @@ export class TimeSeriesGraphs {
           data,
         });
       }
-    });
+    } catch (err) {
+      logger.error('Failed to load comparison flight', { filename, error: String(err) });
+    } finally {
+      this.pendingLoads.delete(filename);
+    }
+  }
 
-    await Promise.all(loadPromises);
-
-    // Refresh chart (use empty store if no live data yet)
-    this.updateChart(this.latestTimeSeries ?? TimeSeriesGraphs.EMPTY_STORE);
+  private setLoading(loading: boolean): void {
+    this.loadingOverlay.hidden = !loading;
+    this.canvasContainer.setAttribute('aria-busy', String(loading));
   }
 }
