@@ -493,6 +493,89 @@ input:focus {
 }
 
 
+/* Ship Globe */
+.dashboard-globe {
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.ship-globe__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.ship-globe__heading {
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-accent);
+}
+
+.ship-globe__center-btn {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.ship-globe__body {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.ship-globe__canvas-wrap {
+  flex: 0 1 420px;
+  min-width: 200px;
+  display: flex;
+  justify-content: center;
+}
+
+.ship-globe__canvas {
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+.ship-globe__canvas--dragging {
+  cursor: grabbing;
+}
+
+.ship-globe__readout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(8rem, auto));
+  gap: 0.75rem 1.5rem;
+  flex: 0 1 auto;
+}
+
+.ship-globe__field-label {
+  font-size: 0.625rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ship-globe__field-value {
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.ship-globe__empty {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  max-width: 16rem;
+}
+
+
 /* Time-Series Graphs */
 .dashboard-graphs {
   padding: 1.5rem;

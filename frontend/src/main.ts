@@ -6,6 +6,7 @@ import { TelemetryDisplay } from './telemetry-display';
 import { EngineVisualizer } from './engine-visualizer';
 import { TimeSeriesGraphs } from './time-series-graphs';
 import { FramePreview } from './frame-preview';
+import { ShipGlobe, ShipTracker } from './ship-globe';
 
 const app = document.getElementById('app');
 if (app) {
@@ -26,6 +27,9 @@ if (app) {
     </section>
     <section class="dashboard-engines" aria-label="Engine Status">
       <div id="engine-visualizer"></div>
+    </section>
+    <section class="dashboard-globe" aria-label="Ship Position">
+      <div id="ship-globe"></div>
     </section>
     <section class="dashboard-graphs" aria-label="Time-Series Graphs">
       <div id="time-series-graphs"></div>
@@ -62,6 +66,14 @@ if (app) {
   const frameContainer = document.getElementById('frame-preview');
   if (frameContainer) {
     new FramePreview(frameContainer, stateManager);
+  }
+
+  // Initialize Ship Globe (polls the public SpaceX tracker feed)
+  const globeContainer = document.getElementById('ship-globe');
+  if (globeContainer) {
+    const tracker = new ShipTracker();
+    new ShipGlobe(globeContainer, tracker);
+    tracker.start();
   }
 
   // Initialize Time-Series Graphs UI
