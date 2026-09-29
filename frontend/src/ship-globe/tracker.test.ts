@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import fc from 'fast-check';
-import { parseTrackerPayload, ShipTracker, type ShipPosition } from './tracker';
+import {
+  parseTrackerPayload,
+  ShipTracker,
+  SHIP_TRACKER_URL,
+  withCacheBuster,
+  type ShipPosition,
+} from './tracker';
 
 function current(overrides: Record<string, unknown> = {}) {
   return {
@@ -118,7 +124,30 @@ describe('ShipTracker', () => {
 
     await tracker.poll();
     expect(tracker.getTracks()[0].positions.map((p) => p.altitude)).toEqual([500]);
-    expect(fetchFn).toHaveBeenCalledWith('https://example.test/feed.json', { cache: 'no-cache' });
+    expect(fetchFn).toHaveBeenCalledWith(
+      expect.stringMatching(/^https:\/\/example\.test\/feed\.json\?\d{13}$/),
+      { cache: 'no-store' },
+    );
+  });
+
+  it('requests a distinct cache-busting URL on every poll', async () => {
+    const fetchFn = vi.fn(async (_url: string, _init?: RequestInit) => new Response('{}'));
+    const now = vi.spyOn(Date, 'now').mockReturnValueOnce(1790689165010).mockReturnValueOnce(1790689195010);
+    const tracker = new ShipTracker(SHIP_TRACKER_URL, 1000, fetchFn as unknown as typeof fetch);
+
+    await tracker.poll();
+    await tracker.poll();
+
+    expect(fetchFn.mock.calls.map(([url]) => url)).toEqual([
+      `${SHIP_TRACKER_URL}?1790689165010`,
+      `${SHIP_TRACKER_URL}?1790689195010`,
+    ]);
+    now.mockRestore();
+  });
+
+  it('adds the timestamp as an extra parameter when the URL already has a query', () => {
+    expect(withCacheBuster('https://example.test/feed.json?v=2', 42)).toBe('https://example.test/feed.json?v=2&42');
+    expect(withCacheBuster('https://example.test/feed.json', 42)).toBe('https://example.test/feed.json?42');
   });
 
   it('survives fetch failures and HTTP errors', async () => {

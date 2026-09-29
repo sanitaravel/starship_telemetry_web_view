@@ -5,8 +5,16 @@ const log = createLogger('ShipTracker');
 /** Public SpaceX tracker feed. Served with `Access-Control-Allow-Origin: *`. */
 export const SHIP_TRACKER_URL = 'https://content.spacex.com/cms-assets/starship_tracker_public.json';
 
-/** The CDN caches the feed for up to 10 minutes; polling faster only re-reads the cache. */
 export const DEFAULT_POLL_INTERVAL_MS = 30_000;
+
+/**
+ * Appends the current time in ms as a query string. The CDN in front of the
+ * feed caches responses per URL (a plain request can return a copy weeks
+ * old), so each poll needs a unique URL to get the live data.
+ */
+export function withCacheBuster(url: string, now: number = Date.now()): string {
+  return `${url}${url.includes('?') ? '&' : '?'}${now}`;
+}
 
 const SHIP_KEY_PATTERN = /^ship(\d+)$/;
 
@@ -119,7 +127,7 @@ export class ShipTracker {
 
   async poll(): Promise<void> {
     try {
-      const response = await this.fetchFn(this.url, { cache: 'no-cache' });
+      const response = await this.fetchFn(withCacheBuster(this.url), { cache: 'no-store' });
       if (!response.ok) {
         log.warn(`Tracker feed returned HTTP ${response.status}`);
         return;
