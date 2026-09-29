@@ -29,6 +29,9 @@ const topology = landTopology as unknown as Topology<{ land: GeometryCollection 
 const LAND = feature(topology, topology.objects.land);
 const GRATICULE = geoGraticule10();
 
+/** Largest globe diameter in CSS pixels; smaller containers shrink it to fit. */
+const MAX_GLOBE_SIZE = 640;
+
 /** Default view before any ship is known: Starbase, Texas. */
 const DEFAULT_ROTATION: Rotation = rotationToCenter(-97.157, 25.997);
 
@@ -129,7 +132,7 @@ export class ShipGlobe {
   }
 
   private resize(wrap: HTMLElement): void {
-    const size = Math.floor(Math.min(wrap.clientWidth, 420));
+    const size = Math.floor(Math.min(wrap.clientWidth, MAX_GLOBE_SIZE));
     if (size <= 0 || size === this.size) return;
     this.size = size;
     const dpr = window.devicePixelRatio || 1;
@@ -208,18 +211,18 @@ export class ShipGlobe {
     const [x, y] = point;
 
     ctx.beginPath();
-    ctx.arc(x, y, 9, 0, Math.PI * 2);
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
     ctx.fillStyle = COLORS.shipHalo;
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
     ctx.fillStyle = COLORS.ship;
     ctx.fill();
 
-    ctx.font = '500 11px "JetBrains Mono", monospace';
+    ctx.font = '500 13px "JetBrains Mono", monospace';
     ctx.fillStyle = COLORS.label;
     ctx.textBaseline = 'middle';
-    ctx.fillText(`S${track.number}`, x + 12, y);
+    ctx.fillText(`S${track.number}`, x + 16, y);
   }
 
   private renderReadout(): void {
