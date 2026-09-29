@@ -51,3 +51,39 @@ const GPS_UTC_LEAP_SECONDS = 18;
 export function gpsToUnixMs(gpsSeconds: number): number {
   return GPS_EPOCH_UNIX_MS + (gpsSeconds - GPS_UTC_LEAP_SECONDS) * 1000;
 }
+
+/** A slice of a path with its position along it: 0 at the start, 1 at the end. */
+export interface GradientSegment {
+  coordinates: [number, number][];
+  t: number;
+}
+
+/**
+ * Splits a path into at most `count` consecutive slices so it can be stroked
+ * as a start-to-end gradient. Neighbouring slices share their boundary point,
+ * so the stroked line has no gaps.
+ */
+export function gradientSegments(
+  coordinates: [number, number][],
+  count: number,
+): GradientSegment[] {
+  const edges = coordinates.length - 1;
+  if (edges < 1) return [];
+  const slices = Math.max(1, Math.min(count, edges));
+  const segments: GradientSegment[] = [];
+  for (let i = 0; i < slices; i++) {
+    const from = Math.floor((i * edges) / slices);
+    const to = Math.floor(((i + 1) * edges) / slices);
+    segments.push({
+      coordinates: coordinates.slice(from, to + 1),
+      t: slices === 1 ? 1 : i / (slices - 1),
+    });
+  }
+  return segments;
+}
+
+/** `#rrggbb` → `rgba(r, g, b, alpha)`. */
+export function hexToRgba(hex: string, alpha: number): string {
+  const value = Number.parseInt(hex.replace('#', ''), 16);
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+}

@@ -8,6 +8,8 @@ import {
   formatLatitude,
   formatLongitude,
   gpsToUnixMs,
+  gradientSegments,
+  hexToRgba,
   isOnVisibleHemisphere,
   rotationToCenter,
   type Rotation,
@@ -20,7 +22,6 @@ const COLORS = {
   land: '#3d3d3d',
   graticule: 'rgba(254, 254, 254, 0.07)',
   rim: '#444444',
-  track: 'rgba(255, 128, 20, 0.6)',
   ship: '#FF8014',
   shipHalo: 'rgba(255, 128, 20, 0.25)',
   label: '#FEFEFE',
@@ -29,6 +30,11 @@ const COLORS = {
 const topology = landTopology as unknown as Topology<{ land: GeometryCollection }>;
 const LAND = feature(topology, topology.objects.land);
 const GRATICULE = geoGraticule10();
+
+/** Path gradient: number of slices, and opacity / line width at the start and the end. */
+const GRADIENT_STEPS = 48;
+const GRADIENT_ALPHA: [number, number] = [0.15, 1];
+const GRADIENT_WIDTH: [number, number] = [1.25, 3];
 
 /** Largest globe diameter in CSS pixels; smaller containers shrink it to fit. */
 const MAX_GLOBE_SIZE = 640;
@@ -67,6 +73,9 @@ export class ShipGlobe {
       <div class="ship-globe__history" hidden>
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles"></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
       </div>
       <div class="ship-globe__body">
         <div class="ship-globe__canvas-wrap">
@@ -224,24 +233,29 @@ export class ShipGlobe {
     ctx.fillStyle = COLORS.land;
     ctx.fill();
 
+    // Paths fade in from launch to their latest point so direction is visible.
+    const strokeGradient = (coordinates: [number, number][], color: string) => {
+      ctx.lineCap = 'round';
+      for (const { coordinates: slice, t } of gradientSegments(coordinates, GRADIENT_STEPS)) {
+        const alpha = GRADIENT_ALPHA[0] + (GRADIENT_ALPHA[1] - GRADIENT_ALPHA[0]) * t;
+        const width = GRADIENT_WIDTH[0] + (GRADIENT_WIDTH[1] - GRADIENT_WIDTH[0]) * t;
+        stroke({ type: 'LineString', coordinates: slice }, hexToRgba(color, alpha), width);
+      }
+      ctx.lineCap = 'butt';
+    };
+
     for (const trajectory of this.history) {
       if (this.hiddenHistory.has(trajectory.name)) continue;
-      stroke({ type: 'LineString', coordinates: trajectory.coordinates }, trajectory.color, 2);
+      strokeGradient(trajectory.coordinates, trajectory.color);
       const [lon, lat] = trajectory.coordinates[trajectory.coordinates.length - 1];
       this.drawPointLabel(ctx, lon, lat, 3.5, trajectory.color, `S${trajectory.number}`);
     }
 
     for (const track of this.tracks) {
-      if (track.positions.length >= 2) {
-        stroke(
-          {
-            type: 'LineString',
-            coordinates: track.positions.map((p) => [p.longitude, p.latitude]),
-          },
-          COLORS.track,
-          2,
-        );
-      }
+      strokeGradient(
+        track.positions.map((p): [number, number] => [p.longitude, p.latitude]),
+        COLORS.ship,
+      );
       this.drawShipMarker(ctx, track);
     }
 

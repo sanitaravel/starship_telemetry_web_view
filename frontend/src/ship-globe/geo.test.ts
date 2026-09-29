@@ -5,6 +5,8 @@ import {
   formatLatitude,
   formatLongitude,
   gpsToUnixMs,
+  gradientSegments,
+  hexToRgba,
   isOnVisibleHemisphere,
   normalizeLongitude,
   rotationToCenter,
@@ -50,6 +52,42 @@ describe('geo helpers', () => {
     expect(formatLatitude(-17.3881)).toBe('17.388° S');
     expect(formatLongitude(106.4566)).toBe('106.457° E');
     expect(formatLongitude(-97.157)).toBe('97.157° W');
+  });
+
+  it('splits a path into gradient slices from start (t=0) to end (t=1)', () => {
+    const coords: [number, number][] = [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]];
+    expect(gradientSegments(coords, 2)).toEqual([
+      { coordinates: [[0, 0], [1, 0], [2, 0]], t: 0 },
+      { coordinates: [[2, 0], [3, 0], [4, 0]], t: 1 },
+    ]);
+  });
+
+  it('returns no slices for paths shorter than two points', () => {
+    expect(gradientSegments([], 10)).toEqual([]);
+    expect(gradientSegments([[1, 1]], 10)).toEqual([]);
+  });
+
+  it('gradient slices cover the whole path without gaps (property)', () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.tuple(fc.integer(), fc.integer()), { minLength: 2, maxLength: 400 }),
+        fc.integer({ min: 1, max: 64 }),
+        (coords, count) => {
+          const slices = gradientSegments(coords as [number, number][], count);
+          expect(slices.length).toBe(Math.min(count, coords.length - 1));
+          expect(slices[0].coordinates[0]).toBe(coords[0]);
+          expect(slices[slices.length - 1].coordinates.at(-1)).toBe(coords[coords.length - 1]);
+          for (let i = 1; i < slices.length; i++) {
+            expect(slices[i].coordinates[0]).toBe(slices[i - 1].coordinates.at(-1));
+            expect(slices[i].t).toBeGreaterThan(slices[i - 1].t);
+          }
+        },
+      ),
+    );
+  });
+
+  it('converts hex colours to rgba', () => {
+    expect(hexToRgba('#4fc3f7', 0.5)).toBe('rgba(79, 195, 247, 0.5)');
   });
 
   it('converts GPS seconds to UTC', () => {
