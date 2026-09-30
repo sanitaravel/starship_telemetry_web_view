@@ -80,7 +80,14 @@ if errorlevel 1 (
 )
 
 echo   Installing frontend dependencies...
-npm install
+REM npm is a batch file (npm.cmd): without "call" control never returns here,
+REM and its endlocal restores the directory saved by our setlocal (the repo root).
+call npm install
+if errorlevel 1 (
+    echo   ERROR: npm install failed.
+    popd
+    exit /b 1
+)
 popd
 echo   Frontend ready.
 echo.

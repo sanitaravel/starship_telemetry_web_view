@@ -12,5 +12,5 @@ cd /d "%ROOT%\frontend"
 echo.
 echo Frontend starting at http://localhost:5173
 echo.
-npm run dev
+call npm run dev
 endlocal
