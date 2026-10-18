@@ -33,6 +33,21 @@ _ALLOWLIST_TIME = "0123456789:_"
 _ALLOWLIST_NUMERIC = "0123456789."
 _ALLOWLIST_UNIT = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ/"
 
+# Recognised unit spellings, mapped to their canonical form. The slash in
+# "KM/H" is often read as Z, I, L or 1, or dropped entirely.
+_SPEED_UNIT_PATTERN = re.compile(r"KM[/ZIL1|]?H")
+_SPEED_UNITS = {"MPH": "MPH"}
+_ALTITUDE_UNITS = {"KM": "KM", "MI": "MI", "FT": "FT"}
+
+# Unit and value ROIs are much wider than their text, and EasyOCR misreads
+# short strings in a lot of padding: "KM" as garbage, and "2.7" km as "22.7"
+# (the leading digit doubled). Their boxes are narrowed to the text first.
+# Text pixels are those at least this bright (absolute floor, and relative to
+# the brightest pixel in the ROI).
+_INK_MIN_LEVEL = 120
+_INK_RELATIVE_LEVEL = 0.6
+_INK_PADDING = 3
+
 
 @dataclass
 class OCRFieldResult:
@@ -108,6 +123,40 @@ def _parse_time_value(text: str) -> str | None:
         return None
 
     return f"{hours}:{minutes}:{seconds}"
+
+
+def _parse_unit_value(field_name: str, text: str) -> str | None:
+    """Return the canonical unit for a unit field, or None if it is not one.
+
+    Speed units must look like KM/H or MPH, altitude units like KM, MI or FT.
+    Anything else (e.g. text OCR'd from the engine graphic that replaces a
+    gauge before stage separation) is rejected.
+    """
+    normalized = re.sub(r"\s+", "", text).upper()
+    if field_name.startswith("speed"):
+        if _SPEED_UNIT_PATTERN.fullmatch(normalized):
+            return "KM/H"
+        return _SPEED_UNITS.get(normalized)
+    return _ALTITUDE_UNITS.get(normalized)
+
+
+def _text_columns(gray: np.ndarray, x1: int, x2: int, y1: int, y2: int) -> tuple[int, int] | None:
+    """Narrow a unit or value ROI's horizontal extent to its bright text pixels.
+
+    Returns the padded (x1, x2) span of the text, or None if the ROI holds
+    no text-bright pixels at all.
+    """
+    crop = gray[y1:y2, x1:x2]
+    if crop.size == 0:
+        return None
+    level = max(_INK_MIN_LEVEL, int(crop.max()) * _INK_RELATIVE_LEVEL)
+    columns = np.flatnonzero((crop > level).any(axis=0))
+    if columns.size == 0:
+        return None
+    return (
+        max(x1, x1 + int(columns[0]) - _INK_PADDING),
+        min(x2, x1 + int(columns[-1]) + 1 + _INK_PADDING),
+    )
 
 
 def _parse_numeric_value(text: str) -> float | None:
@@ -375,9 +424,15 @@ class EasyOCREngine:
         else:
             gray = _to_gray(cropped)
             h, w = gray.shape
+            x_min, x_max = 0, w
+            if _is_unit_field(field_name) or _is_numeric_field(field_name):
+                columns = _text_columns(gray, 0, w, 0, h)
+                if columns is None:
+                    return OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+                x_min, x_max = columns
             results = self.reader.recognize(
                 gray,
-                horizontal_list=[[0, w, 0, h]],
+                horizontal_list=[[x_min, x_max, 0, h]],
                 free_list=[],
                 allowlist=allowlist,
                 reformat=False,
@@ -421,6 +476,12 @@ class EasyOCREngine:
             if x2 <= x1 or y2 <= y1:
                 results[field_name] = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
                 continue
+            if _is_unit_field(field_name) or _is_numeric_field(field_name):
+                columns = _text_columns(gray, x1, x2, y1, y2)
+                if columns is None:
+                    results[field_name] = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+                    continue
+                x1, x2 = columns
             groups.setdefault(_get_allowlist(field_name), []).append(
                 (field_name, (x1, y1, x2, y2))
             )
@@ -462,7 +523,11 @@ class EasyOCREngine:
         # Step 6: Parse based on field type
         parsed_value = self._parse_field_value(field_name, raw_text)
 
-        if parsed_value is None and (_is_time_field(field_name) or _is_numeric_field(field_name)):
+        if parsed_value is None and (
+            _is_time_field(field_name)
+            or _is_numeric_field(field_name)
+            or _is_unit_field(field_name)
+        ):
             # Parsing failed for a field that requires specific format
             return OCRFieldResult(
                 status=OCRFieldStatus.UNAVAILABLE,
@@ -491,8 +556,10 @@ class EasyOCREngine:
             return _parse_time_value(raw_text)
         elif _is_numeric_field(field_name):
             return _parse_numeric_value(raw_text)
+        elif _is_unit_field(field_name):
+            return _parse_unit_value(field_name, raw_text)
         else:
-            # Unit fields, stage labels, and stage_sep_text are kept as strings
+            # Stage labels and stage_sep_text are kept as strings
             return raw_text
 
     def reset(self) -> None:

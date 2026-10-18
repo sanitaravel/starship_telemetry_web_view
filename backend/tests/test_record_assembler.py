@@ -132,13 +132,14 @@ class TestOCRFieldToTelemetryField:
         assert result.unit is None
         assert result.status == "occluded_by_engines"
 
-    def test_value_available_unit_unavailable(self):
-        value_field = _make_ocr_field(OCRFieldStatus.AVAILABLE, "500", 500.0)
+    def test_value_without_unit_is_unavailable(self):
+        # e.g. "8888" OCR'd from the engine graphic, which has no unit below it
+        value_field = _make_ocr_field(OCRFieldStatus.AVAILABLE, "8888", 8888.0)
         unit_field = _make_ocr_field(OCRFieldStatus.UNAVAILABLE)
         result = _ocr_field_to_telemetry_field(value_field, unit_field)
-        assert result.value == 500.0
+        assert result.value is None
         assert result.unit is None
-        assert result.status == "available"
+        assert result.status == "unavailable"
 
 
 # --- Tests for _extract_field_text ---

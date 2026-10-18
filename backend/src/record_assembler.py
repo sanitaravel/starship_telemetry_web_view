@@ -24,6 +24,10 @@ def _ocr_field_to_telemetry_field(
 ) -> TelemetryFieldValue:
     """Map an OCR value field and its unit field to a TelemetryFieldValue.
 
+    A value only counts when its unit was read too. Before stage separation
+    the engine graphic replaces one side's gauges, and OCR reads its rows of
+    dots as digits such as "8888", but there is never a unit below them.
+
     Args:
         value_field: The OCR field result containing the numeric value.
         unit_field: The OCR field result containing the unit string.
@@ -31,19 +35,22 @@ def _ocr_field_to_telemetry_field(
     Returns:
         TelemetryFieldValue with value, unit, and status.
     """
-    # Map OCRFieldStatus enum to the string literal expected by TelemetryFieldValue
-    status: str = value_field.status.value
-
-    value: float | None = None
-    if value_field.status == OCRFieldStatus.AVAILABLE and value_field.parsed_value is not None:
-        value = float(value_field.parsed_value)
-
     unit: str | None = None
     if unit_field.status == OCRFieldStatus.AVAILABLE:
         # Unit comes from parsed_value or raw_text
         unit_val = unit_field.parsed_value if unit_field.parsed_value else unit_field.raw_text
         if unit_val is not None:
             unit = str(unit_val)
+
+    if value_field.status == OCRFieldStatus.AVAILABLE and unit is None:
+        return TelemetryFieldValue(value=None, unit=None, status=OCRFieldStatus.UNAVAILABLE.value)
+
+    # Map OCRFieldStatus enum to the string literal expected by TelemetryFieldValue
+    status: str = value_field.status.value
+
+    value: float | None = None
+    if value_field.status == OCRFieldStatus.AVAILABLE and value_field.parsed_value is not None:
+        value = float(value_field.parsed_value)
 
     return TelemetryFieldValue(value=value, unit=unit, status=status)
 

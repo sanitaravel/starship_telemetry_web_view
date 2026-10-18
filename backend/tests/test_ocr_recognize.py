@@ -101,6 +101,22 @@ def test_missing_or_low_confidence_prediction_is_unavailable(reader_cls: MagicMo
 
 
 @patch("src.ocr_engine.easyocr.Reader")
+def test_value_box_narrowed_to_its_text(reader_cls: MagicMock):
+    # A short value ("2.7") centred in a wide ROI: recognising the whole box
+    # made EasyOCR double the leading digit ("22.7")
+    frame = np.full((1080, 1920, 3), 30, dtype=np.uint8)
+    frame[905:935, 140:170] = 230  # text inside speed_l (x 50..250)
+    reader = reader_cls.return_value
+    reader.recognize.return_value = []
+    engine = EasyOCREngine(CPU, use_detection=False)
+
+    engine.extract_text(frame, {"speed_l": REGIONS["speed_l"]})
+
+    (box,) = reader.recognize.call_args.kwargs["horizontal_list"]
+    assert box == [137, 173, 900, 940]
+
+
+@patch("src.ocr_engine.easyocr.Reader")
 def test_detection_mode_uses_readtext(reader_cls: MagicMock, frame):
     reader = reader_cls.return_value
     reader.readtext.return_value = [([[0, 0]], "00:00:00", 0.9)]

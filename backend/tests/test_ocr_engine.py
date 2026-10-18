@@ -23,6 +23,8 @@ from src.ocr_engine import (
     _crop_frame_to_roi,
     _parse_numeric_value,
     _parse_time_value,
+    _parse_unit_value,
+    _text_columns,
 )
 
 
@@ -131,6 +133,42 @@ class TestParseNumericValue:
 
     def test_empty_string(self):
         assert _parse_numeric_value("") is None
+
+
+class TestParseUnitValue:
+    @pytest.mark.parametrize("text", ["KM/H", "km/h", "KMZH", "KMIH", "KMH", "KM / H"])
+    def test_speed_unit_normalised(self, text):
+        assert _parse_unit_value("speed_r_unit", text) == "KM/H"
+
+    def test_mph(self):
+        assert _parse_unit_value("speed_l_unit", "mph") == "MPH"
+
+    def test_altitude_unit(self):
+        assert _parse_unit_value("altitude_r_unit", "KM") == "KM"
+
+    @pytest.mark.parametrize("text", ["Lod", "Zod", "PKM", "F"])
+    def test_garbage_rejected(self, text):
+        assert _parse_unit_value("speed_l_unit", text) is None
+        assert _parse_unit_value("altitude_l_unit", text) is None
+
+    def test_speed_unit_not_valid_for_altitude(self):
+        assert _parse_unit_value("altitude_l_unit", "KM/H") is None
+
+
+class TestTextColumns:
+    def test_narrows_to_bright_text(self):
+        gray = np.zeros((15, 44), dtype=np.uint8)
+        gray[3:12, 14:30] = 220
+        assert _text_columns(gray, 0, 44, 0, 15) == (11, 33)
+
+    def test_respects_roi_offset_and_bounds(self):
+        gray = np.zeros((20, 100), dtype=np.uint8)
+        gray[5:15, 51:60] = 220
+        assert _text_columns(gray, 50, 70, 5, 15) == (50, 63)
+
+    def test_no_text_returns_none(self):
+        gray = np.full((15, 44), 40, dtype=np.uint8)
+        assert _text_columns(gray, 0, 44, 0, 15) is None
 
 
 # --- Frame Cropping Tests ---
