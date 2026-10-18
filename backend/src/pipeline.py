@@ -31,6 +31,7 @@ from src.record_assembler import RecordAssembler
 from src.reorder_buffer import BufferedResult, BufferOverflowError, ReorderBuffer
 from src.stage_assignment import StageAssigner
 from src.template_registry import TemplateRegistry, TemplateNotFoundError
+from src.version import get_version
 
 
 logger = logging.getLogger(__name__)
@@ -1202,11 +1203,12 @@ class PipelineOrchestrator:
         Returns:
             Dictionary with status, gpu info, skip_frames,
             current_sequence, processing_fps, in_flight_frames,
-            parallel_mode_active, and frames_discarded for API
-            and WebSocket responses.
+            parallel_mode_active, frames_discarded and the backend
+            version for API and WebSocket responses.
         """
         return {
             "status": self._state.status.value,
+            "version": get_version(),
             "gpu": {
                 "available": self._gpu_capabilities.gpu_available,
                 "device_name": self._gpu_capabilities.device_name,

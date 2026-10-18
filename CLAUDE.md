@@ -27,6 +27,8 @@ npx vitest run src/state.test.ts          # one file
 
 No linter is configured for either side. Backend imports use the `src.` package prefix (e.g. `from src.models import ...`), so run everything from `backend/`.
 
+**Versioning**: `VERSION` (repo root) holds the SemVer release, `MAJOR.MINOR.PATCH`. The full version adds the commit count (`git rev-list --count HEAD`) as a fourth, build number, e.g. `0.1.0.64`. It is computed by `backend/src/version.py` (FastAPI) and by `frontend/vite.config.ts` at build time (`__APP_VERSION__`, shown in the dashboard header). Bump with `python scripts/bump_version.py patch|minor|major|X.Y.Z`, which also updates the copies in `frontend/package.json` and `backend/pyproject.toml`; `tests/test_version.py` fails if they drift.
+
 `results_previous/` is tracked with Git LFS. Without `git lfs install`/`git lfs pull` it contains pointer stubs, not real data.
 
 ## Architecture

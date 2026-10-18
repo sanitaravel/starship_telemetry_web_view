@@ -44,6 +44,14 @@ class TestGetPipelineStatus:
         assert "gpu" in data
         assert "skip_frames" in data
         assert "current_sequence" in data
+        assert "version" in data
+
+    async def test_status_reports_backend_version(self, client: AsyncClient):
+        """The status carries the running backend's version (see src/version.py)."""
+        from src.version import get_version
+
+        data = (await client.get("/api/status")).json()
+        assert data["version"] == get_version()
 
     async def test_status_gpu_has_required_fields(self, client: AsyncClient):
         """GPU info should have 'available' and 'device_name' fields."""

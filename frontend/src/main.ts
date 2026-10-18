@@ -7,12 +7,16 @@ import { EngineVisualizer } from './engine-visualizer';
 import { TimeSeriesGraphs } from './time-series-graphs';
 import { FramePreview } from './frame-preview';
 import { ShipGlobe, ShipTracker, fetchHistoricalTrajectories } from './ship-globe';
+import { appVersion } from './app-version';
+import { BackendVersion } from './backend-version';
 
 const app = document.getElementById('app');
 if (app) {
   app.innerHTML = `
     <header class="dashboard-header">
       <h1>Starship Telemetry Dashboard</h1>
+      <span class="dashboard-header__version" title="Version (release.commit)">v${appVersion()}</span>
+      <span class="dashboard-header__version" id="backend-version"></span>
     </header>
     <section class="dashboard-controls" aria-label="Pipeline Controls">
       <div id="pipeline-controls"></div>
@@ -38,6 +42,12 @@ if (app) {
 
   // Initialize state manager
   const stateManager = new StateManager();
+
+  // Backend version next to the page's own, flagged when they differ
+  const backendVersionEl = document.getElementById('backend-version');
+  if (backendVersionEl) {
+    new BackendVersion(backendVersionEl, stateManager);
+  }
 
   // Initialize WebSocket client
   const ws = createTelemetryWebSocket();

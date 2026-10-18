@@ -31,6 +31,7 @@ from src.logging_config import configure_logging
 from src.logging_context import correlation_id_var
 from src.pipeline import PipelineOrchestrator
 from src.template_registry import TemplateRegistry, load_default_template
+from src.version import get_version
 from src import previous_flights, trajectories
 
 # Initialize structured logging before any HTTP/WebSocket processing
@@ -157,7 +158,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Starship Telemetry Web View",
         description="Real-time telemetry extraction from SpaceX Starship livestreams",
-        version="0.1.0",
+        version=get_version(),
     )
 
     # Compress HTTP responses (flight data is JSON and shrinks ~10x).
@@ -340,8 +341,8 @@ def create_app() -> FastAPI:
         """Return current pipeline status and GPU capabilities.
 
         Returns:
-            Dictionary with status, gpu info, skip_frames, current_sequence and
-            the parallel-processing counters.
+            Dictionary with status, gpu info, skip_frames, current_sequence,
+            the parallel-processing counters and the backend version.
         """
         return orchestrator.build_status_payload()
 
