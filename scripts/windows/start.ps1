@@ -38,6 +38,10 @@ Write-Host "[1/2] Starting backend (FastAPI + Uvicorn)..." -ForegroundColor Yell
 $backendDir = Join-Path $Root "backend"
 $venvDir = Join-Path $backendDir ".venv"
 
+# A backend left over from an earlier run (e.g. its window was closed) can
+# still hold port 8000 and answer instead of the new one; stop it first.
+& (Join-Path $PSScriptRoot "stop-stale-backend.ps1") -Port 8000
+
 if ($IsWindows -or $env:OS -match "Windows") {
     $activateScript = Join-Path $venvDir "Scripts\Activate.ps1"
 } else {
@@ -130,18 +134,18 @@ Read-Host | Out-Null
 Write-Host ""
 Write-Host "Stopping services..." -ForegroundColor Yellow
 
-# Kill process trees
+# Kill whole process trees: uvicorn's reloader and worker sit several levels
+# below the window, and a surviving worker keeps holding port 8000
 function Stop-Tree($proc) {
     if ($proc -and -not $proc.HasExited) {
-        # Kill children first
-        Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $proc.Id } |
-            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+        & taskkill /PID $proc.Id /T /F *> $null
     }
 }
 
 Stop-Tree $backendProcess
 Stop-Tree $frontendProcess
+# Catch a worker that was orphaned anyway (e.g. its reloader restarted it)
+& (Join-Path $PSScriptRoot "stop-stale-backend.ps1") -Port 8000
 
 if (Test-Path $backendLog) { Remove-Item $backendLog -Force -ErrorAction SilentlyContinue }
 

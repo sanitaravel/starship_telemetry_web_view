@@ -30,6 +30,10 @@ echo.
 REM --- Backend ---
 echo %YELLOW%[1/2] Starting backend (FastAPI + Uvicorn)...%RESET%
 
+REM A backend left over from an earlier run (e.g. its window was closed) can
+REM still hold port 8000 and answer instead of the new one; stop it first.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0stop-stale-backend.ps1" -Port 8000
+
 REM Log file the backend window writes to, so this launcher can detect readiness.
 REM The backend window inherits this variable.
 set "BACKEND_LOG=%TEMP%\starship-backend-%RANDOM%%RANDOM%.log"
