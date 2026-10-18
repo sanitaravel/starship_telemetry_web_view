@@ -1,6 +1,6 @@
 [project]
 name = "starship-telemetry-backend"
-version = "0.1.0"
+version = "1.0.0"
 description = "Extracts real-time telemetry (speed, altitude, mission time, engine status) from SpaceX Starship livestream frames via computer vision and OCR."
 requires-python = ">=3.11"
 license = { text = "MIT" }
