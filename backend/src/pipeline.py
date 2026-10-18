@@ -35,6 +35,15 @@ from src.template_registry import TemplateRegistry, TemplateNotFoundError
 
 logger = logging.getLogger(__name__)
 
+# Frame previews are encoded at this size: the dashboard shows a thumbnail,
+# and a quarter of the pixels makes encoding, base64 and JSON ~4x cheaper.
+_PREVIEW_SIZE = (960, 540)
+_PREVIEW_JPEG_QUALITY = 60
+
+# Previews are dropped (telemetry never is) once this many messages are
+# waiting to be broadcast, so a slow client cannot build up a frame backlog.
+_MAX_QUEUED_BROADCASTS = 8
+
 
 @dataclass
 class PipelineState:
@@ -93,8 +102,15 @@ class PipelineOrchestrator:
         self._record_assembler = RecordAssembler()
         self._engine_analyzer_config = EngineAnalyzerConfig()
 
-        # Thread pool executor for CPU-bound work
+        # Thread pools for CPU-bound work: OCR gets its own pool sized to the
+        # hardware so engine analysis and JPEG encoding never queue behind it
         self._executor: ThreadPoolExecutor | None = None
+        self._ocr_executor: ThreadPoolExecutor | None = None
+
+        # Ordered broadcast queue, drained by a single task so sending to
+        # clients never holds up frame processing or its concurrency slot
+        self._broadcast_queue: asyncio.Queue[dict[str, Any]] | None = None
+        self._broadcaster_task: asyncio.Task | None = None
 
         # Inter-frame concurrency control
         self._concurrency_controller: ConcurrencyController | None = None
@@ -163,11 +179,9 @@ class PipelineOrchestrator:
             EngineAnalysisResult with engine statuses and detection accuracy.
             Returns a default result with empty statuses on timeout.
         """
-        loop = asyncio.get_running_loop()
-        start = time.monotonic()
         try:
-            result = await asyncio.wait_for(
-                loop.run_in_executor(
+            result, duration_ms, queue_ms = await asyncio.wait_for(
+                self._run_timed(
                     self._executor,
                     analyze_engines,
                     frame,
@@ -177,12 +191,10 @@ class PipelineOrchestrator:
                 ),
                 timeout=self._parallel_config.stage_timeout_seconds,
             )
-            end = time.monotonic()
-            duration_ms = int((end - start) * 1000)
             seq = frame_seq_var.get()
             logger.debug(
                 "Engine analysis completed",
-                extra={"frame_seq": seq, "duration_ms": duration_ms},
+                extra={"frame_seq": seq, "duration_ms": duration_ms, "queue_ms": queue_ms},
             )
             return result
         except asyncio.TimeoutError:
@@ -213,7 +225,6 @@ class PipelineOrchestrator:
             OCRResult with extracted text fields.
             Returns a default result with all fields UNAVAILABLE on timeout.
         """
-        loop = asyncio.get_running_loop()
         ocr_engine = self._ensure_ocr_engine()
 
         # After stage separation, skip the stage_sep_text ROI
@@ -223,23 +234,20 @@ class PipelineOrchestrator:
                 k: v for k, v in text_regions.items() if k != "stage_sep_text"
             }
 
-        start = time.monotonic()
         try:
-            result = await asyncio.wait_for(
-                loop.run_in_executor(
-                    self._executor,
+            result, duration_ms, queue_ms = await asyncio.wait_for(
+                self._run_timed(
+                    self._ocr_executor,
                     ocr_engine.extract_text,
                     frame,
                     text_regions,
                 ),
                 timeout=self._parallel_config.stage_timeout_seconds,
             )
-            end = time.monotonic()
-            duration_ms = int((end - start) * 1000)
             seq = frame_seq_var.get()
             logger.debug(
                 "OCR extraction completed",
-                extra={"frame_seq": seq, "duration_ms": duration_ms},
+                extra={"frame_seq": seq, "duration_ms": duration_ms, "queue_ms": queue_ms},
             )
             return result
         except asyncio.TimeoutError:
@@ -268,9 +276,9 @@ class PipelineOrchestrator:
             )
 
     async def _run_jpeg_encoding(self, frame: np.ndarray) -> str:
-        """Encode a frame as JPEG in the thread pool executor.
+        """Encode a downscaled preview of the frame as JPEG in the thread pool.
 
-        Offloads the CPU-bound JPEG encoding and base64 conversion to
+        Offloads the CPU-bound resize, JPEG encoding and base64 conversion to
         the thread pool. No timeout is applied for JPEG encoding.
 
         Args:
@@ -279,13 +287,39 @@ class PipelineOrchestrator:
         Returns:
             Base64-encoded JPEG string.
         """
-        loop = asyncio.get_running_loop()
-
         def encode_fn() -> str:
-            _, jpeg_buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            preview = cv2.resize(frame, _PREVIEW_SIZE, interpolation=cv2.INTER_AREA)
+            _, jpeg_buf = cv2.imencode(
+                '.jpg', preview, [cv2.IMWRITE_JPEG_QUALITY, _PREVIEW_JPEG_QUALITY]
+            )
             return base64.b64encode(jpeg_buf.tobytes()).decode('ascii')
 
-        return await loop.run_in_executor(self._executor, encode_fn)
+        result, duration_ms, queue_ms = await self._run_timed(self._executor, encode_fn)
+        logger.debug(
+            "Preview encoding completed",
+            extra={"duration_ms": duration_ms, "queue_ms": queue_ms},
+        )
+        return result
+
+    @staticmethod
+    async def _run_timed(
+        executor: ThreadPoolExecutor | None, fn: Callable[..., Any], *args: Any
+    ) -> tuple[Any, int, int]:
+        """Run fn(*args) in the executor and time it from inside the worker.
+
+        Returns:
+            (result, compute time in ms, time spent waiting for a worker in ms).
+            Timing inside the job keeps queue wait out of the stage duration.
+        """
+        loop = asyncio.get_running_loop()
+        submitted = time.monotonic()
+
+        def job() -> tuple[Any, float, float]:
+            started = time.monotonic()
+            return fn(*args), started, time.monotonic()
+
+        result, started, finished = await loop.run_in_executor(executor, job)
+        return result, int((finished - started) * 1000), int((started - submitted) * 1000)
 
     async def _handle_stale_gap(self) -> None:
         """Check for and advance past stale gaps in the reorder buffer.
@@ -485,25 +519,62 @@ class PipelineOrchestrator:
                         logger.info("Processing FPS: %.1f", current_fps, extra={"fps": current_fps})
                         self._last_logged_fps = current_fps
 
-            # Broadcast telemetry record
-            await self._broadcast({
+            # Queue the telemetry record (always) and the frame preview (only
+            # while the queue is short) for the broadcaster task
+            self._enqueue_broadcast({
                 "type": "telemetry",
                 "payload": result.record.model_dump(),
             })
-
-            # Broadcast frame preview if available
             if result.frame_b64 is not None:
-                try:
-                    await self._broadcast({
+                self._enqueue_broadcast(
+                    {
                         "type": "frame",
                         "payload": {
                             "image": result.frame_b64,
                             "sequence": self._broadcast_sequence,
                             "processing_fps": self._state.processing_fps,
                         },
-                    })
-                except Exception as frame_err:
-                    logger.warning(f"Failed to broadcast frame: {frame_err}")
+                    },
+                    droppable=True,
+                )
+
+        self._state.buffer_size = self._reorder_buffer.size
+
+    def _enqueue_broadcast(self, message: dict[str, Any], droppable: bool = False) -> None:
+        """Queue a message for the broadcaster task, preserving order.
+
+        Args:
+            message: The JSON-serialisable message to send to every client.
+            droppable: Drop the message instead of queueing it when the queue
+                already holds _MAX_QUEUED_BROADCASTS messages.
+        """
+        if self._broadcast_queue is None:
+            return
+        if droppable and self._broadcast_queue.qsize() >= _MAX_QUEUED_BROADCASTS:
+            logger.debug("Broadcast queue full, dropping frame preview.")
+            return
+        self._broadcast_queue.put_nowait(message)
+
+    async def _broadcast_worker(self) -> None:
+        """Send queued messages to clients one at a time, in queue order."""
+        assert self._broadcast_queue is not None
+        queue = self._broadcast_queue
+        while True:
+            message = await queue.get()
+            start = time.monotonic()
+            try:
+                await self._broadcast(message)
+            except Exception as e:
+                logger.warning("Failed to broadcast %s message: %s", message.get("type"), e)
+            logger.debug(
+                "Broadcast completed",
+                extra={"duration_ms": int((time.monotonic() - start) * 1000)},
+            )
+
+    def _skip_frame(self, seq: int) -> None:
+        """Mark a frame that produced no result so later frames are not held up."""
+        if self._reorder_buffer is not None:
+            self._reorder_buffer.mark_skipped(seq)
 
     async def _process_frame_with_timeout(
         self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float
@@ -539,9 +610,8 @@ class PipelineOrchestrator:
                 seq,
                 self._parallel_config.frame_timeout_seconds,
             )
-            if self._reorder_buffer is not None:
-                self._reorder_buffer.advance_past_gap(seq)
-                await self._drain_reorder_buffer()
+            self._skip_frame(seq)
+            await self._drain_reorder_buffer()
 
     async def _process_frame_parallel(
         self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float
@@ -625,6 +695,8 @@ class PipelineOrchestrator:
                     "Both engine analysis and OCR failed for frame %d, skipping frame.",
                     seq,
                 )
+                self._skip_frame(seq)
+                await self._drain_reorder_buffer()
                 return
 
             # Step 5: Stage Assignment
@@ -669,6 +741,8 @@ class PipelineOrchestrator:
         except Exception as e:
             logger.error(f"Error processing frame {seq}: {e}", exc_info=True)
             # Skip this frame, pipeline continues
+            self._skip_frame(seq)
+            await self._drain_reorder_buffer()
 
     async def start(self, source_url: str, skip_frames: int = 30) -> None:
         """Start the extraction pipeline.
@@ -712,13 +786,26 @@ class PipelineOrchestrator:
         self._state.current_sequence = 0
         self._state.separation_state = SeparationState.PRE_SEPARATION
 
-        # Ensure OCR engine is loaded
-        self._ensure_ocr_engine()
+        # Ensure OCR engine is loaded, with T-0 detection cleared from any
+        # previous run so the time gate applies again
+        self._ensure_ocr_engine().reset()
 
-        # Create thread pool executor for CPU-bound work
+        # Create thread pools for CPU-bound work
         self._executor = ThreadPoolExecutor(
-            max_workers=self._parallel_config.executor_max_workers
+            max_workers=self._parallel_config.executor_max_workers,
+            thread_name_prefix="pipeline",
         )
+        ocr_workers = self._parallel_config.resolve_ocr_workers(
+            self._gpu_capabilities.gpu_available
+        )
+        self._ocr_executor = ThreadPoolExecutor(
+            max_workers=ocr_workers, thread_name_prefix="ocr"
+        )
+        logger.info("OCR thread pool: %d workers.", ocr_workers)
+
+        # Start the ordered broadcaster
+        self._broadcast_queue = asyncio.Queue()
+        self._broadcaster_task = asyncio.create_task(self._broadcast_worker())
 
         # Create concurrency controller for inter-frame parallelism
         self._concurrency_controller = ConcurrencyController(
@@ -797,34 +884,18 @@ class PipelineOrchestrator:
         if self._reorder_buffer is not None:
             self._reorder_buffer = None
 
-        # Step 6: Shutdown the thread pool executor with 10-second timeout (Req 2.4)
-        if self._executor is not None:
-            try:
-                loop = asyncio.get_running_loop()
-                await asyncio.wait_for(
-                    loop.run_in_executor(
-                        None,
-                        lambda: self._executor.shutdown(
-                            wait=True, cancel_futures=True
-                        ),
-                    ),
-                    timeout=self._parallel_config.shutdown_timeout_seconds,
-                )
-            except asyncio.TimeoutError:
-                logger.error(
-                    "Thread pool executor did not shut down within %.1f seconds. "
-                    "Forcing release.",
-                    self._parallel_config.shutdown_timeout_seconds,
-                )
-                # Force a non-blocking shutdown
-                try:
-                    self._executor.shutdown(wait=False, cancel_futures=True)
-                except Exception:
-                    pass
-            except Exception as e:
-                logger.error(f"Error shutting down executor: {e}")
-            finally:
-                self._executor = None
+        # Step 6: Shut down the thread pools with a timeout each (Req 2.4)
+        for executor in (self._executor, self._ocr_executor):
+            if executor is not None:
+                await self._shutdown_executor(executor)
+        self._executor = None
+        self._ocr_executor = None
+
+        # Stop the broadcaster; anything still queued belongs to this run
+        if self._broadcaster_task is not None:
+            self._broadcaster_task.cancel()
+            self._broadcaster_task = None
+        self._broadcast_queue = None
 
         # Step 7: Reset components and parallel state
         self._stage_assigner.reset()
@@ -841,6 +912,31 @@ class PipelineOrchestrator:
         self._state.parallel_mode_active = False
         self._state.frames_discarded = 0
         self._state.buffer_size = 0
+
+    async def _shutdown_executor(self, executor: ThreadPoolExecutor) -> None:
+        """Shut down a thread pool, forcing release after shutdown_timeout_seconds."""
+        try:
+            loop = asyncio.get_running_loop()
+            await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: executor.shutdown(wait=True, cancel_futures=True),
+                ),
+                timeout=self._parallel_config.shutdown_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "Thread pool executor did not shut down within %.1f seconds. "
+                "Forcing release.",
+                self._parallel_config.shutdown_timeout_seconds,
+            )
+            # Force a non-blocking shutdown
+            try:
+                executor.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
+        except Exception as e:
+            logger.error(f"Error shutting down executor: {e}")
 
     def set_skip_frames(self, skip_frames: int) -> None:
         """Update the frame skip count.
@@ -891,6 +987,8 @@ class PipelineOrchestrator:
         ocr_engine = self._ensure_ocr_engine()
         if not self._t_zero_detected and ocr_engine.t_zero_detected:
             self._t_zero_detected = True
+            self._state.t_zero_detected = True
+            self._state.parallel_mode_active = True
             logger.info("T-0 detected, enabling parallel frame processing mode.")
 
         if not self._t_zero_detected:
@@ -1020,12 +1118,16 @@ class PipelineOrchestrator:
                     "Both engine analysis and OCR failed for frame %d, skipping frame.",
                     seq,
                 )
+                self._skip_frame(seq)
+                await self._drain_reorder_buffer()
                 return
 
             # Step 5: Check for T-0 detection after OCR completes
             ocr_engine = self._ensure_ocr_engine()
             if not self._t_zero_detected and ocr_engine.t_zero_detected:
                 self._t_zero_detected = True
+                self._state.t_zero_detected = True
+                self._state.parallel_mode_active = True
                 logger.info(
                     "T-0 detected during sequential processing of frame %d, "
                     "enabling parallel frame processing mode.",
@@ -1073,6 +1175,8 @@ class PipelineOrchestrator:
         except Exception as e:
             logger.error(f"Error processing frame {seq}: {e}", exc_info=True)
             # Skip this frame, pipeline continues
+            self._skip_frame(seq)
+            await self._drain_reorder_buffer()
 
     async def _on_status_change(self, new_status: PipelineStatus) -> None:
         """Handle frame extractor status changes.
@@ -1110,7 +1214,11 @@ class PipelineOrchestrator:
             "skip_frames": self._state.skip_frames,
             "current_sequence": self._state.current_sequence,
             "processing_fps": self._fps_meter.get_fps(),
-            "in_flight_frames": self._state.in_flight_frames,
+            "in_flight_frames": (
+                self._concurrency_controller.in_flight
+                if self._concurrency_controller is not None
+                else 0
+            ),
             "parallel_mode_active": self._state.parallel_mode_active,
             "frames_discarded": self._state.frames_discarded,
         }

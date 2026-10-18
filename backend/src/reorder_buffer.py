@@ -26,6 +26,10 @@ class BufferedResult:
     inserted_at: float
 
 
+# Placeholder stored for a frame that produced no result (see mark_skipped)
+_SKIPPED: Any = object()
+
+
 class ReorderBuffer:
     """Manages out-of-order result buffering and sequential draining.
 
@@ -58,7 +62,7 @@ class ReorderBuffer:
         Raises:
             BufferOverflowError: If the buffer is at maximum capacity.
         """
-        if len(self._buffer) >= self._max_size:
+        if self.size >= self._max_size:
             raise BufferOverflowError(
                 f"Reorder buffer is full ({self._max_size} entries). "
                 f"Cannot insert seq={seq}."
@@ -77,9 +81,24 @@ class ReorderBuffer:
         """
         results: list[BufferedResult] = []
         while self._next_expected in self._buffer:
-            results.append(self._buffer.pop(self._next_expected))
+            result = self._buffer.pop(self._next_expected)
+            if result is not _SKIPPED:
+                results.append(result)
             self._next_expected += 1
         return results
+
+    def mark_skipped(self, seq: int) -> None:
+        """Record that a frame produced no result, so drain() can step past it.
+
+        Unlike advance_past_gap(), this keeps any earlier frames that are
+        still in flight: the skipped slot is only passed once everything
+        before it has drained. Skip markers do not count toward capacity.
+
+        Args:
+            seq: The sequence number of the frame that failed or timed out.
+        """
+        if seq >= self._next_expected:
+            self._buffer[seq] = _SKIPPED
 
     def advance_past_gap(self, gap_seq: int) -> None:
         """Skip a stalled frame, advancing next_expected past it.
@@ -124,8 +143,8 @@ class ReorderBuffer:
 
     @property
     def size(self) -> int:
-        """Current number of buffered results."""
-        return len(self._buffer)
+        """Current number of buffered results (skip markers excluded)."""
+        return sum(1 for r in self._buffer.values() if r is not _SKIPPED)
 
     @property
     def next_expected(self) -> int:

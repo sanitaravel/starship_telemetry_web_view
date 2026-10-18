@@ -78,6 +78,10 @@ class UvicornStyleFormatter(logging.Formatter):
         if duration_ms is not None:
             extras.append(f"{duration_ms}ms")
 
+        queue_ms = record.__dict__.get("queue_ms")
+        if queue_ms is not None:
+            extras.append(f"queued={queue_ms}ms")
+
         fps = record.__dict__.get("fps")
         if fps is not None:
             extras.append(f"fps={fps:.1f}")

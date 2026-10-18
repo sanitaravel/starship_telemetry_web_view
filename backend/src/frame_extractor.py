@@ -7,6 +7,7 @@ automatic frame resizing to 1920×1080, and exponential backoff reconnection.
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import Callable, Awaitable
 
@@ -372,7 +373,18 @@ class FrameExtractor:
 
             # Main frame capture loop
             while not self._stop_event.is_set():
-                ret, frame = await loop.run_in_executor(None, self._capture.read)
+                # Grab (no decode) the frames that will be skipped and decode
+                # only the next processed one, in a single executor hop.
+                skip = self._config.skip_frames
+                to_skip = skip - 1 - (frame_counter % skip)
+                decode_start = time.monotonic()
+                grabbed, ret, frame = await loop.run_in_executor(
+                    None, self._advance, self._capture, to_skip
+                )
+                frame_counter += grabbed
+
+                if self._stop_event.is_set():
+                    break
 
                 if not ret or frame is None or frame.size == 0:
                     # Source disconnected — attempt reconnection
@@ -390,9 +402,15 @@ class FrameExtractor:
                 backoff_s = self._INITIAL_BACKOFF_S
                 frame_counter += 1
 
-                # Only process every Nth frame
+                # Only process every Nth frame (skip_frames may have changed
+                # while the grab batch was running)
                 if frame_counter % self._config.skip_frames != 0:
                     continue
+
+                logger.debug(
+                    "Frame capture completed",
+                    extra={"duration_ms": int((time.monotonic() - decode_start) * 1000)},
+                )
 
                 # Resize frame to target resolution (skip if already correct)
                 h, w = frame.shape[:2]
@@ -424,6 +442,27 @@ class FrameExtractor:
             self._release_capture()
             if self._status != PipelineStatus.STOPPED:
                 await self._set_status(PipelineStatus.STOPPED)
+
+    def _advance(
+        self, capture: cv2.VideoCapture, to_skip: int
+    ) -> tuple[int, bool, np.ndarray | None]:
+        """Grab ``to_skip`` frames without decoding, then read one frame.
+
+        Runs in the executor. ``grab()`` demuxes without the decode and colour
+        conversion that ``read()`` does, so skipped frames cost far less.
+
+        Returns:
+            (frames grabbed before the read, read success, decoded frame).
+        """
+        grabbed = 0
+        for _ in range(to_skip):
+            if self._stop_event.is_set():
+                return grabbed, False, None
+            if not capture.grab():
+                return grabbed, False, None
+            grabbed += 1
+        ret, frame = capture.read()
+        return grabbed, ret, frame
 
     async def _reconnect_with_backoff(self) -> bool:
         """Attempt to reconnect to the video source with exponential backoff.

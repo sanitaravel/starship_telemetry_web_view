@@ -6,6 +6,8 @@ Verifies:
 - WebSocket connection can be established and receives messages
 """
 
+import json
+
 import pytest
 from unittest.mock import patch, AsyncMock
 
@@ -202,12 +204,22 @@ class TestConnectionManager:
 
         ws1 = AsyncMock()
         ws1.accept = AsyncMock()
-        ws1.send_json = AsyncMock()
+        ws1.send_text = AsyncMock()
+        ws2 = AsyncMock()
+        ws2.accept = AsyncMock()
+        ws2.send_text = AsyncMock()
 
         await cm.connect(ws1)
+        await cm.connect(ws2)
         await cm.broadcast_json({"type": "test", "payload": "data"})
 
-        ws1.send_json.assert_called_once_with({"type": "test", "payload": "data"})
+        # Serialised once, then sent as text to every client
+        for ws in (ws1, ws2):
+            ws.send_text.assert_called_once()
+            assert json.loads(ws.send_text.call_args.args[0]) == {
+                "type": "test",
+                "payload": "data",
+            }
 
 
 class TestWebSocketEndpoint:

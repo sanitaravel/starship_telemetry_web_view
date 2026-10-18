@@ -11,6 +11,7 @@ Provides:
 - /static: Mounted frontend static files
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -20,6 +21,8 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -28,7 +31,7 @@ from src.logging_config import configure_logging
 from src.logging_context import correlation_id_var
 from src.pipeline import PipelineOrchestrator
 from src.template_registry import TemplateRegistry, load_default_template
-from src import trajectories
+from src import previous_flights, trajectories
 
 # Initialize structured logging before any HTTP/WebSocket processing
 configure_logging()
@@ -78,31 +81,29 @@ class ConnectionManager:
         )
 
     async def broadcast(self, message: str) -> None:
-        """Send a text message to all connected clients.
+        """Send a text message to all connected clients concurrently.
 
-        Removes any clients that fail to receive the message.
+        Clients are sent to at the same time, so one slow client does not
+        delay the others. Removes any clients that fail to receive the message.
         """
-        disconnected: list[WebSocket] = []
-        for connection in self._active_connections:
-            try:
-                await connection.send_text(message)
-            except Exception:
-                disconnected.append(connection)
-
-        for conn in disconnected:
-            self.disconnect(conn)
+        connections = list(self._active_connections)
+        results = await asyncio.gather(
+            *(connection.send_text(message) for connection in connections),
+            return_exceptions=True,
+        )
+        for conn, result in zip(connections, results):
+            if isinstance(result, Exception):
+                self.disconnect(conn)
 
     async def broadcast_json(self, data: dict[str, Any]) -> None:
-        """Send a JSON message to all connected clients."""
-        disconnected: list[WebSocket] = []
-        for connection in self._active_connections:
-            try:
-                await connection.send_json(data)
-            except Exception:
-                disconnected.append(connection)
+        """Send a JSON message to all connected clients.
 
-        for conn in disconnected:
-            self.disconnect(conn)
+        The message is serialised once (the same way Starlette's send_json
+        does) instead of once per client.
+        """
+        if not self._active_connections:
+            return
+        await self.broadcast(json.dumps(data, separators=(",", ":"), ensure_ascii=False))
 
 
 class ValidateUrlRequest(BaseModel):
@@ -158,6 +159,10 @@ def create_app() -> FastAPI:
         description="Real-time telemetry extraction from SpaceX Starship livestreams",
         version="0.1.0",
     )
+
+    # Compress HTTP responses (flight data is JSON and shrinks ~10x).
+    # WebSocket traffic is not affected.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     # Mount frontend static files if the directory exists
     frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
@@ -281,65 +286,49 @@ def create_app() -> FastAPI:
             manager.disconnect(websocket)
 
     # --- Previous Flights Endpoints ---
-
-    previous_flights_dir = Path(__file__).parent.parent.parent / "results_previous"
+    # Plain `def` handlers run in the threadpool, so reading a flight file
+    # never blocks the event loop (and the live telemetry stream with it).
 
     @app.get("/api/previous-flights")
-    async def list_previous_flights() -> list[dict[str, str]]:
+    def list_previous_flights() -> list[dict[str, str]]:
         """List available previous flight data files.
 
         Returns:
             List of objects with 'name' (display name) and 'filename' fields.
         """
-        if not previous_flights_dir.exists():
-            return []
-
-        flights = []
-        for f in sorted(previous_flights_dir.glob("*.json")):
-            flights.append({
-                "name": f.stem.upper().replace("-", " "),
-                "filename": f.stem,
-            })
-        return flights
+        return previous_flights.list_flights(previous_flights.PREVIOUS_FLIGHTS_DIR)
 
     @app.get("/api/previous-flights/{name}")
-    async def get_previous_flight(name: str) -> Any:
-        """Serve a previous flight JSON data file.
+    def get_previous_flight(name: str) -> Response:
+        """Serve a previous flight as columnar JSON.
 
         Args:
             name: The filename stem (e.g., 'ift-13') of the flight data.
 
         Returns:
-            The parsed JSON array of flight telemetry records.
+            ``{"met": [...], "t": [...], "ss_speed": [...], "sh_speed": [...],
+            "ss_alt": [...], "sh_alt": [...]}``, one entry per record.
         """
-        # Sanitize: only allow alphanumeric and hyphens
-        safe_name = "".join(c for c in name if c.isalnum() or c == "-")
-        file_path = previous_flights_dir / f"{safe_name}.json"
-
-        if not file_path.exists() or not file_path.is_file():
-            from fastapi.responses import JSONResponse
+        payload = previous_flights.load_flight(name, previous_flights.PREVIOUS_FLIGHTS_DIR)
+        if payload is None:
             return JSONResponse(
                 status_code=404,
                 content={"detail": f"Flight data '{name}' not found."},
             )
-
-        with open(file_path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-        return data
+        return Response(content=payload, media_type="application/json")
 
     # --- Ship Trajectory Endpoints ---
 
     @app.get("/api/trajectories")
-    async def list_trajectories() -> list[dict[str, Any]]:
+    def list_trajectories() -> list[dict[str, Any]]:
         """List recorded ship trajectories from the trajectories/ directory."""
         return trajectories.list_trajectories(trajectories.TRAJECTORIES_DIR)
 
     @app.get("/api/trajectories/{name}")
-    async def get_trajectory(name: str) -> Any:
+    def get_trajectory(name: str) -> Any:
         """Serve one ship's trajectory (e.g. 'ship39') as a list of points."""
         points = trajectories.load_trajectory(name, trajectories.TRAJECTORIES_DIR)
         if points is None:
-            from fastapi.responses import JSONResponse
             return JSONResponse(
                 status_code=404,
                 content={"detail": f"Trajectory '{name}' not found."},

@@ -622,3 +622,43 @@ class TestBufferOverflowTriggersDiscardAndDrainProperty:
                     f"Output not in strictly ascending order at position {i}: "
                     f"{records[i - 1]} -> {records[i]}"
                 )
+
+
+class TestMarkSkipped:
+    """Tests for ReorderBuffer.mark_skipped (frames that produced no result)."""
+
+    def _make_result(self, seq: int) -> BufferedResult:
+        return BufferedResult(record=seq, frame_b64=None, inserted_at=time.monotonic())
+
+    def test_drain_steps_over_skipped_frame(self) -> None:
+        buf = ReorderBuffer()
+        buf.insert(1, self._make_result(1))
+        buf.mark_skipped(2)
+        buf.insert(3, self._make_result(3))
+        assert [r.record for r in buf.drain()] == [1, 3]
+        assert buf.next_expected == 4
+
+    def test_skipping_ahead_keeps_earlier_in_flight_frames(self) -> None:
+        """Unlike advance_past_gap, a later skip does not drop earlier frames."""
+        buf = ReorderBuffer()
+        buf.mark_skipped(3)
+        assert buf.drain() == []
+        buf.insert(2, self._make_result(2))
+        buf.insert(1, self._make_result(1))
+        buf.insert(4, self._make_result(4))
+        assert [r.record for r in buf.drain()] == [1, 2, 4]
+
+    def test_skip_markers_do_not_count_toward_size(self) -> None:
+        buf = ReorderBuffer(max_size=1)
+        buf.mark_skipped(2)
+        assert buf.size == 0
+        buf.insert(3, self._make_result(3))
+        assert buf.size == 1
+
+    def test_already_drained_sequence_is_ignored(self) -> None:
+        buf = ReorderBuffer()
+        buf.insert(1, self._make_result(1))
+        buf.drain()
+        buf.mark_skipped(1)
+        assert buf.size == 0
+        assert buf.drain() == []

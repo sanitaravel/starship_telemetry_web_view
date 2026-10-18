@@ -10,6 +10,7 @@ import csv
 import logging
 import math
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -66,7 +67,13 @@ def load_trajectory(name: str, directory: Path = TRAJECTORIES_DIR) -> list[dict[
     path = next((p for p in candidates if p.is_file()), None)
     if path is None:
         return None
+    return _parse_trajectory(path, path.stat().st_mtime_ns)
 
+
+@lru_cache(maxsize=32)
+def _parse_trajectory(path: Path, mtime_ns: int) -> list[dict[str, float]]:
+    """Parse a trajectory CSV. Cached per (path, mtime); callers must not mutate."""
+    safe_name = path.stem
     points: list[dict[str, float]] = []
     last_gps_time = -math.inf
     with open(path, newline="", encoding="utf-8") as fh:

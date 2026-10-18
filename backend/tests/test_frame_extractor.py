@@ -337,6 +337,62 @@ class TestCaptureLoop:
         assert first_call_status == PipelineStatus.RUNNING
 
 
+    @patch("src.frame_extractor.cv2.VideoCapture")
+    async def test_skipped_frames_are_grabbed_not_decoded(
+        self, mock_cap_cls: MagicMock, extractor: FrameExtractor
+    ) -> None:
+        """With skip_frames=3, only every 3rd frame is decoded via read()."""
+        frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        mock_cap = MagicMock()
+        mock_cap.isOpened.return_value = True
+        mock_cap.get.side_effect = lambda prop: {
+            cv2.CAP_PROP_FRAME_WIDTH: 1920,
+            cv2.CAP_PROP_FRAME_HEIGHT: 1080,
+        }.get(prop, 30.0)
+        mock_cap.grab.return_value = True
+        mock_cap.read.side_effect = [(True, frame), (True, frame), (False, None)]
+        mock_cap_cls.return_value = mock_cap
+
+        frame_callback = AsyncMock()
+        extractor.on_frame(frame_callback)
+        extractor._config = FrameExtractorConfig(
+            source_url="http://test.com/stream", skip_frames=3
+        )
+        extractor._stop_event.clear()
+
+        with patch.object(extractor, "_reconnect_with_backoff", new_callable=AsyncMock) as reconnect:
+            reconnect.return_value = False
+            await extractor._capture_loop()
+
+        # Two processed frames, each preceded by two grabbed-only frames
+        frame_numbers = [call[0][2] for call in frame_callback.call_args_list]
+        assert frame_numbers == [2, 5]
+        assert mock_cap.read.call_count == 3
+        assert mock_cap.grab.call_count == 6
+
+    @patch("src.frame_extractor.cv2.VideoCapture")
+    async def test_failed_grab_triggers_reconnect(
+        self, mock_cap_cls: MagicMock, extractor: FrameExtractor
+    ) -> None:
+        """A grab failure is treated like a failed read: reconnect, no decode."""
+        mock_cap = MagicMock()
+        mock_cap.isOpened.return_value = True
+        mock_cap.grab.return_value = False
+        mock_cap_cls.return_value = mock_cap
+
+        extractor._config = FrameExtractorConfig(
+            source_url="http://test.com/stream", skip_frames=5
+        )
+        extractor._stop_event.clear()
+
+        with patch.object(extractor, "_reconnect_with_backoff", new_callable=AsyncMock) as reconnect:
+            reconnect.return_value = False
+            await extractor._capture_loop()
+
+        reconnect.assert_awaited_once()
+        mock_cap.read.assert_not_called()
+
+
 class TestReconnectionBackoff:
     """Tests for exponential backoff reconnection logic."""
 

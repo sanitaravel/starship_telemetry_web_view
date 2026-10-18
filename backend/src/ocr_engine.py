@@ -4,12 +4,15 @@ Uses EasyOCR with GPU acceleration (when available) to read text values
 (time, speed, altitude, stage labels) from ROI regions.
 """
 
+import os
 import re
 import threading
 from dataclasses import dataclass
 
+import cv2
 import easyocr
 import numpy as np
+import torch
 
 from src.enums import OCRFieldStatus
 from src.gpu_detector import GPUCapabilities
@@ -58,11 +61,8 @@ class OCRResult:
     stage_sep_text: OCRFieldResult
 
 
-def _crop_frame_to_roi(frame: np.ndarray, roi: ROIRect) -> np.ndarray:
-    """Crop the frame to the given ROI rectangle.
-
-    Clamps coordinates to frame boundaries to avoid out-of-bounds access.
-    """
+def _roi_bounds(frame: np.ndarray, roi: ROIRect) -> tuple[int, int, int, int]:
+    """Return (x1, y1, x2, y2) for the ROI, clamped to the frame boundaries."""
     h, w = frame.shape[:2]
 
     x1 = max(0, int(roi.x))
@@ -70,7 +70,23 @@ def _crop_frame_to_roi(frame: np.ndarray, roi: ROIRect) -> np.ndarray:
     x2 = min(w, int(roi.x + roi.width))
     y2 = min(h, int(roi.y + roi.height))
 
+    return x1, y1, x2, y2
+
+
+def _crop_frame_to_roi(frame: np.ndarray, roi: ROIRect) -> np.ndarray:
+    """Crop the frame to the given ROI rectangle.
+
+    Clamps coordinates to frame boundaries to avoid out-of-bounds access.
+    """
+    x1, y1, x2, y2 = _roi_bounds(frame, roi)
     return frame[y1:y2, x1:x2]
+
+
+def _to_gray(image: np.ndarray) -> np.ndarray:
+    """Convert a BGR image to single-channel grayscale (no-op if already gray)."""
+    if image.ndim == 2:
+        return image
+    return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
 
 def _parse_time_value(text: str) -> str | None:
@@ -149,6 +165,23 @@ def _get_allowlist(field_name: str) -> str | None:
     return None
 
 
+def configure_torch_threads(gpu_available: bool) -> None:
+    """Cap torch's intra-op threads when OCR runs on CPU.
+
+    The pipeline runs several OCR jobs at once, one per worker thread. If each
+    of them also fans out over torch's own thread pool, the cores are
+    oversubscribed and throughput collapses (measured roughly 10x lower than
+    single-threaded workers on a 4-core CPU). Override with OCR_TORCH_THREADS.
+    """
+    if gpu_available:
+        return
+    try:
+        threads = int(os.environ.get("OCR_TORCH_THREADS", "1"))
+    except ValueError:
+        threads = 1
+    torch.set_num_threads(max(1, threads))
+
+
 class EasyOCREngine:
     """Wraps EasyOCR Reader with GPU/CPU auto-configuration.
 
@@ -156,7 +189,11 @@ class EasyOCREngine:
     reads 00:00:00 for the first time, which marks liftoff (T-0).
     """
 
-    def __init__(self, gpu_capabilities: GPUCapabilities) -> None:
+    def __init__(
+        self,
+        gpu_capabilities: GPUCapabilities,
+        use_detection: bool | None = None,
+    ) -> None:
         """Initialize EasyOCR Reader.
 
         EasyOCR uses PyTorch for inference. The gpu parameter is set based on
@@ -164,11 +201,25 @@ class EasyOCREngine:
 
         Args:
             gpu_capabilities: Result of detect_gpu() call
+            use_detection: Run EasyOCR's CRAFT text detector on every ROI
+                (``readtext``) instead of recognising the fixed ROI box
+                directly (``recognize``). Defaults to the ``OCR_USE_DETECTION``
+                environment variable, off unless set to 1/true/yes.
         """
+        configure_torch_threads(gpu_capabilities.gpu_available)
+        # quantize=False: EasyOCR's dynamic int8 quantisation (CPU only) was
+        # slower than the float model in local measurements, not faster.
         self.reader = easyocr.Reader(
             lang_list=["en"],
             gpu=gpu_capabilities.gpu_available,
+            quantize=False,
         )
+        if use_detection is None:
+            use_detection = os.environ.get("OCR_USE_DETECTION", "").lower() in {
+                "1", "true", "yes",
+            }
+        self._use_detection = use_detection
+        self._gpu = gpu_capabilities.gpu_available
         self._t_zero_detected: bool = False
         self._t_zero_lock = threading.Lock()
 
@@ -270,12 +321,14 @@ class EasyOCREngine:
                 )
 
         # Process remaining text regions
-        for field_name, roi in text_regions.items():
-            if field_name == "time":
-                continue  # already processed
-            field_results[field_name] = self._process_field(
-                frame, field_name, roi
-            )
+        remaining = {k: v for k, v in text_regions.items() if k != "time"}
+        if self._use_detection:
+            for field_name, roi in remaining.items():
+                field_results[field_name] = self._process_field(
+                    frame, field_name, roi
+                )
+        else:
+            field_results.update(self._recognize_fields(frame, remaining))
 
         # Build OCRResult, using UNAVAILABLE for any fields not in text_regions
         return OCRResult(
@@ -317,7 +370,18 @@ class EasyOCREngine:
 
         # Step 3: Run EasyOCR on cropped region
         allowlist = _get_allowlist(field_name)
-        results = self.reader.readtext(cropped, allowlist=allowlist)
+        if self._use_detection:
+            results = self.reader.readtext(cropped, allowlist=allowlist)
+        else:
+            gray = _to_gray(cropped)
+            h, w = gray.shape
+            results = self.reader.recognize(
+                gray,
+                horizontal_list=[[0, w, 0, h]],
+                free_list=[],
+                allowlist=allowlist,
+                reformat=False,
+            )
 
         # Step 4: Extract best result
         if not results:
@@ -325,8 +389,70 @@ class EasyOCREngine:
 
         # Find the result with highest confidence
         best_result = max(results, key=lambda r: r[2])
-        bbox, text, confidence = best_result
+        _, text, confidence = best_result
+        return self._build_field_result(field_name, text, confidence)
 
+    def _recognize_fields(
+        self,
+        frame: np.ndarray,
+        regions: dict[str, ROIRect],
+    ) -> dict[str, OCRFieldResult]:
+        """Recognise several fixed ROIs with one ``recognize`` call per allowlist.
+
+        The ROIs are fixed boxes, so CRAFT detection is skipped and the
+        recogniser runs on each box directly. Fields that share an allowlist
+        go into the same call, which EasyOCR batches on GPU.
+
+        Args:
+            frame: Full BGR frame
+            regions: Field names mapped to their ROI rectangles
+
+        Returns:
+            Field names mapped to their OCRFieldResult
+        """
+        if not regions:
+            return {}
+
+        gray = _to_gray(frame)
+        groups: dict[str | None, list[tuple[str, tuple[int, int, int, int]]]] = {}
+        results: dict[str, OCRFieldResult] = {}
+        for field_name, roi in regions.items():
+            x1, y1, x2, y2 = _roi_bounds(gray, roi)
+            if x2 <= x1 or y2 <= y1:
+                results[field_name] = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+                continue
+            groups.setdefault(_get_allowlist(field_name), []).append(
+                (field_name, (x1, y1, x2, y2))
+            )
+
+        for allowlist, fields in groups.items():
+            predictions = self.reader.recognize(
+                gray,
+                horizontal_list=[[x1, x2, y1, y2] for _, (x1, y1, x2, y2) in fields],
+                free_list=[],
+                allowlist=allowlist,
+                batch_size=len(fields) if self._gpu else 1,
+                reformat=False,
+            )
+            # EasyOCR may reorder boxes, so match predictions back to fields
+            # by each box's top-left corner.
+            by_corner = {
+                (int(box[0][0]), int(box[0][1])): (text, confidence)
+                for box, text, confidence in predictions
+            }
+            for field_name, (x1, y1, _, _) in fields:
+                prediction = by_corner.get((x1, y1))
+                if prediction is None:
+                    results[field_name] = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+                else:
+                    results[field_name] = self._build_field_result(field_name, *prediction)
+
+        return results
+
+    def _build_field_result(
+        self, field_name: str, text: str, confidence: float
+    ) -> OCRFieldResult:
+        """Apply the confidence threshold and parse a recognised string."""
         # Step 5: Check confidence threshold
         if confidence < _CONFIDENCE_THRESHOLD or not text.strip():
             return OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)

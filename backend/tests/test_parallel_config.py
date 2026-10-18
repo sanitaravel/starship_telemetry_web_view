@@ -258,3 +258,23 @@ class TestFPSSlidingWindowCalculationProperty:
         meter_one = FPSMeter()
         meter_one.record_broadcast(single_ts)
         assert meter_one.get_fps() == 0.0
+
+
+class TestResolveOcrWorkers:
+    """Tests for ParallelPipelineConfig.resolve_ocr_workers."""
+
+    def test_explicit_value_wins(self) -> None:
+        assert ParallelPipelineConfig(ocr_workers=3).resolve_ocr_workers(True) == 3
+
+    def test_auto_on_gpu_is_two(self) -> None:
+        assert ParallelPipelineConfig().resolve_ocr_workers(True) == 2
+
+    def test_auto_on_cpu_is_half_the_logical_cpus(self, monkeypatch) -> None:
+        monkeypatch.setattr("src.parallel_config.os.cpu_count", lambda: 12)
+        assert ParallelPipelineConfig().resolve_ocr_workers(False) == 6
+        monkeypatch.setattr("src.parallel_config.os.cpu_count", lambda: 1)
+        assert ParallelPipelineConfig().resolve_ocr_workers(False) == 1
+
+    def test_frame_timeout_exceeds_stage_timeout_by_default(self) -> None:
+        config = ParallelPipelineConfig()
+        assert config.frame_timeout_seconds > config.stage_timeout_seconds
