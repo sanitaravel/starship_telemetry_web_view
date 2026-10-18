@@ -19,11 +19,15 @@ class BufferedResult:
         record: The telemetry record produced by frame processing.
         frame_b64: Base64-encoded JPEG frame, or None if encoding was skipped.
         inserted_at: Monotonic timestamp when the result was buffered.
+        ocr_result: OCR result behind the record, for in-order stage assignment.
     """
 
     record: Any
     frame_b64: str | None
     inserted_at: float
+    # OCR result the record was built from; stage assignment runs on it when
+    # the result leaves the buffer, in video order
+    ocr_result: Any = None
 
 
 # Placeholder stored for a frame that produced no result (see mark_skipped)

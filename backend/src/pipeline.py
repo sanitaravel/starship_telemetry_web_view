@@ -29,7 +29,7 @@ from src.ocr_engine import EasyOCREngine, OCRFieldResult, OCRResult
 from src.parallel_config import FPSMeter, ParallelPipelineConfig
 from src.record_assembler import RecordAssembler
 from src.reorder_buffer import BufferedResult, BufferOverflowError, ReorderBuffer
-from src.stage_assignment import StageAssigner
+from src.stage_assignment import SUPER_HEAVY, StageAssigner, StageAssignmentResult
 from src.template_registry import TemplateRegistry, TemplateNotFoundError
 from src.version import get_version
 
@@ -429,7 +429,7 @@ class PipelineOrchestrator:
         await self._drain_reorder_buffer()
 
     async def _submit_to_reorder_buffer(
-        self, seq: int, record: Any, frame_b64: str | None
+        self, seq: int, record: Any, frame_b64: str | None, ocr_result: OCRResult | None = None
     ) -> None:
         """Submit a processed result to the reorder buffer and drain.
 
@@ -454,6 +454,7 @@ class PipelineOrchestrator:
             record=record,
             frame_b64=frame_b64,
             inserted_at=time.monotonic(),
+            ocr_result=ocr_result,
         )
 
         try:
@@ -497,6 +498,10 @@ class PipelineOrchestrator:
         drained = self._reorder_buffer.drain()
 
         for result in drained:
+            # Stage assignment is stateful, so it runs here, in video order
+            if result.ocr_result is not None:
+                self._apply_stage_assignment(result.record, result.ocr_result)
+
             # Assign monotonic broadcast sequence number
             self._broadcast_sequence += 1
             result.record.sequence_number = self._broadcast_sequence
@@ -571,6 +576,28 @@ class PipelineOrchestrator:
                 "Broadcast completed",
                 extra={"duration_ms": int((time.monotonic() - start) * 1000)},
             )
+
+    def _pending_stage_result(self) -> StageAssignmentResult:
+        """Placeholder stage result for a record until _apply_stage_assignment runs."""
+        state = self._stage_assigner.get_separation_state()
+        return StageAssignmentResult(
+            left_stage=SUPER_HEAVY, right_stage=SUPER_HEAVY, separation_state=state
+        )
+
+    def _apply_stage_assignment(self, record: Any, ocr_result: OCRResult) -> None:
+        """Assign the record's stages from its OCR result, in video order.
+
+        Frames finish processing out of order, but the assigner remembers the
+        separation state and each side's vehicle from frame to frame, so it
+        must see them in the order they appear in the video.
+        """
+        stage_result = self._stage_assigner.assign(ocr_result)
+        post_sep = stage_result.separation_state == SeparationState.POST_SEPARATION
+        record.stage_assignment_left = stage_result.left_stage
+        record.stage_assignment_right = stage_result.right_stage
+        record.separation_state = stage_result.separation_state.value
+        record.stage_sep_found = post_sep
+        self._state.separation_state = stage_result.separation_state
 
     def _skip_frame(self, seq: int) -> None:
         """Mark a frame that produced no result so later frames are not held up."""
@@ -700,8 +727,9 @@ class PipelineOrchestrator:
                 await self._drain_reorder_buffer()
                 return
 
-            # Step 5: Stage Assignment
-            stage_result = self._stage_assigner.assign(ocr_result)
+            # Step 5: Stage assignment runs when the result leaves the reorder
+            # buffer, in video order; the record gets a placeholder until then
+            stage_result = self._pending_stage_result()
 
             # Step 6: Record Assembly
             ocr_engine = self._ensure_ocr_engine()
@@ -716,10 +744,7 @@ class PipelineOrchestrator:
                 stage_sep_found=stage_result.separation_state == SeparationState.POST_SEPARATION,
             )
 
-            # Step 7: Update separation state
-            self._state.separation_state = stage_result.separation_state
-
-            # Step 8: Handle frame_b64 exception (only pass str | None to buffer)
+            # Step 7: Handle frame_b64 exception (only pass str | None to buffer)
             actual_frame_b64: str | None = None
             if isinstance(frame_b64, BaseException):
                 logger.warning(
@@ -728,8 +753,8 @@ class PipelineOrchestrator:
             else:
                 actual_frame_b64 = frame_b64
 
-            # Step 9: Submit to reorder buffer for ordered broadcast
-            await self._submit_to_reorder_buffer(seq, record, actual_frame_b64)
+            # Step 8: Submit to reorder buffer for ordered broadcast
+            await self._submit_to_reorder_buffer(seq, record, actual_frame_b64, ocr_result)
 
             # Log total frame processing duration
             frame_end = time.monotonic()
@@ -1135,8 +1160,9 @@ class PipelineOrchestrator:
                     seq,
                 )
 
-            # Step 6: Stage Assignment
-            stage_result = self._stage_assigner.assign(ocr_result)
+            # Step 6: Stage assignment runs when the result leaves the reorder
+            # buffer (see _drain_reorder_buffer)
+            stage_result = self._pending_stage_result()
 
             # Step 7: Record Assembly
             record = self._record_assembler.assemble(
@@ -1150,10 +1176,7 @@ class PipelineOrchestrator:
                 stage_sep_found=stage_result.separation_state == SeparationState.POST_SEPARATION,
             )
 
-            # Step 8: Update separation state
-            self._state.separation_state = stage_result.separation_state
-
-            # Step 9: Handle frame_b64 exception (only pass str | None to buffer)
+            # Step 8: Handle frame_b64 exception (only pass str | None to buffer)
             actual_frame_b64: str | None = None
             if isinstance(frame_b64, BaseException):
                 logger.warning(
@@ -1162,8 +1185,8 @@ class PipelineOrchestrator:
             else:
                 actual_frame_b64 = frame_b64
 
-            # Step 10: Submit to reorder buffer for ordered broadcast
-            await self._submit_to_reorder_buffer(seq, record, actual_frame_b64)
+            # Step 9: Submit to reorder buffer for ordered broadcast
+            await self._submit_to_reorder_buffer(seq, record, actual_frame_b64, ocr_result)
 
             # Log total frame processing duration
             frame_end = time.monotonic()

@@ -13,7 +13,7 @@ from hypothesis import strategies as st
 
 from src.enums import OCRFieldStatus, SeparationState
 from src.ocr_engine import OCRFieldResult, OCRResult
-from src.stage_assignment import StageAssigner, StageAssignmentResult
+from src.stage_assignment import StageAssigner, StageAssignmentResult, label_vehicle
 
 
 # ─── Strategies ───────────────────────────────────────────────────────────────
@@ -68,12 +68,22 @@ def sep_text_strategy():
     )
 
 
+# Label text as OCR reads it, with the vehicle it names
+VEHICLE_LABELS = {
+    "SUPER HEAVY": "super_heavy",
+    "Super Heavy": "super_heavy",
+    "~SUPER HEAVY": "super_heavy",
+    "BOOSTER": "super_heavy",
+    "STARSHIP": "starship",
+    "Starship": "starship",
+    "~STARSHIP": "starship",
+    "SHIP": "starship",
+}
+
+
 def stage_label_strategy():
-    """Strategy for stage label text (non-empty, realistic stage names)."""
-    return st.sampled_from([
-        "SUPER HEAVY", "STARSHIP", "Super Heavy", "Starship",
-        "BOOSTER", "SHIP", "Stage 1", "Stage 2",
-    ])
+    """Strategy for stage label text that names a vehicle (as OCR reads it)."""
+    return st.sampled_from(sorted(VEHICLE_LABELS))
 
 
 def ocr_field_with_label_strategy():
@@ -228,8 +238,8 @@ class TestPostSeparationLabelAssignment:
     """Property 10: Post-Separation Label-Based Assignment.
 
     For any OCR result where separation has occurred and both stage_L and stage_R
-    contain non-empty text, left-side SHALL be assigned to stage_L label and
-    right-side to stage_R label.
+    name a vehicle, left-side SHALL be assigned to the vehicle stage_L names and
+    right-side to the vehicle stage_R names.
     """
 
     @given(
@@ -252,9 +262,9 @@ class TestPostSeparationLabelAssignment:
         for ocr_result in labeled_results:
             result = assigner.assign(ocr_result)
 
-            # Expected: normalized label from stage_l/stage_r
-            expected_left = self._normalize(self._get_label(ocr_result.stage_l))
-            expected_right = self._normalize(self._get_label(ocr_result.stage_r))
+            # Expected: the vehicle each label names
+            expected_left = VEHICLE_LABELS[self._get_label(ocr_result.stage_l)]
+            expected_right = VEHICLE_LABELS[self._get_label(ocr_result.stage_r)]
 
             assert result.left_stage == expected_left, (
                 f"Expected left_stage='{expected_left}', got '{result.left_stage}'"
@@ -269,8 +279,8 @@ class TestPostSeparationLabelAssignment:
         left_label=stage_label_strategy(),
         right_label=stage_label_strategy(),
     )
-    def test_label_normalization_applied(self, sep_trigger, left_label, right_label):
-        """Labels are normalized: lowercased and spaces replaced with underscores."""
+    def test_labels_map_to_vehicles(self, sep_trigger, left_label, right_label):
+        """Labels map to "super_heavy" or "starship", tolerating OCR noise."""
         assigner = StageAssigner()
 
         # Trigger separation
@@ -294,13 +304,8 @@ class TestPostSeparationLabelAssignment:
 
         result = assigner.assign(ocr_result)
 
-        assert result.left_stage == left_label.lower().replace(" ", "_")
-        assert result.right_stage == right_label.lower().replace(" ", "_")
-
-    @staticmethod
-    def _normalize(label: str) -> str:
-        """Mirror the normalization logic from StageAssigner."""
-        return label.lower().replace(" ", "_")
+        assert result.left_stage == VEHICLE_LABELS[left_label]
+        assert result.right_stage == VEHICLE_LABELS[right_label]
 
     @staticmethod
     def _get_label(field: OCRFieldResult) -> str:
@@ -428,3 +433,106 @@ class TestSeparationStateMonotonicity:
             else:
                 # From sep_index onwards, always POST_SEPARATION
                 assert result.separation_state == SeparationState.POST_SEPARATION
+
+
+# ─── Post-separation side tracking (IFT replay scenarios) ─────────────────────
+
+
+_UNAVAILABLE = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+
+
+def _frame(left_label=None, right_label=None, left_gauges=True, right_gauges=True, sep=False):
+    """An OCR result with optional stage labels and readings per side.
+
+    A side without readings still shows its unit captions, as the HUD does
+    while it hands that side over to another vehicle.
+    """
+    def label(text):
+        return OCRFieldResult(status=OCRFieldStatus.AVAILABLE, raw_text=text) if text else _UNAVAILABLE
+
+    def value(shown):
+        return OCRFieldResult(status=OCRFieldStatus.AVAILABLE, raw_text="123", parsed_value=123.0) if shown else _UNAVAILABLE
+
+    def unit(text):
+        return OCRFieldResult(status=OCRFieldStatus.AVAILABLE, raw_text=text, parsed_value=text)
+
+    return OCRResult(
+        time=_UNAVAILABLE,
+        speed_l=value(left_gauges),
+        speed_l_unit=unit("KM/H"),
+        speed_r=value(right_gauges),
+        speed_r_unit=unit("KM/H"),
+        altitude_l=value(left_gauges),
+        altitude_l_unit=unit("KM"),
+        altitude_r=value(right_gauges),
+        altitude_r_unit=unit("KM"),
+        stage_l=label(left_label),
+        stage_r=label(right_label),
+        stage_sep_text=OCRFieldResult(status=OCRFieldStatus.AVAILABLE, raw_text="STAGE SEP") if sep else _UNAVAILABLE,
+    )
+
+
+def _separated() -> StageAssigner:
+    assigner = StageAssigner()
+    assigner.assign(_frame(sep=True, left_gauges=False))
+    return assigner
+
+
+def _stages(result: StageAssignmentResult) -> tuple[str, str]:
+    return result.left_stage, result.right_stage
+
+
+class TestPostSeparationSideTracking:
+    def test_each_side_uses_its_own_label(self):
+        # Right label unreadable: the left booster gauges must not become Starship
+        assigner = _separated()
+        assert _stages(assigner.assign(_frame("SUPER HEAVY", None))) == ("super_heavy", "starship")
+
+    def test_noisy_label_names_its_vehicle(self):
+        assigner = _separated()
+        assert _stages(assigner.assign(_frame("SUPER HEAVY", "~STARSHIP"))) == ("super_heavy", "starship")
+
+    def test_side_keeps_its_vehicle_while_its_label_is_unreadable(self):
+        assigner = _separated()
+        assigner.assign(_frame("SUPER HEAVY", "STARSHIP"))
+        assert _stages(assigner.assign(_frame(None, None))) == ("super_heavy", "starship")
+
+    def test_unknown_side_is_the_other_vehicle(self):
+        assigner = _separated()
+        assert _stages(assigner.assign(_frame(None, "STARSHIP"))) == ("super_heavy", "starship")
+
+    def test_one_missed_reading_keeps_the_side_through_the_other_label(self):
+        # A frame where OCR misses the left readings clears its memory, but the
+        # right side is still known as Starship, so the left stays Super Heavy
+        assigner = _separated()
+        assigner.assign(_frame("SUPER HEAVY", "STARSHIP"))
+        assigner.assign(_frame(None, None, left_gauges=False))
+        assert _stages(assigner.assign(_frame(None, None))) == ("super_heavy", "starship")
+
+    def test_side_forgets_its_vehicle_when_its_gauges_disappear(self):
+        # T+07:04 on the replay: the booster has landed, the left gauges blank
+        # out (captions stay) and come back unlabelled showing Starship; the
+        # right side shows graphics only
+        assigner = _separated()
+        assigner.assign(_frame("SUPER HEAVY", "STARSHIP"))
+        assigner.assign(_frame(None, None, left_gauges=False, right_gauges=False))
+        result = assigner.assign(_frame(None, None, left_gauges=True, right_gauges=False))
+        assert result.left_stage == "starship"
+
+    def test_unlabelled_sides_default_to_starship(self):
+        assigner = _separated()
+        assert _stages(assigner.assign(_frame(None, None))) == ("starship", "starship")
+
+    def test_reset_clears_side_memory(self):
+        assigner = _separated()
+        assigner.assign(_frame("SUPER HEAVY", "STARSHIP"))
+        assigner.reset()
+        assigner.assign(_frame(sep=True, left_gauges=False))
+        assert _stages(assigner.assign(_frame(None, None))) == ("starship", "starship")
+
+
+def test_label_vehicle():
+    for text, vehicle in VEHICLE_LABELS.items():
+        assert label_vehicle(text) == vehicle
+    assert label_vehicle("'`") is None
+    assert label_vehicle(None) is None
