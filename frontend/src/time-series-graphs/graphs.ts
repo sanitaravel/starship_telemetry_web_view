@@ -3,6 +3,7 @@ import type { StateManager, TimeSeriesPoint, TimeSeriesStore } from '../state';
 import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightInfo } from '../previous-flights';
 import type { DatasetKey, LoadedComparison, SeriesKey, SeriesOption } from './types';
 import { COMPARE_COLORS, SERIES_OPTIONS } from './panels';
+import { NEAREST_PER_DATASET } from './interaction-mode';
 import { computeAcceleration, formatSecondsToMET, IncrementalXY } from './series-math';
 import {
   chartFilename,
@@ -211,8 +212,8 @@ export class TimeSeriesGraphs {
         maintainAspectRatio: false,
         animation: false,
         interaction: {
-          mode: 'nearest',
-          axis: 'x',
+          // One point per flight at the hovered time (see interaction-mode.ts)
+          mode: NEAREST_PER_DATASET,
           intersect: false,
         },
         scales: {
@@ -261,6 +262,9 @@ export class TimeSeriesGraphs {
             },
           },
           tooltip: {
+            // Anchor the tooltip (and the crosshair) at the point nearest the
+            // cursor rather than the average of all flights' points
+            position: 'nearest',
             callbacks: {
               title: (items) => {
                 if (items.length > 0 && items[0].parsed.x != null) {
