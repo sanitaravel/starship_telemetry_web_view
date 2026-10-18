@@ -3,7 +3,7 @@ import type { StateManager, TimeSeriesPoint, TimeSeriesStore } from '../state';
 import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightInfo } from '../previous-flights';
 import type { DatasetKey, LoadedComparison, SeriesKey, SeriesOption } from './types';
 import { COMPARE_COLORS, SERIES_OPTIONS } from './panels';
-import { computeAcceleration, deduplicateByX, formatSecondsToMET, parseMETToSeconds } from './series-math';
+import { computeAcceleration, formatSecondsToMET, IncrementalXY } from './series-math';
 import {
   chartFilename,
   DEFAULT_EXPORT_OPTIONS,
@@ -17,6 +17,8 @@ import { ExportMenu } from './export-menu';
 import { createLogger } from '../logger';
 
 const logger = createLogger('time-series-graphs');
+
+type XY = { x: number; y: number | null };
 
 /** Font size and colours used to build a chart config. */
 interface ChartStyle {
@@ -48,6 +50,12 @@ export class TimeSeriesGraphs {
   private canvasContainer!: HTMLElement;
   private loadingOverlay!: HTMLElement;
   private latestTimeSeries: TimeSeriesStore | null = null;
+  /** timeSeriesVersion of the store last drawn; -1 before the first update. */
+  private renderedVersion = -1;
+  /** Whether a coalesced live update is waiting for the next animation frame. */
+  private frameRequested = false;
+  /** The live series' chart data, extended in place as points arrive. */
+  private liveXY = new IncrementalXY();
 
   // Previous flight comparison state
   private previousFlights: PreviousFlightInfo[] = [];
@@ -55,6 +63,10 @@ export class TimeSeriesGraphs {
   private loadedComparisons: LoadedComparison[] = [];
   /** In-flight comparison fetches, keyed by filename. */
   private pendingLoads: Map<string, Promise<void>> = new Map();
+  /** Fetched comparison flights, kept so re-selecting one needs no refetch. */
+  private flightCache: Map<string, TimeSeriesStore> = new Map();
+  /** Chart data per comparison flight and series; flights never change. */
+  private overlayXY: Map<string, Map<SeriesKey, XY[]>> = new Map();
 
   constructor(container: HTMLElement, stateManager: StateManager) {
     this.container = container;
@@ -63,8 +75,13 @@ export class TimeSeriesGraphs {
     this.initChart();
     this.loadPreviousFlightList();
     this.stateManager.subscribe((state) => {
+      // Most messages (frames, status) leave the series untouched
+      if (state.timeSeries === this.latestTimeSeries && state.timeSeriesVersion === this.renderedVersion) {
+        return;
+      }
       this.latestTimeSeries = state.timeSeries;
-      this.updateChart(state.timeSeries);
+      this.renderedVersion = state.timeSeriesVersion;
+      this.scheduleUpdate();
     });
   }
 
@@ -293,27 +310,50 @@ export class TimeSeriesGraphs {
   }
 
   /**
-   * Convert live TimeSeriesPoints to {x, y} scatter data using MET string → seconds.
-   * Sorted by x and deduplicated (last value wins) to prevent line looping.
+   * Build the {x, y} data for an option from a store, in seconds from T-0
+   * (sub-second where available), sorted and deduplicated so the line never
+   * loops. Derived series (acceleration) come from their base speed series.
+   * The live series is extended incrementally (see IncrementalXY).
    */
-  private livePointsToXY(points: TimeSeriesPoint[]): { x: number; y: number | null }[] {
-    return deduplicateByX(
-      points.map((p) => ({
-        x: parseMETToSeconds(p.missionElapsedTime),
-        y: p.value,
-      })),
-    );
-  }
-
-  /**
-   * Build the {x, y} data for an option from a store, resolving derived series
-   * (acceleration) from their base speed series.
-   */
-  private optionXY(option: SeriesOption, store: TimeSeriesStore): { x: number; y: number | null }[] {
+  private liveOptionXY(option: SeriesOption, store: TimeSeriesStore): XY[] {
     if (option.derive) {
       return computeAcceleration(store[option.derive.from] ?? []);
     }
-    return this.livePointsToXY(store[option.key as DatasetKey] ?? []);
+    return this.liveXY.update(store[option.key as DatasetKey] ?? []);
+  }
+
+  /** Chart data for a comparison flight, computed once per flight and series. */
+  private comparisonXY(option: SeriesOption, comp: LoadedComparison): XY[] {
+    let perSeries = this.overlayXY.get(comp.filename);
+    if (!perSeries) {
+      perSeries = new Map();
+      this.overlayXY.set(comp.filename, perSeries);
+    }
+    let xy = perSeries.get(option.key);
+    if (!xy) {
+      xy = option.derive
+        ? computeAcceleration(comp.data[option.derive.from] ?? [])
+        : new IncrementalXY().update(comp.data[option.key as DatasetKey] ?? []);
+      perSeries.set(option.key, xy);
+    }
+    return xy;
+  }
+
+  /**
+   * Redraw on the next animation frame. Telemetry can arrive faster than the
+   * display refreshes; this draws at most once per frame with the latest data.
+   */
+  private scheduleUpdate(): void {
+    if (typeof requestAnimationFrame !== 'function') {
+      this.updateChart(this.latestTimeSeries ?? TimeSeriesGraphs.EMPTY_STORE);
+      return;
+    }
+    if (this.frameRequested) return;
+    this.frameRequested = true;
+    requestAnimationFrame(() => {
+      this.frameRequested = false;
+      this.updateChart(this.latestTimeSeries ?? TimeSeriesGraphs.EMPTY_STORE);
+    });
   }
 
   private static readonly EMPTY_STORE: TimeSeriesStore = {
@@ -327,7 +367,7 @@ export class TimeSeriesGraphs {
     if (!this.chart) return;
 
     const option = this.getSelectedOption();
-    const liveXY = this.optionXY(option, timeSeries);
+    const liveXY = this.liveOptionXY(option, timeSeries);
 
     const datasets: any[] = [];
 
@@ -345,13 +385,17 @@ export class TimeSeriesGraphs {
         // Acceleration swings above and below zero, so skip the area fill.
         fill: !option.derive,
         spanGaps: false,
+        // Data is already {x, y}, sorted by x and unique, so Chart.js can
+        // skip parsing and its own sorting/uniqueness checks.
+        parsing: false,
+        normalized: true,
       });
     }
 
     // Add each comparison flight as an overlay dataset
     for (let i = 0; i < this.loadedComparisons.length; i++) {
       const comp = this.loadedComparisons[i];
-      const compXY = this.optionXY(option, comp.data);
+      const compXY = this.comparisonXY(option, comp);
       // Use color matching the checkbox swatch (by position in previousFlights list)
       const flightIndex = this.previousFlights.findIndex((f) => f.filename === comp.filename);
       const color = COMPARE_COLORS[(flightIndex >= 0 ? flightIndex : i) % COMPARE_COLORS.length];
@@ -368,6 +412,8 @@ export class TimeSeriesGraphs {
         tension: 0.2,
         fill: false,
         spanGaps: false,
+        parsing: false,
+        normalized: true,
       });
     }
 
@@ -424,10 +470,15 @@ export class TimeSeriesGraphs {
       (c) => this.selectedCompareFilenames.has(c.filename),
     );
 
-    // Start loading newly selected comparisons (skip ones already in flight)
+    // Add newly selected comparisons: cached ones right away, the rest by
+    // starting a fetch (skipping ones already in flight)
     const alreadyLoaded = new Set(this.loadedComparisons.map((c) => c.filename));
     for (const filename of this.selectedCompareFilenames) {
-      if (!alreadyLoaded.has(filename) && !this.pendingLoads.has(filename)) {
+      if (alreadyLoaded.has(filename)) continue;
+      const cached = this.flightCache.get(filename);
+      if (cached) {
+        this.addComparison(filename, cached);
+      } else if (!this.pendingLoads.has(filename)) {
         this.pendingLoads.set(filename, this.loadComparison(filename));
       }
     }
@@ -455,22 +506,24 @@ export class TimeSeriesGraphs {
   private async loadComparison(filename: string): Promise<void> {
     try {
       const data = await fetchPreviousFlightData(filename);
-      const stillWanted =
-        this.selectedCompareFilenames.has(filename) &&
-        !this.loadedComparisons.some((c) => c.filename === filename);
-      if (data && stillWanted) {
-        const info = this.previousFlights.find((f) => f.filename === filename);
-        this.loadedComparisons.push({
-          filename,
-          name: info?.name ?? filename,
-          data,
-        });
+      if (data) {
+        this.flightCache.set(filename, data);
+        if (this.selectedCompareFilenames.has(filename)) {
+          this.addComparison(filename, data);
+        }
       }
     } catch (err) {
       logger.error('Failed to load comparison flight', { filename, error: String(err) });
     } finally {
       this.pendingLoads.delete(filename);
     }
+  }
+
+  /** Add a comparison flight to the chart data unless it is already there. */
+  private addComparison(filename: string, data: TimeSeriesStore): void {
+    if (this.loadedComparisons.some((c) => c.filename === filename)) return;
+    const info = this.previousFlights.find((f) => f.filename === filename);
+    this.loadedComparisons.push({ filename, name: info?.name ?? filename, data });
   }
 
   /**

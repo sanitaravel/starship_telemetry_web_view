@@ -221,4 +221,56 @@ describe('appendToTimeSeries', () => {
     expect(result.speedSuperHeavy[0].unit).toBe('KM/H');
     expect(result.speedSuperHeavy[0].missionElapsedTime).toBe('T+00:01:30');
   });
+
+  it('stores the given sub-second MET on each point', () => {
+    const store = createInitialState().timeSeries;
+    const result = appendToTimeSeries(store, createTestTelemetryRecord(), 90.667);
+
+    expect(result.speedSuperHeavy[0].metSeconds).toBe(90.667);
+    expect(result.altitudeStarship[0].metSeconds).toBe(90.667);
+  });
+});
+
+describe('StateManager sub-second MET', () => {
+  function telemetry(met: string, timestamp: number): WebSocketMessage {
+    return { type: 'telemetry', payload: createTestTelemetryRecord({ mission_elapsed_time: met, timestamp }) };
+  }
+
+  it('spreads records within one MET second by frame timestamp', () => {
+    const manager = new StateManager();
+    manager.handleMessage(telemetry('T+00:01:30', 10_000));
+    manager.handleMessage(telemetry('T+00:01:30', 10_333));
+    manager.handleMessage(telemetry('T+00:01:30', 10_667));
+
+    const xs = manager.getState().timeSeries.speedSuperHeavy.map((p) => p.metSeconds);
+    expect(xs[0]).toBe(90);
+    expect(xs[1]).toBeCloseTo(90.333, 10);
+    expect(xs[2]).toBeCloseTo(90.667, 10);
+  });
+
+  it('forgets the anchor on reset', () => {
+    const manager = new StateManager();
+    manager.handleMessage(telemetry('T+00:01:30', 10_000));
+    manager.reset();
+    manager.handleMessage(telemetry('T+00:01:30', 10_500));
+
+    expect(manager.getState().timeSeries.speedSuperHeavy[0].metSeconds).toBe(90);
+  });
+});
+
+
+describe('StateManager timeSeriesVersion', () => {
+  it('bumps only when telemetry adds points, keeping the series arrays in place', () => {
+    const manager = new StateManager();
+    const series = manager.getState().timeSeries.speedSuperHeavy;
+    expect(manager.getState().timeSeriesVersion).toBe(0);
+
+    manager.handleMessage({ type: 'telemetry', payload: createTestTelemetryRecord() });
+    expect(manager.getState().timeSeriesVersion).toBe(1);
+    expect(manager.getState().timeSeries.speedSuperHeavy).toBe(series);
+    expect(series).toHaveLength(1);
+
+    manager.handleMessage({ type: 'frame', payload: { image: '', sequence: 1, processing_fps: 0 } });
+    expect(manager.getState().timeSeriesVersion).toBe(1);
+  });
 });

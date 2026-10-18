@@ -118,6 +118,9 @@ export class EngineVisualizer {
   private container: HTMLElement;
   private stateManager: StateManager;
   private unsubscribe: (() => void) | null = null;
+  private lastRecord: AppState['latestTelemetry'] = null;
+  /** Status each engine circle currently shows, to skip unchanged updates. */
+  private renderedStatus: Map<SVGGElement, EngineStatus> = new Map();
 
   private superheavySvg!: SVGSVGElement;
   private starshipSvg!: SVGSVGElement;
@@ -310,6 +313,9 @@ export class EngineVisualizer {
    */
   private update(state: AppState): void {
     const record = state.latestTelemetry;
+    // Frame and status messages also notify; engines only change with telemetry
+    if (record === this.lastRecord && record !== null) return;
+    this.lastRecord = record;
 
     if (!record) {
       this.resetAllEngines();
@@ -333,10 +339,12 @@ export class EngineVisualizer {
    * Update the fill/stroke of a circle group based on engine status.
    */
   private updateCircleStatus(group: SVGGElement, status: EngineStatus): void {
+    if (this.renderedStatus.get(group) === status) return;
     const circle = group.querySelector('circle');
     if (circle) {
       circle.setAttribute('fill', getStatusFill(status));
       circle.setAttribute('stroke', getStatusStroke(status));
+      this.renderedStatus.set(group, status);
     }
   }
 

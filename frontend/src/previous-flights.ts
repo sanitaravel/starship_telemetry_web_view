@@ -1,27 +1,19 @@
 import type { TimeSeriesPoint, TimeSeriesStore } from './state';
+import { MetClock } from './met-clock';
+import { parseMETToSeconds } from './time-series-graphs/series-math';
 
 /**
- * Raw record structure from previous flight JSON files.
+ * Columnar previous-flight payload from `/api/previous-flights/{name}`.
+ * Every array has one entry per recorded frame; ss_* is Starship, sh_* Super
+ * Heavy, met is the recorded MET string and t the frame clock in seconds.
  */
-interface PreviousFlightRecord {
-  frame_number: number;
-  vehicles: {
-    starship: {
-      speed: number | null;
-      altitude: number | null;
-      fuel: { lox: { fullness: number }; ch4: { fullness: number } };
-      engines: Record<string, unknown>;
-    };
-    superheavy: {
-      speed: number | null;
-      altitude: number | null;
-      fuel: { lox: { fullness: number }; ch4: { fullness: number } };
-      engines: Record<string, unknown>;
-    };
-  };
-  time: { sign: string; hours: number; minutes: number; seconds: number };
-  real_time_seconds: number;
-  real_time: { hours: number; minutes: number; seconds: number; milliseconds: number };
+export interface PreviousFlightColumns {
+  met: string[];
+  t: number[];
+  ss_speed: (number | null)[];
+  sh_speed: (number | null)[];
+  ss_alt: (number | null)[];
+  sh_alt: (number | null)[];
 }
 
 /**
@@ -51,91 +43,43 @@ export async function fetchPreviousFlightData(filename: string): Promise<TimeSer
   if (!response.ok) {
     return null;
   }
-  const records: PreviousFlightRecord[] = await response.json();
-  return transformToTimeSeries(records);
+  const columns: PreviousFlightColumns = await response.json();
+  return transformToTimeSeries(columns);
 }
 
 /**
- * Format seconds into HH:MM:SS mission elapsed time string.
- */
-function formatMET(sign: string, hours: number, minutes: number, seconds: number): string {
-  const prefix = sign === '+' || sign === 'T' ? '+' : '-';
-  const h = String(hours).padStart(2, '0');
-  const m = String(minutes).padStart(2, '0');
-  const s = String(seconds).padStart(2, '0');
-  return `${prefix}${h}:${m}:${s}`;
-}
-
-/**
- * Convert raw previous flight records into the TimeSeriesStore format
+ * Convert a columnar previous flight into the TimeSeriesStore format
  * used by the charts.
+ *
+ * real_time_seconds is frame-based and drifts several seconds from the
+ * recorded MET over a flight, so it only supplies the sub-second offset:
+ * MetClock anchors it to the MET clock.
  */
-function transformToTimeSeries(records: PreviousFlightRecord[]): TimeSeriesStore {
+export function transformToTimeSeries(columns: PreviousFlightColumns): TimeSeriesStore {
   const store: TimeSeriesStore = {
     speedSuperHeavy: [],
     speedStarship: [],
     altitudeSuperHeavy: [],
     altitudeStarship: [],
   };
+  const metClock = new MetClock();
+  const series: [(number | null)[], TimeSeriesPoint[], string][] = [
+    [columns.sh_speed, store.speedSuperHeavy, 'km/h'],
+    [columns.ss_speed, store.speedStarship, 'km/h'],
+    [columns.sh_alt, store.altitudeSuperHeavy, 'km'],
+    [columns.ss_alt, store.altitudeStarship, 'km'],
+  ];
 
-  for (const record of records) {
-    // Skip records with missing or invalid time data
-    if (
-      !record.time ||
-      record.time.sign == null ||
-      record.time.hours == null ||
-      record.time.minutes == null ||
-      record.time.seconds == null
-    ) {
-      continue;
-    }
+  for (let i = 0; i < columns.met.length; i++) {
+    const met = columns.met[i];
+    const timestamp = columns.t[i];
+    const metSeconds = metClock.estimate(parseMETToSeconds(met), timestamp * 1000);
 
-    const met = formatMET(
-      record.time.sign,
-      record.time.hours,
-      record.time.minutes,
-      record.time.seconds,
-    );
-    const timestamp = record.real_time_seconds;
-
-    // Super Heavy speed
-    if (record.vehicles.superheavy.speed !== null) {
-      store.speedSuperHeavy.push({
-        missionElapsedTime: met,
-        timestamp,
-        value: record.vehicles.superheavy.speed,
-        unit: 'km/h',
-      });
-    }
-
-    // Starship speed
-    if (record.vehicles.starship.speed !== null) {
-      store.speedStarship.push({
-        missionElapsedTime: met,
-        timestamp,
-        value: record.vehicles.starship.speed,
-        unit: 'km/h',
-      });
-    }
-
-    // Super Heavy altitude
-    if (record.vehicles.superheavy.altitude !== null) {
-      store.altitudeSuperHeavy.push({
-        missionElapsedTime: met,
-        timestamp,
-        value: record.vehicles.superheavy.altitude,
-        unit: 'km',
-      });
-    }
-
-    // Starship altitude
-    if (record.vehicles.starship.altitude !== null) {
-      store.altitudeStarship.push({
-        missionElapsedTime: met,
-        timestamp,
-        value: record.vehicles.starship.altitude,
-        unit: 'km',
-      });
+    for (const [values, points, unit] of series) {
+      const value = values[i];
+      if (value !== null && value !== undefined) {
+        points.push({ missionElapsedTime: met, metSeconds, timestamp, value, unit });
+      }
     }
   }
 

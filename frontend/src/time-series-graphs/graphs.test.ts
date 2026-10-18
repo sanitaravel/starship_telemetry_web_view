@@ -161,6 +161,58 @@ describe('TimeSeriesGraphs comparison loading overlay', () => {
   });
 });
 
+describe('TimeSeriesGraphs update path', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    chartInstances.length = 0;
+    vi.mocked(fetchPreviousFlightData).mockReset();
+    // Run animation-frame callbacks immediately
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 1;
+    });
+  });
+
+  it('reuses a fetched comparison when it is selected again', async () => {
+    const container = await setup();
+    vi.mocked(fetchPreviousFlightData).mockResolvedValue(EMPTY);
+
+    toggle(container, 'flight-a.json');
+    await flush();
+    toggle(container, 'flight-a.json');
+    toggle(container, 'flight-a.json');
+    await flush();
+
+    expect(fetchPreviousFlightData).toHaveBeenCalledTimes(1);
+  });
+
+  it('redraws only when the time series version changes', async () => {
+    vi.mocked(fetchPreviousFlightList).mockResolvedValue([] as never);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let handler: (state: unknown) => void = () => {};
+    const stateManager = { subscribe: vi.fn((h) => (handler = h)) };
+    new TimeSeriesGraphs(container, stateManager as never);
+    await flush();
+    const chart = chartInstances[chartInstances.length - 1];
+    chart.update.mockClear();
+
+    const timeSeries: TimeSeriesStore = {
+      ...EMPTY,
+      speedSuperHeavy: [{ missionElapsedTime: '+00:00:01', metSeconds: 1, timestamp: 0, value: 10, unit: 'km/h' }],
+    };
+    handler({ timeSeries, timeSeriesVersion: 1 });
+    handler({ timeSeries, timeSeriesVersion: 1 }); // e.g. a frame message
+    expect(chart.update).toHaveBeenCalledTimes(1);
+    expect(chart.data.datasets[0].data).toEqual([{ x: 1, y: 10 }]);
+
+    timeSeries.speedSuperHeavy.push({ missionElapsedTime: '+00:00:02', metSeconds: 2, timestamp: 0, value: 20, unit: 'km/h' });
+    handler({ timeSeries, timeSeriesVersion: 2 });
+    expect(chart.update).toHaveBeenCalledTimes(2);
+    expect(chart.data.datasets[0].data).toEqual([{ x: 1, y: 10 }, { x: 2, y: 20 }]);
+  });
+});
+
 describe('TimeSeriesGraphs PNG export', () => {
   beforeEach(() => {
     document.body.innerHTML = '';

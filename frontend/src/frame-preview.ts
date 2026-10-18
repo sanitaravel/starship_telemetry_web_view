@@ -11,6 +11,10 @@ export class FramePreview {
   private imgElement!: HTMLImageElement;
   private sequenceLabel!: HTMLElement;
   private unsubscribe: (() => void) | null = null;
+  private placeholderElement: HTMLElement | null = null;
+  private fpsElement: HTMLElement | null = null;
+  private lastFrame: AppState['latestFrame'] = null;
+  private lastFps = 0;
 
   constructor(container: HTMLElement, stateManager: StateManager) {
     this.container = container;
@@ -38,22 +42,29 @@ export class FramePreview {
 
     this.imgElement = this.container.querySelector('.frame-preview__img') as HTMLImageElement;
     this.sequenceLabel = this.container.querySelector('.frame-preview__seq') as HTMLElement;
+    this.placeholderElement = this.container.querySelector('.frame-preview__placeholder');
+    this.fpsElement = this.container.querySelector('.frame-preview__fps');
   }
 
   private update(state: AppState): void {
     const frame = state.latestFrame;
+    // Telemetry and status messages also notify; only redraw on a new frame
+    // or FPS reading, since decoding a new image source is the costly part.
+    if (frame === this.lastFrame && state.processingFps === this.lastFps) return;
     if (frame && frame.image) {
-      this.imgElement.src = `data:image/jpeg;base64,${frame.image}`;
-      this.imgElement.style.display = 'block';
-      const placeholder = this.container.querySelector('.frame-preview__placeholder') as HTMLElement;
-      if (placeholder) placeholder.style.display = 'none';
-      this.sequenceLabel.textContent = `#${frame.sequence}`;
-
-      const fpsEl = this.container.querySelector('.frame-preview__fps') as HTMLElement;
-      if (fpsEl) {
-        const fps = state.processingFps;
-        fpsEl.textContent = fps > 0 ? `${fps.toFixed(1)} FPS` : '';
+      if (frame !== this.lastFrame) {
+        this.imgElement.src = `data:image/jpeg;base64,${frame.image}`;
+        this.imgElement.style.display = 'block';
+        if (this.placeholderElement) this.placeholderElement.style.display = 'none';
+        this.sequenceLabel.textContent = `#${frame.sequence}`;
       }
+
+      if (this.fpsElement) {
+        const fps = state.processingFps;
+        this.fpsElement.textContent = fps > 0 ? `${fps.toFixed(1)} FPS` : '';
+      }
+      this.lastFrame = frame;
+      this.lastFps = state.processingFps;
     }
   }
 

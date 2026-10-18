@@ -42,6 +42,7 @@ export class TelemetryDisplay {
   private altitudeR!: HTMLElement;
 
   private unsubscribe: (() => void) | null = null;
+  private lastRecord: AppState['latestTelemetry'] = null;
 
   constructor(container: HTMLElement, stateManager: StateManager) {
     this.container = container;
@@ -187,6 +188,9 @@ export class TelemetryDisplay {
    */
   private update(state: AppState): void {
     const record = state.latestTelemetry;
+    // Frame and status messages also notify; skip them
+    if (record === this.lastRecord && record !== null) return;
+    this.lastRecord = record;
 
     if (!record) {
       this.renderEmpty();
