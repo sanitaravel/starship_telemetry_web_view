@@ -11,6 +11,7 @@ import json
 import pytest
 from unittest.mock import patch, AsyncMock
 
+from fastapi.testclient import TestClient
 from httpx import AsyncClient, ASGITransport
 
 from src.server import create_app, ConnectionManager, manager
@@ -34,14 +35,14 @@ class TestGetPipelineStatus:
     """Tests for GET /api/status endpoint."""
 
     async def test_status_returns_correct_shape(self, client: AsyncClient):
-        """Status response should contain status, gpu, frame_interval_ms, current_sequence."""
+        """Status response should contain status, gpu, skip_frames, current_sequence."""
         response = await client.get("/api/status")
         assert response.status_code == 200
         data = response.json()
 
         assert "status" in data
         assert "gpu" in data
-        assert "frame_interval_ms" in data
+        assert "skip_frames" in data
         assert "current_sequence" in data
 
     async def test_status_gpu_has_required_fields(self, client: AsyncClient):
@@ -61,7 +62,7 @@ class TestGetPipelineStatus:
 
         assert isinstance(data["status"], str)
         assert data["status"] in ("stopped", "running", "disconnected", "reconnecting")
-        assert isinstance(data["frame_interval_ms"], int)
+        assert isinstance(data["skip_frames"], int)
         assert isinstance(data["current_sequence"], int)
 
     async def test_initial_status_is_stopped(self, client: AsyncClient):
@@ -225,45 +226,27 @@ class TestConnectionManager:
 class TestWebSocketEndpoint:
     """Tests for the /ws/telemetry WebSocket endpoint."""
 
-    async def test_websocket_connection_accepted(self, app):
+    def test_websocket_connection_accepted(self, app):
         """WebSocket connection should be accepted at /ws/telemetry."""
-        from httpx_ws import aconnect_ws
-        from httpx_ws.transport import ASGIWebSocketTransport
+        with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+            # Connection was accepted - send a stop command to test communication
+            ws.send_json({"action": "stop"})
+            response = ws.receive_json()
+            assert response["type"] == "status"
+            assert "payload" in response
 
-        async with AsyncClient(
-            transport=ASGIWebSocketTransport(app=app), base_url="http://test"
-        ) as client:
-            async with aconnect_ws("/ws/telemetry", client) as ws:
-                # Connection was accepted - send a stop command to test communication
-                await ws.send_json({"action": "stop"})
-                response = await ws.receive_json()
-                assert response["type"] == "status"
-                assert "payload" in response
-
-    async def test_websocket_unknown_action_returns_error(self, app):
+    def test_websocket_unknown_action_returns_error(self, app):
         """Unknown actions should return an error message."""
-        from httpx_ws import aconnect_ws
-        from httpx_ws.transport import ASGIWebSocketTransport
+        with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+            ws.send_json({"action": "unknown_action"})
+            response = ws.receive_json()
+            assert response["type"] == "error"
+            assert "unknown" in response["payload"]["message"].lower()
 
-        async with AsyncClient(
-            transport=ASGIWebSocketTransport(app=app), base_url="http://test"
-        ) as client:
-            async with aconnect_ws("/ws/telemetry", client) as ws:
-                await ws.send_json({"action": "unknown_action"})
-                response = await ws.receive_json()
-                assert response["type"] == "error"
-                assert "unknown" in response["payload"]["message"].lower()
-
-    async def test_websocket_validate_url_command(self, app):
+    def test_websocket_validate_url_command(self, app):
         """validate_url action should return validation result."""
-        from httpx_ws import aconnect_ws
-        from httpx_ws.transport import ASGIWebSocketTransport
-
-        async with AsyncClient(
-            transport=ASGIWebSocketTransport(app=app), base_url="http://test"
-        ) as client:
-            async with aconnect_ws("/ws/telemetry", client) as ws:
-                await ws.send_json({"action": "validate_url", "url": ""})
-                response = await ws.receive_json()
-                assert response["type"] == "validation_result"
-                assert response["payload"]["valid"] is False
+        with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+            ws.send_json({"action": "validate_url", "url": ""})
+            response = ws.receive_json()
+            assert response["type"] == "validation_result"
+            assert response["payload"]["valid"] is False

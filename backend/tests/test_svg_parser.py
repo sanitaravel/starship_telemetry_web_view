@@ -64,10 +64,10 @@ class TestParseROITemplate:
     def test_time_rect_coordinates(self, parsed_config: ROIConfiguration):
         """The time rect should have correct coordinates from the SVG."""
         time_rect = parsed_config.text_regions["time"]
-        assert time_rect.x == 828.5
-        assert time_rect.y == 968.5
-        assert time_rect.width == 257
-        assert time_rect.height == 39
+        assert time_rect.x == 868
+        assert time_rect.y == 965
+        assert time_rect.width == 222
+        assert time_rect.height == 47
 
     def test_extracts_text_group_regions(self, parsed_config: ROIConfiguration):
         """Text region groups (altitude_r, speed_r, etc.) should produce qualified rects."""

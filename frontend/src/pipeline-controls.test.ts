@@ -70,6 +70,7 @@ describe('PipelineControls', () => {
       expect((ws.sendCommand as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith({
         action: 'validate_url',
         url: 'https://youtube.com/live/test',
+        correlation_id: expect.any(String),
       });
     });
 
@@ -82,6 +83,7 @@ describe('PipelineControls', () => {
       expect((ws.sendCommand as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith({
         action: 'validate_url',
         url: 'https://youtube.com/live/test',
+        correlation_id: expect.any(String),
       });
     });
 
@@ -185,6 +187,7 @@ describe('PipelineControls', () => {
         action: 'start',
         source_url: 'https://youtube.com/live/test',
         skip_frames: 30,
+        correlation_id: expect.any(String),
       });
     });
   });
@@ -213,6 +216,7 @@ describe('PipelineControls', () => {
 
       expect((ws.sendCommand as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith({
         action: 'stop',
+        correlation_id: expect.any(String),
       });
     });
   });

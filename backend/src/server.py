@@ -340,7 +340,8 @@ def create_app() -> FastAPI:
         """Return current pipeline status and GPU capabilities.
 
         Returns:
-            Dictionary with status, gpu info, frame_interval_ms, and current_sequence.
+            Dictionary with status, gpu info, skip_frames, current_sequence and
+            the parallel-processing counters.
         """
         return orchestrator.build_status_payload()
 
