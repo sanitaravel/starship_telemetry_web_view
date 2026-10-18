@@ -7,6 +7,7 @@ automatic frame resizing to 1920×1080, and exponential backoff reconnection.
 
 import asyncio
 import logging
+import threading
 import time
 from dataclasses import dataclass
 from typing import Callable, Awaitable
@@ -84,6 +85,10 @@ class FrameExtractor:
         self._status: PipelineStatus = PipelineStatus.STOPPED
         self._config: FrameExtractorConfig | None = None
         self._capture: cv2.VideoCapture | None = None
+        # Held around every grab/read and around release: releasing a capture
+        # while another thread decodes from it aborts the process inside FFmpeg
+        # ("Assertion fctx->async_lock failed")
+        self._capture_lock = threading.Lock()
         self._capture_task: asyncio.Task | None = None  # type: ignore[type-arg]
         self._sequence_number: int = 0
         self._source_fps: float = DEFAULT_SOURCE_FPS
@@ -456,13 +461,21 @@ class FrameExtractor:
         """
         grabbed = 0
         for _ in range(to_skip):
+            # Lock per grab, so stop() can release the capture between grabs
+            with self._capture_lock:
+                if self._stop_event.is_set() or not capture.grab():
+                    return grabbed, False, None
+            grabbed += 1
+        with self._capture_lock:
             if self._stop_event.is_set():
                 return grabbed, False, None
-            if not capture.grab():
-                return grabbed, False, None
-            grabbed += 1
-        ret, frame = capture.read()
+            ret, frame = capture.read()
         return grabbed, ret, frame
+
+    def _locked_read(self, capture: cv2.VideoCapture) -> tuple[bool, np.ndarray | None]:
+        """capture.read() under the capture lock (runs in the executor)."""
+        with self._capture_lock:
+            return capture.read()
 
     async def _reconnect_with_backoff(self) -> bool:
         """Attempt to reconnect to the video source with exponential backoff.
@@ -503,7 +516,7 @@ class FrameExtractor:
                 )
 
                 if self._capture.isOpened():
-                    ret, _ = await loop.run_in_executor(None, self._capture.read)
+                    ret, _ = await loop.run_in_executor(None, self._locked_read, self._capture)
                     if ret:
                         logger.info("Reconnection successful.")
                         await self._set_status(PipelineStatus.RUNNING)
@@ -523,11 +536,15 @@ class FrameExtractor:
         return False
 
     def _release_capture(self) -> None:
-        """Release the OpenCV VideoCapture resource if held."""
-        if self._capture is not None:
-            try:
-                self._capture.release()
-            except Exception as e:
-                logger.warning(f"Error releasing video capture: {e}")
-            finally:
-                self._capture = None
+        """Release the OpenCV VideoCapture resource if held.
+
+        Waits for an in-flight grab or read to finish first (see _capture_lock).
+        """
+        with self._capture_lock:
+            if self._capture is not None:
+                try:
+                    self._capture.release()
+                except Exception as e:
+                    logger.warning(f"Error releasing video capture: {e}")
+                finally:
+                    self._capture = None

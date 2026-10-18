@@ -492,3 +492,46 @@ class TestFrameResizeProperty:
             f"for input frame of size ({height}, {width}, 3)"
         )
         assert resized.dtype == np.uint8
+
+
+class TestCaptureReleaseRace:
+    """stop() must not release the capture while a worker thread decodes from it.
+
+    FFmpeg aborts the whole process ("Assertion fctx->async_lock failed")
+    when a capture is released during a grab or read.
+    """
+
+    async def test_stop_waits_for_an_in_flight_grab(self, extractor: FrameExtractor) -> None:
+        import threading
+        import time as _time
+
+        events: list[str] = []
+        grab_started = threading.Event()
+
+        class SlowCapture:
+            def grab(self):
+                events.append("grab-start")
+                grab_started.set()
+                _time.sleep(0.2)
+                events.append("grab-end")
+                return True
+
+            def read(self):
+                return True, np.zeros((4, 4, 3), dtype=np.uint8)
+
+            def release(self):
+                events.append("release")
+
+        capture = SlowCapture()
+        extractor._capture = capture
+        extractor._stop_event.clear()
+
+        loop = asyncio.get_running_loop()
+        advance = loop.run_in_executor(None, extractor._advance, capture, 5)
+        await loop.run_in_executor(None, grab_started.wait)
+        extractor.stop()
+        grabbed, ret, _ = await advance
+
+        # The release came after the running grab, and no grab followed it
+        assert events == ["grab-start", "grab-end", "release"]
+        assert (grabbed, ret) == (1, False)
