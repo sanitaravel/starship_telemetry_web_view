@@ -266,8 +266,11 @@ class TestResolveOcrWorkers:
     def test_explicit_value_wins(self) -> None:
         assert ParallelPipelineConfig(ocr_workers=3).resolve_ocr_workers(True) == 3
 
-    def test_auto_on_gpu_is_two(self) -> None:
-        assert ParallelPipelineConfig().resolve_ocr_workers(True) == 2
+    def test_auto_on_gpu_is_one_per_in_flight_frame(self) -> None:
+        assert ParallelPipelineConfig().resolve_ocr_workers(True) == 8
+        assert ParallelPipelineConfig(concurrency_limit=3).resolve_ocr_workers(True) == 3
+        # capped at 8 workers
+        assert ParallelPipelineConfig(concurrency_limit=10).resolve_ocr_workers(True) == 8
 
     def test_auto_on_cpu_is_half_the_logical_cpus(self, monkeypatch) -> None:
         monkeypatch.setattr("src.parallel_config.os.cpu_count", lambda: 12)

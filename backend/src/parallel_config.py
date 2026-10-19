@@ -20,7 +20,10 @@ class ParallelPipelineConfig:
 
     executor_max_workers: int = 2  # Pool for engine analysis + JPEG [1-8]
     ocr_workers: int = 0  # OCR pool size [0-8]; 0 = auto (see resolve_ocr_workers)
-    concurrency_limit: int = 6  # Max concurrent frames [1-10]
+    # Max concurrent frames [1-10]. Frames in flight feed the OCR batcher, so
+    # more of them means larger batches. Measured on a real flight at skip 30:
+    # 6 -> 65 fps, 8 -> 71, 10 -> 62 (contention outweighs the larger batch).
+    concurrency_limit: int = 8
     stage_timeout_seconds: float = 30.0  # Timeout for individual stages
     # Timeout for complete frame processing. Must exceed stage_timeout_seconds,
     # otherwise the frame is abandoned while its OCR job keeps a worker busy.
@@ -53,7 +56,11 @@ class ParallelPipelineConfig:
     def resolve_ocr_workers(self, gpu_available: bool) -> int:
         """Return the OCR pool size, picking one from the hardware when auto.
 
-        On GPU all workers share one CUDA stream, so more than two only queue.
+        On GPU the workers no longer compete for the device: they hand their
+        ROIs to the batcher (see ocr_batcher), which runs one recogniser pass
+        for all of them. The pool therefore wants one worker per frame in
+        flight, so that every in-flight frame has its ROIs waiting in the same
+        batch rather than arriving a batch late.
         On CPU each worker runs single-threaded torch (see
         ocr_engine.configure_torch_threads), so one worker per physical core
         (approximated as half the logical CPUs) keeps the cores busy without
@@ -62,7 +69,7 @@ class ParallelPipelineConfig:
         if self.ocr_workers > 0:
             return self.ocr_workers
         if gpu_available:
-            return 2
+            return max(1, min(8, self.concurrency_limit))
         return max(1, min(8, (os.cpu_count() or 2) // 2))
 
 
