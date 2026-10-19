@@ -1,6 +1,6 @@
-# CLAUDE.md
+# Development Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+How to build, run and test the project, and how the code is organised.
 
 ## Overview
 
@@ -37,6 +37,8 @@ No linter is configured for either side. Backend imports use the `src.` package 
 
 - `pipeline.py` is the orchestrator. It owns `PipelineState`, handles Start/Stop commands, and wires all of the above together.
 - Frames are processed concurrently. `concurrency_controller` bounds the in-flight work, and `reorder_buffer` restores frame order before records are assembled. Frame order matters because stage assignment and the telemetry timeline are stateful. `parallel_config` holds the tuning and the FPS meter.
+- `frame_extractor` decodes a seekable file with `parallel_decoder` (several decoders over separate stretches, same frames as serial decoding) when the skip interval is long enough to pay for the seeks; live streams are read serially.
+- `ocr_engine` reuses static ROIs (units, stage labels) from a cache while their pixels are unchanged, and sends the rest to `ocr_batcher`, which runs one recogniser pass over the ROIs of every frame in flight. On GPU that pass is `ocr_mixed`, a step-for-step copy of EasyOCR's `get_text` with a per-crop allowlist mask, so it depends on EasyOCR internals (pinned `<2.0`).
 - ROI templates come from `svg_parser` and `template_registry`, using SVGs in `diagrams/`.
 - `gpu_detector` decides whether EasyOCR runs on CUDA or CPU, and the result is reported in the pipeline status.
 - `models` (ROI dataclasses from SVG parsing) and `enums` (`PipelineStatus`, `SeparationState`, `OCRFieldStatus`) are the shared types.
