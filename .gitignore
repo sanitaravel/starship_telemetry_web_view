@@ -50,3 +50,5 @@ htmlcov/
 
 # Folders
 # results_previous/ is tracked via Git LFS (see .gitattributes)
+# Claude Code worktrees (local checkouts, never committed)
+.claude/worktrees/

@@ -3,6 +3,8 @@
  */
 export interface TelemetryRecord {
   sequence_number: number;
+  /** Absolute frame index in the source video (absent from older backends) */
+  frame_number?: number | null;
   mission_elapsed_time: string | null;
   mission_elapsed_time_raw: string | null;
   speed_left: { value: number | null; unit: string | null; status: string };

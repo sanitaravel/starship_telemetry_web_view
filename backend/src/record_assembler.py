@@ -241,6 +241,7 @@ class RecordAssembler:
 
         return TelemetryRecord(
             sequence_number=self._sequence_counter,
+            frame_number=frame_number,
             mission_elapsed_time=mission_elapsed_time,
             mission_elapsed_time_raw=mission_elapsed_time_raw,
             speed_left=speed_left,

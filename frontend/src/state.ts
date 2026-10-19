@@ -47,6 +47,11 @@ export interface AppState {
   timeSeries: TimeSeriesStore;
   /** Incremented whenever a point is appended to timeSeries */
   timeSeriesVersion: number;
+  /**
+   * Every telemetry record received, in arrival order, kept for download.
+   * Grows in place like timeSeries.
+   */
+  telemetryRecords: TelemetryRecord[];
   /** Frames processed per second, measured from actual message arrivals */
   processingFps: number;
 }
@@ -137,6 +142,7 @@ export class StateManager {
       ? this.metClock.estimate(parseMETToSeconds(met), record.timestamp)
       : undefined;
     const appended = appendToTimeSeriesInPlace(this.state.timeSeries, record, metSeconds);
+    this.state.telemetryRecords.push(record);
     this.state = {
       ...this.state,
       latestTelemetry: record,
@@ -214,6 +220,7 @@ export function createInitialState(): AppState {
       altitudeStarship: [],
     },
     timeSeriesVersion: 0,
+    telemetryRecords: [],
     processingFps: 0,
   };
 }
