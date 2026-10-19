@@ -635,12 +635,8 @@ input:focus {
   cursor: pointer;
 }
 
-.ship-globe__history-swatch {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
+.ship-globe__history-item label {
+  cursor: pointer;
 }
 
 .ship-globe__gradient-legend {
@@ -931,12 +927,120 @@ input:focus {
   cursor: pointer;
 }
 
-.time-series-graphs__compare-swatch {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
+.time-series-graphs__compare-item label {
+  cursor: pointer;
+}
+
+/* Flight colour swatch: opens the shared colour popover */
+.color-swatch-btn {
+  width: 14px;
+  height: 14px;
+  margin: 0 2px;
+  padding: 0;
+  border: 1px solid rgba(254, 254, 254, 0.35);
   border-radius: 50%;
   flex-shrink: 0;
+  cursor: pointer;
+}
+
+.color-swatch-btn:hover,
+.color-swatch-btn[aria-expanded="true"] {
+  outline: 2px solid var(--color-text);
+  outline-offset: 1px;
+}
+
+.color-swatch-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.color-popover {
+  position: fixed;
+  z-index: 100;
+  width: 196px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 0.75rem;
+  color: var(--color-text);
+}
+
+.color-popover[hidden] {
+  display: none;
+}
+
+.color-popover__title {
+  font-weight: 600;
+}
+
+.color-popover__presets {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.color-popover__preset {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.color-popover__preset:hover,
+.color-popover__preset:focus-visible {
+  outline: 2px solid var(--color-muted);
+  outline-offset: 1px;
+}
+
+.color-popover__preset[aria-pressed="true"] {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+.color-popover__custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.color-popover__input {
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.color-popover__warning {
+  color: var(--color-accent);
+}
+
+.color-popover__reset {
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  color: var(--color-text);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.color-popover__reset:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.color-popover__reset:disabled {
+  color: var(--color-muted);
+  cursor: default;
 }
 
 .time-series-graphs__reset-btn,

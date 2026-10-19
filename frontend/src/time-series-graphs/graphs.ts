@@ -16,8 +16,12 @@ import {
 } from './export-png';
 import { ExportMenu } from './export-menu';
 import { createLogger } from '../logger';
+import { FlightColors } from '../flight-colors';
+import { createSwatchButton, toggleColorPopover } from '../color-picker';
 
 const logger = createLogger('time-series-graphs');
+
+let nextCompareId = 0;
 
 type XY = { x: number; y: number | null };
 
@@ -68,6 +72,10 @@ export class TimeSeriesGraphs {
   private flightCache: Map<string, TimeSeriesStore> = new Map();
   /** Chart data per comparison flight and series; flights never change. */
   private overlayXY: Map<string, Map<SeriesKey, XY[]>> = new Map();
+  /** User-picked overlay colours, keyed by flight filename. */
+  private colors = new FlightColors('telemetry');
+  /** Swatch buttons in the compare list, keyed by flight filename. */
+  private swatches: Map<string, HTMLButtonElement> = new Map();
 
   constructor(container: HTMLElement, stateManager: StateManager) {
     this.container = container;
@@ -75,6 +83,7 @@ export class TimeSeriesGraphs {
     this.render();
     this.initChart();
     this.loadPreviousFlightList();
+    this.colors.subscribe(() => this.onColorsChange());
     this.stateManager.subscribe((state) => {
       // Most messages (frames, status) leave the series untouched
       if (state.timeSeries === this.latestTimeSeries && state.timeSeriesVersion === this.renderedVersion) {
@@ -400,9 +409,7 @@ export class TimeSeriesGraphs {
     for (let i = 0; i < this.loadedComparisons.length; i++) {
       const comp = this.loadedComparisons[i];
       const compXY = this.comparisonXY(option, comp);
-      // Use color matching the checkbox swatch (by position in previousFlights list)
-      const flightIndex = this.previousFlights.findIndex((f) => f.filename === comp.filename);
-      const color = COMPARE_COLORS[(flightIndex >= 0 ? flightIndex : i) % COMPARE_COLORS.length];
+      const color = this.flightColor(comp.filename);
 
       datasets.push({
         label: `${option.label} (${comp.name})`,
@@ -425,6 +432,20 @@ export class TimeSeriesGraphs {
     this.chart.update('none');
   }
 
+  /** The user's colour for a previous flight, else its palette colour by list position. */
+  private flightColor(filename: string): string {
+    const index = Math.max(0, this.previousFlights.findIndex((f) => f.filename === filename));
+    return this.colors.get(filename, COMPARE_COLORS[index % COMPARE_COLORS.length]);
+  }
+
+  /** Repaint swatches and overlays after a colour is picked or reset. */
+  private onColorsChange(): void {
+    for (const [filename, swatch] of this.swatches) {
+      swatch.style.backgroundColor = this.flightColor(filename);
+    }
+    this.updateChart(this.latestTimeSeries ?? TimeSeriesGraphs.EMPTY_STORE);
+  }
+
   /**
    * Load the list of available previous flights and populate the compare checkboxes.
    */
@@ -433,13 +454,14 @@ export class TimeSeriesGraphs {
 
     for (let i = 0; i < this.previousFlights.length; i++) {
       const flight = this.previousFlights[i];
-      const color = COMPARE_COLORS[i % COMPARE_COLORS.length];
+      const checkboxId = `time-series-graphs-compare-${nextCompareId++}`;
 
-      const label = document.createElement('label');
-      label.className = 'time-series-graphs__compare-item';
+      const item = document.createElement('div');
+      item.className = 'time-series-graphs__compare-item';
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
+      checkbox.id = checkboxId;
       checkbox.value = flight.filename;
       checkbox.className = 'time-series-graphs__compare-checkbox';
       checkbox.addEventListener('change', () => {
@@ -451,17 +473,30 @@ export class TimeSeriesGraphs {
         this.onCompareSelectionChange();
       });
 
-      const swatch = document.createElement('span');
-      swatch.className = 'time-series-graphs__compare-swatch';
-      swatch.style.backgroundColor = color;
+      const swatch = createSwatchButton(
+        'time-series-graphs__compare-swatch',
+        flight.name,
+        this.flightColor(flight.filename),
+      );
+      swatch.addEventListener('click', () =>
+        toggleColorPopover(swatch, {
+          title: flight.name,
+          color: this.flightColor(flight.filename),
+          isCustom: this.colors.isCustom(flight.filename),
+          onPick: (hex) => this.colors.set(flight.filename, hex),
+          onReset: () => this.colors.reset(flight.filename),
+        }),
+      );
+      this.swatches.set(flight.filename, swatch);
 
-      const text = document.createElement('span');
-      text.textContent = flight.name;
+      const label = document.createElement('label');
+      label.htmlFor = checkboxId;
+      label.textContent = flight.name;
 
-      label.appendChild(checkbox);
-      label.appendChild(swatch);
-      label.appendChild(text);
-      this.compareContainer.appendChild(label);
+      item.appendChild(checkbox);
+      item.appendChild(swatch);
+      item.appendChild(label);
+      this.compareContainer.appendChild(item);
     }
   }
 
