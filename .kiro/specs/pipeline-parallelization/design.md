@@ -272,7 +272,7 @@ class ParallelPipelineConfig:
     """Configuration for the parallelized pipeline."""
     
     executor_max_workers: int = 4      # Thread pool size [1-8]
-    concurrency_limit: int = 3         # Max concurrent frames [1-10]
+    concurrency_limit: int = 0         # Max concurrent frames [0-10]; 0 = auto: min(10, max(6, OCR workers + 2))
     stage_timeout_seconds: float = 30.0  # Timeout for individual stages
     frame_timeout_seconds: float = 10.0  # Timeout for complete frame processing
     max_buffer_size: int = 120          # Maximum reorder buffer entries
@@ -285,8 +285,8 @@ class ParallelPipelineConfig:
         errors = []
         if not (1 <= self.executor_max_workers <= 8):
             errors.append("executor_max_workers must be between 1 and 8")
-        if not (1 <= self.concurrency_limit <= 10):
-            errors.append("concurrency_limit must be between 1 and 10")
+        if not (0 <= self.concurrency_limit <= 10):
+            errors.append("concurrency_limit must be between 0 (auto) and 10")
         if self.stage_timeout_seconds <= 0:
             errors.append("stage_timeout_seconds must be positive")
         if self.frame_timeout_seconds <= 0:
@@ -381,7 +381,7 @@ class FPSMeter:
 
 ### Property 2: Configuration Parameter Validation
 
-*For any* integer value provided as `executor_max_workers`, the system SHALL accept it if and only if it is in the range [1, 8]. *For any* integer value provided as `concurrency_limit`, the system SHALL accept it if and only if it is in the range [1, 10]. Values outside these ranges SHALL be rejected and the previous configuration SHALL be retained.
+*For any* integer value provided as `executor_max_workers`, the system SHALL accept it if and only if it is in the range [1, 8]. *For any* integer value provided as `concurrency_limit`, the system SHALL accept it if and only if it is in the range [0, 10], where 0 selects the limit automatically from the OCR pool size. Values outside these ranges SHALL be rejected and the previous configuration SHALL be retained.
 
 **Validates: Requirements 2.3, 3.3, 3.5, 7.3**
 

@@ -384,7 +384,11 @@ class PipelineOrchestrator:
         concurrency_limit = (
             self._concurrency_controller.limit
             if self._concurrency_controller is not None
-            else self._parallel_config.concurrency_limit
+            else self._parallel_config.resolve_concurrency_limit(
+                self._parallel_config.resolve_ocr_workers(
+                    self._gpu_capabilities.gpu_available
+                )
+            )
         )
         max_buffer_size = self._parallel_config.max_buffer_size
         overflow_threshold = self._parallel_config.buffer_overflow_threshold
@@ -834,9 +838,9 @@ class PipelineOrchestrator:
         self._broadcaster_task = asyncio.create_task(self._broadcast_worker())
 
         # Create concurrency controller for inter-frame parallelism
-        self._concurrency_controller = ConcurrencyController(
-            limit=self._parallel_config.concurrency_limit
-        )
+        concurrency_limit = self._parallel_config.resolve_concurrency_limit(ocr_workers)
+        self._concurrency_controller = ConcurrencyController(limit=concurrency_limit)
+        logger.info("Concurrency limit: %d frames in flight.", concurrency_limit)
 
         # Reset frame sequence counter and T-0 state for new session
         self._frame_sequence_counter = 0
