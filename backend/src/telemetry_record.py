@@ -33,6 +33,8 @@ class TelemetryRecord(BaseModel):
     """
 
     sequence_number: int
+    # Absolute frame index in the source video; optional so older payloads still parse
+    frame_number: int | None = None
     mission_elapsed_time: str | None = None
     mission_elapsed_time_raw: str | None = None
     speed_left: TelemetryFieldValue

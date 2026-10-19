@@ -6,6 +6,7 @@ import { TelemetryDisplay } from './telemetry-display';
 import { EngineVisualizer } from './engine-visualizer';
 import { TimeSeriesGraphs } from './time-series-graphs';
 import { FramePreview } from './frame-preview';
+import { TelemetryDownloads } from './telemetry-downloads';
 import { ShipGlobe, ShipTracker, fetchHistoricalTrajectories } from './ship-globe';
 import { appVersion } from './app-version';
 import { BackendVersion } from './backend-version';
@@ -20,6 +21,7 @@ if (app) {
     </header>
     <section class="dashboard-controls" aria-label="Pipeline Controls">
       <div id="pipeline-controls"></div>
+      <div id="telemetry-downloads"></div>
     </section>
     <section class="dashboard-main" aria-label="Telemetry and Frame">
       <div class="dashboard-main__telemetry">
@@ -58,6 +60,12 @@ if (app) {
   const controlsContainer = document.getElementById('pipeline-controls');
   if (controlsContainer) {
     new PipelineControls(controlsContainer, ws, stateManager);
+  }
+
+  // Downloads of the OCR telemetry received this session
+  const downloadsContainer = document.getElementById('telemetry-downloads');
+  if (downloadsContainer) {
+    new TelemetryDownloads(downloadsContainer, stateManager);
   }
 
   // Initialize Telemetry Display UI

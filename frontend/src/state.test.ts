@@ -51,6 +51,20 @@ describe('StateManager', () => {
     expect(manager.getState().latestTelemetry).toEqual(record);
   });
 
+  it('keeps every telemetry record for download', () => {
+    const manager = new StateManager();
+    const first = createTestTelemetryRecord({ sequence_number: 1 });
+    // A record without MET adds no graph points but is still kept
+    const second = createTestTelemetryRecord({ sequence_number: 2, mission_elapsed_time: null });
+
+    manager.handleMessage({ type: 'telemetry', payload: first });
+    manager.handleMessage({ type: 'telemetry', payload: second });
+
+    expect(manager.getState().telemetryRecords).toEqual([first, second]);
+    manager.reset();
+    expect(manager.getState().telemetryRecords).toEqual([]);
+  });
+
   it('updates pipelineStatus on status message', () => {
     const manager = new StateManager();
     const status: PipelineStatus = {

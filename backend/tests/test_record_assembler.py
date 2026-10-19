@@ -388,6 +388,17 @@ class TestRecordAssembler:
 
         assert record.timestamp == 4242
 
+    def test_record_carries_frame_number(self):
+        """The source frame index is kept on the record for exports."""
+        assembler = RecordAssembler()
+
+        record = assembler.assemble(
+            _make_engine_result(), _make_ocr_result(), _make_stage_result(),
+            _make_engine_groups(), 1234, 30.0
+        )
+
+        assert record.frame_number == 1234
+
 
 # ─── Property-Based Tests (Hypothesis) ────────────────────────────────────────
 

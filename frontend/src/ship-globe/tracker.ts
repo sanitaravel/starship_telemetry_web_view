@@ -26,6 +26,8 @@ export interface ShipPosition {
   speed: number;
   latitude: number;
   longitude: number;
+  /** Unix ms of the poll that first returned this sample; set when stored in a track. */
+  polledAt?: number;
 }
 
 export interface ShipTrack {
@@ -127,19 +129,23 @@ export class ShipTracker {
 
   async poll(): Promise<void> {
     try {
-      const response = await this.fetchFn(withCacheBuster(this.url), { cache: 'no-store' });
+      const now = Date.now();
+      const response = await this.fetchFn(withCacheBuster(this.url, now), { cache: 'no-store' });
       if (!response.ok) {
         log.warn(`Tracker feed returned HTTP ${response.status}`);
         return;
       }
-      this.ingest(parseTrackerPayload(await response.json()));
+      this.ingest(parseTrackerPayload(await response.json()), now);
     } catch (err) {
       log.warn('Tracker feed request failed', { error: String(err) });
     }
   }
 
-  /** Adds parsed samples to the tracks; notifies listeners if anything changed. */
-  ingest(samples: Map<string, ShipPosition>): void {
+  /**
+   * Adds parsed samples to the tracks, stamped with the poll time if given;
+   * notifies listeners if anything changed.
+   */
+  ingest(samples: Map<string, ShipPosition>, polledAt?: number): void {
     let changed = false;
     for (const [id, position] of samples) {
       let track = this.tracks.get(id);
@@ -150,7 +156,7 @@ export class ShipTracker {
       }
       const last = track.positions[track.positions.length - 1];
       if (last && position.gpsTime <= last.gpsTime) continue;
-      track.positions.push(position);
+      track.positions.push(polledAt === undefined ? position : { ...position, polledAt });
       changed = true;
     }
     if (changed) {

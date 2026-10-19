@@ -105,6 +105,13 @@ describe('ShipTracker', () => {
     expect(track.positions.map((p) => p.gpsTime)).toEqual([10, 20]);
   });
 
+  it('stamps stored samples with the poll time', () => {
+    const tracker = new ShipTracker();
+    tracker.ingest(new Map([['ship40', position(10)]]), 1_700_000_000_000);
+    tracker.ingest(new Map([['ship40', position(10)]]), 1_700_000_030_000);
+    expect(tracker.getTracks()[0].positions.map((p) => p.polledAt)).toEqual([1_700_000_000_000]);
+  });
+
   it('sorts tracks by ship number', () => {
     const tracker = new ShipTracker();
     tracker.ingest(new Map([['ship41', position(1)], ['ship9', position(1)]]));

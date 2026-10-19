@@ -17,6 +17,7 @@ import {
   rotationToCenter,
   type Rotation,
 } from './geo';
+import { downloadText, trackFilename, trackToCsv } from '../downloads';
 import type { HistoricalTrajectory } from './history';
 import { countryLabels, placeLabels, type Box } from './labels';
 import type { ShipTrack, ShipTracker } from './tracker';
@@ -76,6 +77,7 @@ export class ShipGlobe {
   private readonly centerButton: HTMLButtonElement;
   private readonly historyBar: HTMLElement;
   private readonly historyToggles: HTMLElement;
+  private readonly downloads: HTMLElement;
   private readonly projection = geoOrthographic().clipAngle(90).precision(0.5);
   private rotation: Rotation = DEFAULT_ROTATION;
   private tracks: ShipTrack[] = [];
@@ -95,6 +97,7 @@ export class ShipGlobe {
     container.innerHTML = `
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" hidden></div>
       </div>
       <div class="ship-globe__history" hidden>
         <span class="ship-globe__history-label">Previous ships:</span>
@@ -135,11 +138,17 @@ export class ShipGlobe {
     this.centerButton = container.querySelector('.ship-globe__center-btn')!;
     this.historyBar = container.querySelector('.ship-globe__history')!;
     this.historyToggles = container.querySelector('.ship-globe__history-toggles')!;
+    this.downloads = container.querySelector('.ship-globe__downloads')!;
 
     this.centerButton.addEventListener('click', () => {
       this.followShip = true;
       this.centerOnLatest();
       this.requestDraw();
+    });
+    this.downloads.addEventListener('click', (e) => {
+      const id = (e.target as HTMLElement).closest<HTMLElement>('[data-track]')?.dataset.track;
+      const track = this.tracks.find((t) => t.id === id);
+      if (track) downloadText(trackFilename(track), trackToCsv(track), 'text/csv');
     });
     this.bindDrag();
     this.bindZoom(container);
@@ -186,9 +195,24 @@ export class ShipGlobe {
   private update(tracks: ShipTrack[]): void {
     this.tracks = tracks;
     this.centerButton.disabled = !this.latestShip();
+    this.renderDownloads();
     if (this.followShip) this.centerOnLatest();
     this.renderReadout();
     this.requestDraw();
+  }
+
+  /** One download button per live track, in the trajectories/ CSV format. */
+  private renderDownloads(): void {
+    const ids = this.tracks.map((t) => t.id).join(',');
+    if (this.downloads.dataset.tracks === ids) return;
+    this.downloads.dataset.tracks = ids;
+    this.downloads.hidden = this.tracks.length === 0;
+    this.downloads.innerHTML = this.tracks
+      .map(
+        (t) =>
+          `<button type="button" class="ship-globe__download-btn" data-track="${t.id}" title="Download the Ship ${t.number} track recorded this session (trajectories/ CSV format)">&#8595; Ship ${t.number} CSV</button>`,
+      )
+      .join('');
   }
 
   /** The ship with the most recent sample, if any. */
