@@ -1,0 +1,19 @@
+# main holds releases only: everything reaches it through a PR from development.
+name: Release source
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  source-branch:
+    name: PR comes from development
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check head branch
+        run: |
+          if [ "${{ github.head_ref }}" != "development" ] || \
+             [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "::error::PRs into main must come from this repo's development branch (got ${{ github.event.pull_request.head.repo.full_name }}:${{ github.head_ref }})."
+            exit 1
+          fi
