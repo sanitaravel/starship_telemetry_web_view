@@ -90,7 +90,9 @@ describe('TelemetryDownloads', () => {
     ]);
     const flight = JSON.parse(await saved[0].blob.text());
     expect(flight.map((r: { frame_number: number }) => r.frame_number)).toEqual([30, 60]);
-    expect(flight[0].vehicles.starship.speed).toBe(200);
+    // Pre-separation: both vehicles carry the stack reading
+    expect(flight[0].vehicles.starship.speed).toBe(100);
+    expect(flight[0].vehicles.superheavy.speed).toBe(100);
     expect(JSON.parse(await saved[1].blob.text())).toEqual([record(1), record(2)]);
   });
 });

@@ -71,23 +71,35 @@ function splitSeconds(totalSeconds: number): FlightRecord['real_time'] {
   };
 }
 
-/**
- * Which HUD side each vehicle's readings come from. Follows the stage
- * assignment; when both sides are assigned the same vehicle (before
- * separation the backend treats both as the stack) the HUD layout is used:
- * Super Heavy on the left, Starship on the right.
- */
-function vehicleSides(record: TelemetryRecord): { superheavy: 'left' | 'right'; starship: 'left' | 'right' } {
-  const left = record.stage_assignment_left;
-  const right = record.stage_assignment_right;
-  if (left !== right && left === 'starship') return { superheavy: 'right', starship: 'left' };
-  return { superheavy: 'left', starship: 'right' };
+type Side = 'left' | 'right';
+type Vehicle = 'starship' | 'super_heavy';
+
+function sideReading(record: TelemetryRecord, quantity: 'speed' | 'altitude', side: Side): number | null {
+  return metricValue(record[`${quantity}_${side}`]);
 }
 
-function vehicle(record: TelemetryRecord, side: 'left' | 'right', engines: EngineStatuses): FlightVehicle {
+/**
+ * A vehicle's speed or altitude. Before separation the HUD shows the stack,
+ * so both vehicles get the same reading from whichever side has one (the
+ * recorded flights store it this way, and the graphs plot it this way).
+ * After separation, the reading comes from the side assigned to the vehicle.
+ */
+function vehicleReading(record: TelemetryRecord, quantity: 'speed' | 'altitude', vehicle: Vehicle): number | null {
+  const sides: Side[] =
+    record.separation_state === 'pre_separation'
+      ? ['left', 'right']
+      : (['left', 'right'] as const).filter((side) => record[`stage_assignment_${side}`] === vehicle);
+  for (const side of sides) {
+    const value = sideReading(record, quantity, side);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+function vehicle(record: TelemetryRecord, name: Vehicle, engines: EngineStatuses): FlightVehicle {
   return {
-    speed: metricValue(side === 'left' ? record.speed_left : record.speed_right),
-    altitude: metricValue(side === 'left' ? record.altitude_left : record.altitude_right),
+    speed: vehicleReading(record, 'speed', name),
+    altitude: vehicleReading(record, 'altitude', name),
     engines: { ...engines },
   };
 }
@@ -97,13 +109,12 @@ export function toFlightRecords(records: readonly TelemetryRecord[]): FlightReco
   return [...records]
     .sort((a, b) => a.timestamp - b.timestamp || a.sequence_number - b.sequence_number)
     .map((record) => {
-      const sides = vehicleSides(record);
       const realTimeSeconds = record.timestamp / 1000;
       return {
         frame_number: record.frame_number ?? null,
         vehicles: {
-          starship: vehicle(record, sides.starship, record.starship_engines),
-          superheavy: vehicle(record, sides.superheavy, record.superheavy_engines),
+          starship: vehicle(record, 'starship', record.starship_engines),
+          superheavy: vehicle(record, 'super_heavy', record.superheavy_engines),
         },
         time: parseMet(record.mission_elapsed_time),
         real_time_seconds: realTimeSeconds,

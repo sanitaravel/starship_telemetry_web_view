@@ -52,16 +52,35 @@ describe('toFlightRecords', () => {
     expect(flight.vehicles.superheavy.speed).toBe(1300);
   });
 
-  it('uses the HUD layout before separation, when both sides are the stack', () => {
+  it('gives the stack reading to both vehicles before separation', () => {
+    const preSeparation = {
+      separation_state: 'pre_separation',
+      stage_assignment_left: 'super_heavy',
+      stage_assignment_right: 'super_heavy',
+    } as const;
+    const [onlyRight, bothSides] = toFlightRecords([
+      record({
+        ...preSeparation,
+        speed_left: { value: null, unit: null, status: 'unavailable' },
+        altitude_left: { value: null, unit: null, status: 'unavailable' },
+      }),
+      record({ ...preSeparation, timestamp: 91_000 }),
+    ]);
+    expect(onlyRight.vehicles.superheavy).toMatchObject({ speed: 1300, altitude: 50.1 });
+    expect(onlyRight.vehicles.starship).toMatchObject({ speed: 1300, altitude: 50.1 });
+    expect(bothSides.vehicles.superheavy.speed).toBe(bothSides.vehicles.starship.speed);
+  });
+
+  it('after separation, falls back to the other side assigned to the same vehicle', () => {
     const [flight] = toFlightRecords([
       record({
-        separation_state: 'pre_separation',
-        stage_assignment_left: 'super_heavy',
-        stage_assignment_right: 'super_heavy',
+        stage_assignment_left: 'starship',
+        stage_assignment_right: 'starship',
+        speed_left: { value: null, unit: null, status: 'unavailable' },
       }),
     ]);
-    expect(flight.vehicles.superheavy.speed).toBe(1200);
     expect(flight.vehicles.starship.speed).toBe(1300);
+    expect(flight.vehicles.superheavy).toMatchObject({ speed: null, altitude: null });
   });
 
   it('nulls unread values and converts imperial units to metric', () => {
