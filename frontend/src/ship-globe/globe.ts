@@ -18,6 +18,8 @@ import {
   type Rotation,
 } from './geo';
 import { downloadText, trackFilename, trackToCsv } from '../downloads';
+import { createSwatchButton, toggleColorPopover } from '../color-picker';
+import { FlightColors } from '../flight-colors';
 import type { HistoricalTrajectory } from './history';
 import { countryLabels, placeLabels, type Box } from './labels';
 import type { ShipTrack, ShipTracker } from './tracker';
@@ -83,6 +85,9 @@ export class ShipGlobe {
   private tracks: ShipTrack[] = [];
   private history: HistoricalTrajectory[] = [];
   private hiddenHistory = new Set<string>();
+  /** User-picked path colours, keyed by trajectory name; separate from the graphs' colours. */
+  private historyColors = new FlightColors('trajectory');
+  private historySwatches = new Map<string, HTMLButtonElement>();
   private followShip = true;
   private zoom = MIN_ZOOM;
   private dragOrigin: { x: number; y: number; rotation: Rotation } | null = null;
@@ -171,6 +176,7 @@ export class ShipGlobe {
       this.requestDraw();
     });
 
+    this.historyColors.subscribe(() => this.onHistoryColorsChange());
     tracker.subscribe((tracks) => this.update(tracks));
   }
 
@@ -182,13 +188,42 @@ export class ShipGlobe {
     this.historyToggles.innerHTML = trajectories
       .map(
         (t) => `
-        <label class="ship-globe__history-item">
-          <input type="checkbox" class="ship-globe__history-checkbox" data-trajectory="${t.name}" checked />
-          <span class="ship-globe__history-swatch" style="background-color: ${t.color}"></span>
-          ${t.label}
-        </label>`,
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-${t.name}" data-trajectory="${t.name}" checked />
+          <label for="ship-globe-history-${t.name}">${t.label}</label>
+        </div>`,
       )
       .join('');
+    // Swatch buttons go between the checkbox and its label, as in the graphs' compare list.
+    this.historySwatches.clear();
+    for (const t of trajectories) {
+      const checkbox = this.historyToggles.querySelector(`[data-trajectory="${t.name}"]`)!;
+      const swatch = createSwatchButton('ship-globe__history-swatch', t.label, this.trajectoryColor(t));
+      swatch.addEventListener('click', () =>
+        toggleColorPopover(swatch, {
+          title: t.label,
+          color: this.trajectoryColor(t),
+          isCustom: this.historyColors.isCustom(t.name),
+          onPick: (hex) => this.historyColors.set(t.name, hex),
+          onReset: () => this.historyColors.reset(t.name),
+        }),
+      );
+      checkbox.after(swatch);
+      this.historySwatches.set(t.name, swatch);
+    }
+    this.requestDraw();
+  }
+
+  /** The user's colour for a recorded flight, else its palette colour. */
+  private trajectoryColor(trajectory: HistoricalTrajectory): string {
+    return this.historyColors.get(trajectory.name, trajectory.color);
+  }
+
+  private onHistoryColorsChange(): void {
+    for (const t of this.history) {
+      const swatch = this.historySwatches.get(t.name);
+      if (swatch) swatch.style.backgroundColor = this.trajectoryColor(t);
+    }
     this.requestDraw();
   }
 
@@ -359,9 +394,10 @@ export class ShipGlobe {
 
     for (const trajectory of this.history) {
       if (this.hiddenHistory.has(trajectory.name)) continue;
-      strokeGradient(trajectory.coordinates, trajectory.color);
+      const color = this.trajectoryColor(trajectory);
+      strokeGradient(trajectory.coordinates, color);
       const [lon, lat] = trajectory.coordinates[trajectory.coordinates.length - 1];
-      this.drawPointLabel(ctx, lon, lat, 3.5, trajectory.color, `S${trajectory.number}`);
+      this.drawPointLabel(ctx, lon, lat, 3.5, color, `S${trajectory.number}`);
     }
 
     for (const track of this.tracks) {
