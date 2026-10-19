@@ -139,6 +139,11 @@ class ParallelFileDecoder:
                     if self._stopped or (self._end is not None and start >= self._end):
                         return
                     self._next_chunk += 1
+                # A chunk read from the start needs a capture that has not
+                # moved yet (see _reads_from_start)
+                if capture is not None and self._reads_from_start(self.frame_number(start)):
+                    capture.release()
+                    capture = None
                 if capture is None:
                     capture = cv2.VideoCapture(
                         self._url,
@@ -161,9 +166,17 @@ class ParallelFileDecoder:
     def _decode_chunk(self, capture: cv2.VideoCapture, start: int) -> None:
         """Decode the kept frames ``start .. start + chunk - 1``."""
         target = self.frame_number(start)
-        landed = capture.set(cv2.CAP_PROP_POS_FRAMES, target) and (
-            int(capture.get(cv2.CAP_PROP_POS_FRAMES)) == target
-        )
+        if self._reads_from_start(target):
+            # The capture is freshly opened, at frame 0
+            for _ in range(target):
+                if not capture.grab():
+                    self._end_at(start, None)
+                    return
+            landed = True
+        else:
+            landed = capture.set(cv2.CAP_PROP_POS_FRAMES, target) and (
+                int(capture.get(cv2.CAP_PROP_POS_FRAMES)) == target
+            )
         if not landed:
             past_end = 0 < self._reported_frame_count <= target
             self._end_at(start, None if past_end else f"seek to frame {target} missed")
@@ -187,6 +200,18 @@ class ParallelFileDecoder:
                 self._frames[index] = frame
                 self.peak_buffered = max(self.peak_buffered, len(self._frames))
                 self._cond.notify_all()
+
+    def _reads_from_start(self, target: int) -> bool:
+        """Whether to reach ``target`` by decoding from frame 0, not seeking.
+
+        Seeks near the start of a source are not trustworthy. On an HLS VOD
+        whose video starts behind its first timestamps, every seek to frames
+        0-44 decoded frame 44 or 45 while POS_FRAMES still read back the
+        target; from frame 50 on they were exact. Decoding from the start
+        costs at most one chunk's span, which a seek's run-up from the
+        keyframe costs anyway.
+        """
+        return target < self._chunk * self._skip
 
     def _wait_for_room(self, index: int) -> bool:
         """Hold a worker that has run too far ahead of the consumer.
