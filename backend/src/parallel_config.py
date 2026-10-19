@@ -45,8 +45,8 @@ class ParallelPipelineConfig:
             errors.append("executor_max_workers must be between 1 and 8")
         if not (0 <= self.ocr_workers <= 8):
             errors.append("ocr_workers must be between 0 (auto) and 8")
-        if not (1 <= self.concurrency_limit <= 10):
-            errors.append("concurrency_limit must be between 1 and 10")
+        if not (0 <= self.concurrency_limit <= 10):
+            errors.append("concurrency_limit must be between 0 (auto) and 10")
         if self.stage_timeout_seconds <= 0:
             errors.append("stage_timeout_seconds must be positive")
         if self.frame_timeout_seconds <= 0:
@@ -69,8 +69,20 @@ class ParallelPipelineConfig:
         if self.ocr_workers > 0:
             return self.ocr_workers
         if gpu_available:
-            return max(1, min(8, self.concurrency_limit))
+            # An auto concurrency limit is derived from this value, so it
+            # cannot size the pool; fall back to the largest pool instead.
+            return max(1, min(8, self.concurrency_limit or 8))
         return max(1, min(8, (os.cpu_count() or 2) // 2))
+
+    def resolve_concurrency_limit(self, ocr_workers: int) -> int:
+        """Return the frames-in-flight limit, deriving it from the OCR pool when auto.
+
+        Two frames beyond the OCR pool keep every worker fed while others are
+        in capture or analysis, with a floor of 6 so small pools still batch.
+        """
+        if self.concurrency_limit > 0:
+            return self.concurrency_limit
+        return min(10, max(6, ocr_workers + 2))
 
 
 @dataclass

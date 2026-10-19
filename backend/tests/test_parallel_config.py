@@ -34,8 +34,8 @@ class TestParallelPipelineConfig:
         assert ParallelPipelineConfig(executor_max_workers=8).validate() == []
 
     def test_concurrency_limit_below_range(self) -> None:
-        """concurrency_limit below 1 should produce an error."""
-        config = ParallelPipelineConfig(concurrency_limit=0)
+        """concurrency_limit below 0 should produce an error."""
+        config = ParallelPipelineConfig(concurrency_limit=-1)
         errors = config.validate()
         assert any("concurrency_limit" in e for e in errors)
 
@@ -46,7 +46,8 @@ class TestParallelPipelineConfig:
         assert any("concurrency_limit" in e for e in errors)
 
     def test_concurrency_limit_boundary_valid(self) -> None:
-        """concurrency_limit at 1 and 10 should be valid."""
+        """concurrency_limit at 0 (auto), 1 and 10 should be valid."""
+        assert ParallelPipelineConfig(concurrency_limit=0).validate() == []
         assert ParallelPipelineConfig(concurrency_limit=1).validate() == []
         assert ParallelPipelineConfig(concurrency_limit=10).validate() == []
 
@@ -78,7 +79,7 @@ class TestParallelPipelineConfig:
         """Multiple invalid values should produce multiple errors."""
         config = ParallelPipelineConfig(
             executor_max_workers=0,
-            concurrency_limit=0,
+            concurrency_limit=-1,
             stage_timeout_seconds=-1.0,
             frame_timeout_seconds=-1.0,
         )
@@ -166,12 +167,12 @@ class TestConfigParameterValidationProperty:
 
     @given(value=st.integers(min_value=-1000, max_value=1000))
     def test_concurrency_limit_accepted_iff_in_valid_range(self, value: int) -> None:
-        """concurrency_limit is accepted iff value is in [1, 10]."""
+        """concurrency_limit is accepted iff value is in [0, 10]."""
         config = ParallelPipelineConfig(concurrency_limit=value)
         errors = config.validate()
         limit_errors = [e for e in errors if "concurrency_limit" in e]
 
-        if 1 <= value <= 10:
+        if 0 <= value <= 10:
             assert limit_errors == [], (
                 f"Expected no concurrency_limit error for value {value}, got {limit_errors}"
             )
@@ -278,6 +279,22 @@ class TestResolveOcrWorkers:
         monkeypatch.setattr("src.parallel_config.os.cpu_count", lambda: 1)
         assert ParallelPipelineConfig().resolve_ocr_workers(False) == 1
 
+    def test_auto_on_gpu_with_auto_concurrency_uses_full_pool(self) -> None:
+        assert ParallelPipelineConfig(concurrency_limit=0).resolve_ocr_workers(True) == 8
+
     def test_frame_timeout_exceeds_stage_timeout_by_default(self) -> None:
         config = ParallelPipelineConfig()
         assert config.frame_timeout_seconds > config.stage_timeout_seconds
+
+
+class TestResolveConcurrencyLimit:
+    """Tests for ParallelPipelineConfig.resolve_concurrency_limit."""
+
+    def test_explicit_value_wins(self) -> None:
+        assert ParallelPipelineConfig(concurrency_limit=3).resolve_concurrency_limit(8) == 3
+
+    def test_auto_is_ocr_workers_plus_two_within_bounds(self) -> None:
+        config = ParallelPipelineConfig(concurrency_limit=0)
+        assert config.resolve_concurrency_limit(1) == 6
+        assert config.resolve_concurrency_limit(6) == 8
+        assert config.resolve_concurrency_limit(8) == 10
