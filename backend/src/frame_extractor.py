@@ -7,6 +7,7 @@ automatic frame resizing to 1920×1080, and exponential backoff reconnection.
 
 import asyncio
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ import cv2
 import numpy as np
 
 from src.enums import PipelineStatus
+from src.parallel_decoder import ParallelFileDecoder
 
 
 logger = logging.getLogger(__name__)
@@ -30,18 +32,36 @@ class FrameExtractorConfig:
         skip_frames: Process every Nth frame (default: 30, i.e., ~1 per second at 30fps).
         target_width: Target frame width after resize (default: 1920).
         target_height: Target frame height after resize (default: 1080).
+        decode_workers: Most decoders to run side by side on a seekable source
+            (see parallel_decoder), further capped at half the logical CPUs;
+            1 decodes serially. Measured at skip 30 on a 16-thread CPU: on a
+            busy 8 Mbit/s scene 8 decoders beat 4 by 10%; on a real 1.6 Mbit/s
+            flight 3-8 decoders were within noise of each other, all 20-25%
+            ahead of serial decoding.
     """
 
     source_url: str
     skip_frames: int = 30
     target_width: int = 1920
     target_height: int = 1080
+    decode_workers: int = 8
 
 
 # Fallback source FPS used when the video backend does not report a usable
 # frame rate (e.g. some live streams return 0 for CAP_PROP_FPS). 29.97 is the
 # standard NTSC broadcast rate used by the SpaceX webcast.
 DEFAULT_SOURCE_FPS: float = 30000.0 / 1001.0
+
+# Parallel decoding (see parallel_decoder). Each unit of work starts with a
+# seek, which decodes from the preceding keyframe -- up to one keyframe
+# interval, ~2 s on YouTube-style encodes -- so units span 8 s of source, and
+# parallel decoding is only used when a unit of at least 4 s still fits the
+# memory budget. Below that skip interval decoding is not the bottleneck
+# anyway: measured, the serial extractor delivers ~350 frames/s at skip 1.
+_PARALLEL_CHUNK_SOURCE_FRAMES = 240
+_PARALLEL_MIN_CHUNK_SOURCE_FRAMES = 120
+# Decoded 1080p frames held ahead of the pipeline, ~6 MB each.
+_PARALLEL_MAX_BUFFERED = 48
 
 
 @dataclass
@@ -97,6 +117,11 @@ class FrameExtractor:
         ] = []
         self._status_callbacks: list[Callable[[PipelineStatus], Awaitable[None]]] = []
         self._stop_event: asyncio.Event = asyncio.Event()
+        # Parallel decoding of a seekable source. _frame_count is the source's
+        # length once it has been found to seek accurately, 0 if it cannot,
+        # None until checked (once per start()).
+        self._decoder: ParallelFileDecoder | None = None
+        self._frame_count: int | None = None
 
     @property
     def status(self) -> PipelineStatus:
@@ -196,6 +221,7 @@ class FrameExtractor:
         self._config = config
         self._stop_event.clear()
         self._sequence_number = 0
+        self._frame_count = None
 
         # Start the capture loop as an async task
         self._capture_task = asyncio.ensure_future(self._capture_loop())
@@ -215,6 +241,7 @@ class FrameExtractor:
             self._capture_task.cancel()
             self._capture_task = None
 
+        self._close_decoder()
         self._release_capture()
         self._status = PipelineStatus.STOPPED
 
@@ -376,22 +403,41 @@ class FrameExtractor:
                     f"Source confirmed at {int(actual_w)}x{int(actual_h)}."
                 )
 
+            # Serial decoding keeps the main capture at frame_counter; parallel
+            # decoding reads through its own captures and leaves it behind.
+            capture_in_sync = True
+
             # Main frame capture loop
             while not self._stop_event.is_set():
-                # Grab (no decode) the frames that will be skipped and decode
-                # only the next processed one, in a single executor hop.
                 skip = self._config.skip_frames
-                to_skip = skip - 1 - (frame_counter % skip)
                 decode_start = time.monotonic()
-                grabbed, ret, frame = await loop.run_in_executor(
-                    None, self._advance, self._capture, to_skip
-                )
-                frame_counter += grabbed
+                decoder = await self._decoder_for(frame_counter, skip)
+                if decoder is not None:
+                    capture_in_sync = False
+                    result = await loop.run_in_executor(None, decoder.next_frame)
+                    if result is None:
+                        ret, frame = False, None
+                    else:
+                        # frame_counter becomes the frame's number; +1 below
+                        ret = True
+                        frame_counter, frame = result
+                else:
+                    if not capture_in_sync:
+                        await loop.run_in_executor(None, self._seek_capture, frame_counter)
+                        capture_in_sync = True
+                    # Grab the frames that will be skipped and read only the
+                    # next processed one, in a single executor hop.
+                    to_skip = skip - 1 - (frame_counter % skip)
+                    grabbed, ret, frame = await loop.run_in_executor(
+                        None, self._advance, self._capture, to_skip
+                    )
+                    frame_counter += grabbed
 
                 if self._stop_event.is_set():
                     break
 
                 if not ret or frame is None or frame.size == 0:
+                    await loop.run_in_executor(None, self._close_decoder)
                     # Source disconnected — attempt reconnection
                     success = await self._reconnect_with_backoff()
                     if not success:
@@ -401,6 +447,7 @@ class FrameExtractor:
                     # Reset backoff on successful reconnection
                     backoff_s = self._INITIAL_BACKOFF_S
                     frame_counter = 0
+                    capture_in_sync = True
                     continue
 
                 # Reset backoff on each successful frame read
@@ -444,6 +491,7 @@ class FrameExtractor:
             logger.error(f"Unexpected error in capture loop: {e}")
             await self._set_status(PipelineStatus.DISCONNECTED)
         finally:
+            self._close_decoder()
             self._release_capture()
             if self._status != PipelineStatus.STOPPED:
                 await self._set_status(PipelineStatus.STOPPED)
@@ -451,10 +499,11 @@ class FrameExtractor:
     def _advance(
         self, capture: cv2.VideoCapture, to_skip: int
     ) -> tuple[int, bool, np.ndarray | None]:
-        """Grab ``to_skip`` frames without decoding, then read one frame.
+        """Grab ``to_skip`` frames, then read one frame.
 
-        Runs in the executor. ``grab()`` demuxes without the decode and colour
-        conversion that ``read()`` does, so skipped frames cost far less.
+        Runs in the executor. ``grab()`` still decodes -- H.264 frames are
+        predicted from their neighbours -- but skips the colour conversion that
+        ``read()`` adds, which measured at 73-94% of read's cost on 1080p.
 
         Returns:
             (frames grabbed before the read, read success, decoded frame).
@@ -471,6 +520,124 @@ class FrameExtractor:
                 return grabbed, False, None
             ret, frame = capture.read()
         return grabbed, ret, frame
+
+    async def _decoder_for(
+        self, frame_counter: int, skip: int
+    ) -> ParallelFileDecoder | None:
+        """Return the parallel decoder to read from, or None to decode serially.
+
+        Starts one when the source seeks accurately and the skip interval is
+        long enough to pay for it, and restarts it from ``frame_counter`` when
+        the skip interval changes mid-run.
+        """
+        if self._decoder is not None and self._decoder.skip == skip:
+            return self._decoder
+
+        loop = asyncio.get_running_loop()
+        if self._decoder is not None:
+            await loop.run_in_executor(None, self._close_decoder)
+
+        plan = self._parallel_plan(skip)
+        if plan is None:
+            return None
+        if self._frame_count is None:
+            self._frame_count = await loop.run_in_executor(None, self._probe_seekable)
+        if not self._frame_count:
+            return None
+
+        assert self._config is not None
+        chunk, workers, threads = plan
+        # Same frames the serial path would keep: those with
+        # (frame_number + 1) a multiple of skip
+        first = frame_counter + skip - 1 - frame_counter % skip
+        self._decoder = ParallelFileDecoder(
+            self._config.source_url,
+            first_frame=first,
+            skip=skip,
+            workers=workers,
+            chunk_frames=chunk,
+            max_buffered=(workers + 1) * chunk,
+            threads_per_decoder=threads,
+            reported_frame_count=self._frame_count,
+        )
+        logger.info(
+            "Decoding in parallel from frame %d: %d decoders x %d threads, "
+            "%d kept frames per chunk.",
+            first, workers, threads, chunk,
+        )
+        return self._decoder
+
+    def _parallel_plan(self, skip: int) -> tuple[int, int, int] | None:
+        """Return (kept frames per chunk, decoders, FFmpeg threads per decoder).
+
+        Uses as many decoders as the memory budget allows while each chunk
+        still spans enough source to pay for its seek: more decoders mean
+        shorter chunks, so at shorter skip intervals fewer of them run. None
+        when parallel decoding is turned off or would not pay at this skip
+        interval even with two decoders (see _PARALLEL_* above).
+        """
+        assert self._config is not None
+        # More decoders than physical cores only fight over them
+        most = min(self._config.decode_workers, (os.cpu_count() or 2) // 2)
+        for workers in range(most, 1, -1):
+            chunk = min(
+                -(-_PARALLEL_CHUNK_SOURCE_FRAMES // skip),
+                _PARALLEL_MAX_BUFFERED // (workers + 1),
+            )
+            if chunk * skip >= _PARALLEL_MIN_CHUNK_SOURCE_FRAMES:
+                threads = max(1, (os.cpu_count() or 2) // workers)
+                return chunk, workers, threads
+        return None
+
+    def _probe_seekable(self) -> int:
+        """Return the source's frame count if it seeks accurately, else 0.
+
+        Runs in the executor. Only FFmpeg-backed sources qualify, so the
+        parallel decoders decode exactly what the serial path would; a live
+        stream reports no frame count. The check uses a capture of its own,
+        leaving the main one where it is.
+        """
+        assert self._config is not None
+        try:
+            with self._capture_lock:
+                backend = self._capture.getBackendName() if self._capture is not None else ""
+        except Exception:
+            return 0
+        if backend != "FFMPEG":
+            return 0
+
+        probe = cv2.VideoCapture(self._config.source_url, cv2.CAP_FFMPEG)
+        try:
+            total = int(probe.get(cv2.CAP_PROP_FRAME_COUNT))
+            if total <= 1:
+                return 0
+            for target in (total // 2, 0):
+                if not probe.set(cv2.CAP_PROP_POS_FRAMES, target):
+                    return 0
+                if int(probe.get(cv2.CAP_PROP_POS_FRAMES)) != target:
+                    return 0
+            return total
+        except Exception as e:
+            logger.warning(f"Seek check failed, decoding serially: {e}")
+            return 0
+        finally:
+            probe.release()
+
+    def _seek_capture(self, frame_number: int) -> None:
+        """Move the main capture to ``frame_number`` (runs in the executor).
+
+        Used when switching back from parallel to serial decoding, which only
+        happens on a source that passed _probe_seekable.
+        """
+        with self._capture_lock:
+            if self._capture is not None:
+                self._capture.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+
+    def _close_decoder(self) -> None:
+        """Stop the parallel decoder, if one is running."""
+        decoder, self._decoder = self._decoder, None
+        if decoder is not None:
+            decoder.close()
 
     def _locked_read(self, capture: cv2.VideoCapture) -> tuple[bool, np.ndarray | None]:
         """capture.read() under the capture lock (runs in the executor)."""
