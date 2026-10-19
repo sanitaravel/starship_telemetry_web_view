@@ -17,6 +17,7 @@ import torch
 from src.enums import OCRFieldStatus
 from src.gpu_detector import GPUCapabilities
 from src.models import ROIRect
+from src.ocr_batcher import BatchedRecognizer
 
 
 # Confidence threshold below which OCR results are marked UNAVAILABLE
@@ -47,6 +48,41 @@ _ALTITUDE_UNITS = {"KM": "KM", "MI": "MI", "FT": "FT"}
 _INK_MIN_LEVEL = 120
 _INK_RELATIVE_LEVEL = 0.6
 _INK_PADDING = 3
+
+# Fields whose text is static for long stretches of a flight: the unit labels
+# and the stage names. Their ROIs are also the widest, and the recogniser's
+# cost scales with ROI width rather than with how many ROIs are in the batch,
+# so re-reading them on every frame is where most of the OCR time went. They
+# are read once and then reused until their pixels change.
+_CACHEABLE_FIELDS = frozenset({
+    "speed_l_unit",
+    "speed_r_unit",
+    "altitude_l_unit",
+    "altitude_r_unit",
+    "stage_l",
+    "stage_r",
+    "stage_sep_text",
+})
+
+# The change detector reduces an ROI to the fraction of ink in each cell of a
+# rows x columns grid, and compares two of those by their L1 difference
+# relative to the ink they hold (see _signatures_match).
+#
+# An earlier version thresholded the grid to exact bits, and on compressed
+# video the bits at the edges of the letters flipped from frame to frame: it
+# missed 93% of unchanged ROIs on a busy H.264 scene, so the cache did nothing
+# where it mattered most. An absolute difference fixed that but scaled with
+# the amount of ink, so on thin, small text it missed real changes such as
+# KM -> MI. Relative to the ink, measured:
+#   unchanged ROIs, H.264 at 8 Mbit/s and 0.5 Mbit/s     <= 0.05
+#   unchanged 1px-stroke text under sigma=25 noise       <= 0.26
+#   any label change tried, thick or thin text           >= 0.67
+_SIGNATURE_GRID = (8, 32)
+_SIGNATURE_MAX_DIFF = 0.4
+
+# Re-read a cached field at least this often (in frames) even when its
+# signature has not changed, so a signature collision cannot persist.
+_CACHE_REFRESH_FRAMES = 150
 
 
 @dataclass
@@ -159,6 +195,38 @@ def _text_columns(gray: np.ndarray, x1: int, x2: int, y1: int, y2: int) -> tuple
     )
 
 
+def _roi_signature(
+    gray: np.ndarray, box: tuple[int, int, int, int]
+) -> np.ndarray | None:
+    """Return a noise-tolerant fingerprint of what is written in an ROI.
+
+    The crop is reduced to ink / no ink with the same level as
+    ``_text_columns``, which drops the background showing through the overlay,
+    and then averaged down to a fixed grid, which smooths out the letter edges
+    that flicker between compressed frames. Compare two fingerprints with
+    ``_signatures_match``. Returns None for an empty crop.
+    """
+    x1, y1, x2, y2 = box
+    crop = gray[y1:y2, x1:x2]
+    if crop.size == 0:
+        return None
+    level = max(_INK_MIN_LEVEL, int(crop.max()) * _INK_RELATIVE_LEVEL)
+    ink = (crop > level).astype(np.float32)
+    rows, cols = _SIGNATURE_GRID
+    return cv2.resize(ink, (cols, rows), interpolation=cv2.INTER_AREA)
+
+
+def _signatures_match(a: np.ndarray, b: np.ndarray) -> bool:
+    """Whether two ROI fingerprints show the same text.
+
+    The difference is taken relative to the ink in the fuller of the two, so
+    it reads the same for thin and bold text: 0 for identical text, 1 for text
+    against a blank ROI. Two blank ROIs match.
+    """
+    ink = max(float(a.sum()), float(b.sum()), 1.0)
+    return float(np.abs(a - b).sum()) / ink < _SIGNATURE_MAX_DIFF
+
+
 def _parse_numeric_value(text: str) -> float | None:
     """Parse a numeric value (speed or altitude) from OCR text.
 
@@ -214,16 +282,23 @@ def _get_allowlist(field_name: str) -> str | None:
     return None
 
 
-def configure_torch_threads(gpu_available: bool) -> None:
-    """Cap torch's intra-op threads when OCR runs on CPU.
+def configure_torch_threads() -> None:
+    """Cap torch's intra-op threads at one, on CPU and GPU alike.
 
-    The pipeline runs several OCR jobs at once, one per worker thread. If each
-    of them also fans out over torch's own thread pool, the cores are
+    Override with OCR_TORCH_THREADS.
+
+    On CPU, the pipeline runs several OCR jobs at once, one per worker thread.
+    If each of them also fans out over torch's own thread pool, the cores are
     oversubscribed and throughput collapses (measured roughly 10x lower than
-    single-threaded workers on a 4-core CPU). Override with OCR_TORCH_THREADS.
+    single-threaded workers on a 4-core CPU).
+
+    On GPU the model runs on the device and the CPU side is only small tensor
+    housekeeping, yet torch's OpenMP pool still spins after every op waiting
+    for the next one, and with a recogniser pass every 10-20 ms it never goes
+    to sleep. Measured on a 16-thread CPU at skip 30: its 7 workers burned 20%
+    of the process's CPU doing nothing, CPU the video decoders needed; capped,
+    throughput rose 52 -> 57 frames/s.
     """
-    if gpu_available:
-        return
     try:
         threads = int(os.environ.get("OCR_TORCH_THREADS", "1"))
     except ValueError:
@@ -255,7 +330,7 @@ class EasyOCREngine:
                 directly (``recognize``). Defaults to the ``OCR_USE_DETECTION``
                 environment variable, off unless set to 1/true/yes.
         """
-        configure_torch_threads(gpu_capabilities.gpu_available)
+        configure_torch_threads()
         # quantize=False: EasyOCR's dynamic int8 quantisation (CPU only) was
         # slower than the float model in local measurements, not faster.
         self.reader = easyocr.Reader(
@@ -268,9 +343,15 @@ class EasyOCREngine:
                 "1", "true", "yes",
             }
         self._use_detection = use_detection
-        self._gpu = gpu_capabilities.gpu_available
+        # One recogniser pass serves every frame in flight (see ocr_batcher)
+        self._batcher = BatchedRecognizer(self.reader)
         self._t_zero_detected: bool = False
         self._t_zero_lock = threading.Lock()
+        # field name -> (ROI signature, result, frame index it was read on).
+        # Shared by the OCR worker threads, so it is guarded by its own lock.
+        self._field_cache: dict[str, tuple[np.ndarray, OCRFieldResult, int]] = {}
+        self._cache_lock = threading.Lock()
+        self._frame_counter: int = 0
 
     def extract_text(
         self,
@@ -279,15 +360,12 @@ class EasyOCREngine:
     ) -> OCRResult:
         """Extract text from ROI regions.
 
-        Processes the 'time' region first. If the time region yields no text,
-        all other regions are skipped and marked UNAVAILABLE (early exit to
-        avoid wasting OCR cycles on frames without telemetry overlay).
-
-        For each remaining text region:
-        1. Crop frame to ROI rect
-        2. Call self.reader.readtext(cropped_image) to get text predictions
-        3. Parse result based on field type (float for speed/altitude, time format)
-        4. If confidence is low or no text detected → mark UNAVAILABLE
+        Before T-0 only the time ROI is read, since nothing is emitted until it
+        reads 00:00:00. After T-0 every ROI goes to the recogniser in a single
+        batched pass: with the batcher, carrying the value ROIs along costs
+        almost nothing, while a second pass per frame costs a whole recogniser
+        invocation. A frame whose time ROI holds no text still reports nothing,
+        it just finds that out after the pass rather than before it.
 
         Args:
             frame: BGR numpy array (1920x1080)
@@ -296,104 +374,114 @@ class EasyOCREngine:
         Returns:
             OCRResult with extraction results for all text fields
         """
-        unavailable = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+        if self._use_detection:
+            return self._extract_with_detection(frame, text_regions)
+
+        gray = _to_gray(frame)
+        # One index per frame, so the cache refresh interval below counts
+        # frames rather than recognition passes.
+        frame_index = self._next_frame_index()
+
+        with self._t_zero_lock:
+            t_zero_was_detected = self._t_zero_detected
+
+        # Nothing to gate on when the caller did not ask for the time ROI
+        if not t_zero_was_detected and "time" in text_regions:
+            gate = self._recognize_fields(
+                gray, {"time": text_regions["time"]}, frame_index
+            )["time"]
+            if not (
+                gate.status == OCRFieldStatus.AVAILABLE
+                and gate.parsed_value == "00:00:00"
+            ):
+                # T-0 not yet seen — nothing is emitted from this frame
+                return self._all_unavailable()
+            with self._t_zero_lock:
+                self._t_zero_detected = True
+            # This is the T-0 frame: keep the 00:00:00 just read and read the
+            # rest, rather than reading the time ROI again in another batch
+            others = {k: v for k, v in text_regions.items() if k != "time"}
+            field_results = {**self._recognize_fields(gray, others, frame_index), "time": gate}
+        else:
+            field_results = self._recognize_fields(gray, text_regions, frame_index)
+        return self._with_mission_time(field_results, text_regions)
+
+    def _extract_with_detection(
+        self,
+        frame: np.ndarray,
+        text_regions: dict[str, ROIRect],
+    ) -> OCRResult:
+        """Extract text by running CRAFT detection on each ROI in turn.
+
+        The debug path (``OCR_USE_DETECTION``): every ROI is read on its own,
+        so the time ROI still gates the rest to avoid wasting detections.
+        """
         field_results: dict[str, OCRFieldResult] = {}
-
-        # Process time ROI first as a gate check
         if "time" in text_regions:
-            time_result = self._process_field(
-                frame, "time", text_regions["time"]
-            )
-
-            # Read T-0 state under lock (first check of double-check pattern)
             with self._t_zero_lock:
                 t_zero_was_detected = self._t_zero_detected
-
-            # T-0 detection: wait for 00:00:00 before emitting telemetry
+            gate = self._process_field(frame, "time", text_regions["time"])
             if not t_zero_was_detected:
-                if (
-                    time_result.status == OCRFieldStatus.AVAILABLE
-                    and time_result.parsed_value == "00:00:00"
+                if not (
+                    gate.status == OCRFieldStatus.AVAILABLE
+                    and gate.parsed_value == "00:00:00"
                 ):
-                    # Double-check locking: acquire lock and verify state
-                    with self._t_zero_lock:
-                        if not self._t_zero_detected:
-                            self._t_zero_detected = True
-                    # Mark as T+00:00:00 for the output
-                    time_result = OCRFieldResult(
-                        status=OCRFieldStatus.AVAILABLE,
-                        raw_text=time_result.raw_text,
-                        parsed_value="T+00:00:00",
-                    )
-                else:
-                    # T-0 not yet seen — skip all fields
-                    return OCRResult(
-                        time=unavailable,
-                        speed_l=unavailable,
-                        speed_l_unit=unavailable,
-                        speed_r=unavailable,
-                        speed_r_unit=unavailable,
-                        altitude_l=unavailable,
-                        altitude_l_unit=unavailable,
-                        altitude_r=unavailable,
-                        altitude_r_unit=unavailable,
-                        stage_l=unavailable,
-                        stage_r=unavailable,
-                        stage_sep_text=unavailable,
-                    )
-            else:
-                # T-0 already detected — prefix parsed time with T+
-                if time_result.status == OCRFieldStatus.AVAILABLE and time_result.parsed_value:
-                    time_result = OCRFieldResult(
-                        status=OCRFieldStatus.AVAILABLE,
-                        raw_text=time_result.raw_text,
-                        parsed_value=f"T+{time_result.parsed_value}",
-                    )
+                    return self._all_unavailable()
+                with self._t_zero_lock:
+                    self._t_zero_detected = True
+            field_results["time"] = gate
+            if gate.status != OCRFieldStatus.AVAILABLE:
+                return self._with_mission_time(field_results, text_regions)
 
-            field_results["time"] = time_result
+        for field_name, roi in text_regions.items():
+            if field_name != "time":
+                field_results[field_name] = self._process_field(frame, field_name, roi)
+        return self._with_mission_time(field_results, text_regions)
 
-            # Early exit: if time has no text, skip all other regions
-            if time_result.status != OCRFieldStatus.AVAILABLE:
-                return OCRResult(
-                    time=time_result,
-                    speed_l=unavailable,
-                    speed_l_unit=unavailable,
-                    speed_r=unavailable,
-                    speed_r_unit=unavailable,
-                    altitude_l=unavailable,
-                    altitude_l_unit=unavailable,
-                    altitude_r=unavailable,
-                    altitude_r_unit=unavailable,
-                    stage_l=unavailable,
-                    stage_r=unavailable,
-                    stage_sep_text=unavailable,
-                )
+    def _with_mission_time(
+        self,
+        field_results: dict[str, OCRFieldResult],
+        text_regions: dict[str, ROIRect],
+    ) -> OCRResult:
+        """Prefix the read time with T+ and assemble the per-field result.
 
-        # Process remaining text regions
-        remaining = {k: v for k, v in text_regions.items() if k != "time"}
-        if self._use_detection:
-            for field_name, roi in remaining.items():
-                field_results[field_name] = self._process_field(
-                    frame, field_name, roi
-                )
-        else:
-            field_results.update(self._recognize_fields(frame, remaining))
-
-        # Build OCRResult, using UNAVAILABLE for any fields not in text_regions
-        return OCRResult(
-            time=field_results.get("time", unavailable),
-            speed_l=field_results.get("speed_l", unavailable),
-            speed_l_unit=field_results.get("speed_l_unit", unavailable),
-            speed_r=field_results.get("speed_r", unavailable),
-            speed_r_unit=field_results.get("speed_r_unit", unavailable),
-            altitude_l=field_results.get("altitude_l", unavailable),
-            altitude_l_unit=field_results.get("altitude_l_unit", unavailable),
-            altitude_r=field_results.get("altitude_r", unavailable),
-            altitude_r_unit=field_results.get("altitude_r_unit", unavailable),
-            stage_l=field_results.get("stage_l", unavailable),
-            stage_r=field_results.get("stage_r", unavailable),
-            stage_sep_text=field_results.get("stage_sep_text", unavailable),
+        A frame whose time ROI holds no text carries no telemetry, so every
+        other field is reported UNAVAILABLE even when it was recognised. When
+        the caller never asked for the time ROI there is nothing to gate on and
+        the fields are reported as read.
+        """
+        unavailable = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+        if "time" not in text_regions:
+            return self._build_result(field_results)
+        time_result = field_results.get("time", unavailable)
+        if time_result.status != OCRFieldStatus.AVAILABLE or not time_result.parsed_value:
+            return self._all_unavailable(time=time_result)
+        return self._build_result(
+            {
+                **field_results,
+                "time": OCRFieldResult(
+                    status=OCRFieldStatus.AVAILABLE,
+                    raw_text=time_result.raw_text,
+                    parsed_value=f"T+{time_result.parsed_value}",
+                ),
+            }
         )
+
+    @staticmethod
+    def _build_result(field_results: dict[str, OCRFieldResult]) -> OCRResult:
+        """Assemble an OCRResult, defaulting any absent field to UNAVAILABLE."""
+        unavailable = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+        return OCRResult(
+            **{
+                name: field_results.get(name, unavailable)
+                for name in OCRResult.__dataclass_fields__
+            }
+        )
+
+    @staticmethod
+    def _all_unavailable(time: OCRFieldResult | None = None) -> OCRResult:
+        """An OCRResult carrying no telemetry, optionally keeping the time read."""
+        return EasyOCREngine._build_result({"time": time} if time is not None else {})
 
     def _process_field(
         self,
@@ -401,7 +489,10 @@ class EasyOCREngine:
         field_name: str,
         roi: ROIRect,
     ) -> OCRFieldResult:
-        """Process a single text field: crop, OCR, and parse.
+        """Read one ROI with CRAFT detection, then parse it.
+
+        Only the detection path uses this; the recognition path batches its
+        ROIs instead (see ``_recognize_fields``).
 
         Args:
             frame: Full BGR frame
@@ -411,34 +502,11 @@ class EasyOCREngine:
         Returns:
             OCRFieldResult with appropriate status and parsed value
         """
-        # Step 1: Crop frame to ROI
         cropped = _crop_frame_to_roi(frame, roi)
-
         if cropped.size == 0:
             return OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
 
-        # Step 3: Run EasyOCR on cropped region
-        allowlist = _get_allowlist(field_name)
-        if self._use_detection:
-            results = self.reader.readtext(cropped, allowlist=allowlist)
-        else:
-            gray = _to_gray(cropped)
-            h, w = gray.shape
-            x_min, x_max = 0, w
-            if _is_unit_field(field_name) or _is_numeric_field(field_name):
-                columns = _text_columns(gray, 0, w, 0, h)
-                if columns is None:
-                    return OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
-                x_min, x_max = columns
-            results = self.reader.recognize(
-                gray,
-                horizontal_list=[[x_min, x_max, 0, h]],
-                free_list=[],
-                allowlist=allowlist,
-                reformat=False,
-            )
-
-        # Step 4: Extract best result
+        results = self.reader.readtext(cropped, allowlist=_get_allowlist(field_name))
         if not results:
             return OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
 
@@ -449,18 +517,25 @@ class EasyOCREngine:
 
     def _recognize_fields(
         self,
-        frame: np.ndarray,
+        gray: np.ndarray,
         regions: dict[str, ROIRect],
+        frame_index: int,
     ) -> dict[str, OCRFieldResult]:
-        """Recognise several fixed ROIs with one ``recognize`` call per allowlist.
+        """Recognise several fixed ROIs, batched with the other frames in flight.
 
         The ROIs are fixed boxes, so CRAFT detection is skipped and the
-        recogniser runs on each box directly. Fields that share an allowlist
-        go into the same call, which EasyOCR batches on GPU.
+        recogniser runs on each box directly. All of them go to the batcher in
+        one request, which runs them through the model together with the ROIs
+        of every other frame being processed right now (see ``ocr_batcher``).
+
+        Fields in ``_CACHEABLE_FIELDS`` are kept out of the call entirely while
+        their pixels are unchanged (see ``_roi_signature``), which is most of a
+        flight. Only the detection path (``_use_detection``) is left uncached.
 
         Args:
-            frame: Full BGR frame
+            gray: Full grayscale frame
             regions: Field names mapped to their ROI rectangles
+            frame_index: This frame's index, for the cache refresh interval
 
         Returns:
             Field names mapped to their OCRFieldResult
@@ -468,47 +543,91 @@ class EasyOCREngine:
         if not regions:
             return {}
 
-        gray = _to_gray(frame)
-        groups: dict[str | None, list[tuple[str, tuple[int, int, int, int]]]] = {}
+        pending: list[str] = []
+        items: list[tuple[list[int], str | None]] = []
         results: dict[str, OCRFieldResult] = {}
+        signatures: dict[str, np.ndarray] = {}
         for field_name, roi in regions.items():
             x1, y1, x2, y2 = _roi_bounds(gray, roi)
             if x2 <= x1 or y2 <= y1:
                 results[field_name] = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
                 continue
+            # Fingerprint the fixed ROI, not the box narrowed to its text: the
+            # narrowed edges move with the noise around the letters.
+            signature = None
+            if field_name in _CACHEABLE_FIELDS:
+                signature = _roi_signature(gray, (x1, y1, x2, y2))
+                cached = self._cached_result(field_name, signature, frame_index)
+                if cached is not None:
+                    results[field_name] = cached
+                    continue
             if _is_unit_field(field_name) or _is_numeric_field(field_name):
                 columns = _text_columns(gray, x1, x2, y1, y2)
                 if columns is None:
                     results[field_name] = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
                     continue
                 x1, x2 = columns
-            groups.setdefault(_get_allowlist(field_name), []).append(
-                (field_name, (x1, y1, x2, y2))
-            )
+            if signature is not None:
+                signatures[field_name] = signature
+            pending.append(field_name)
+            items.append(([x1, x2, y1, y2], _get_allowlist(field_name)))
 
-        for allowlist, fields in groups.items():
-            predictions = self.reader.recognize(
-                gray,
-                horizontal_list=[[x1, x2, y1, y2] for _, (x1, y1, x2, y2) in fields],
-                free_list=[],
-                allowlist=allowlist,
-                batch_size=len(fields) if self._gpu else 1,
-                reformat=False,
-            )
-            # EasyOCR may reorder boxes, so match predictions back to fields
-            # by each box's top-left corner.
-            by_corner = {
-                (int(box[0][0]), int(box[0][1])): (text, confidence)
-                for box, text, confidence in predictions
-            }
-            for field_name, (x1, y1, _, _) in fields:
-                prediction = by_corner.get((x1, y1))
-                if prediction is None:
-                    results[field_name] = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
-                else:
-                    results[field_name] = self._build_field_result(field_name, *prediction)
+        # Every ROI of this frame goes over in one request, so the frame waits
+        # for a single batch however many allowlists it needs
+        predictions = self._batcher.recognize(gray, items)
+        # The batcher answers in the order the boxes were handed over
+        for field_name, prediction in zip(pending, predictions):
+            if prediction is None:
+                result = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+            else:
+                _, text, confidence = prediction
+                result = self._build_field_result(field_name, text, confidence)
+            results[field_name] = result
+            if field_name in signatures:
+                self._store_result(
+                    field_name, signatures[field_name], result, frame_index
+                )
 
         return results
+
+    def _next_frame_index(self) -> int:
+        """Allocate this frame's index for the cache refresh interval."""
+        with self._cache_lock:
+            self._frame_counter += 1
+            return self._frame_counter
+
+    def _cached_result(
+        self, field_name: str, signature: np.ndarray | None, frame_index: int
+    ) -> OCRFieldResult | None:
+        """Return the stored result for an unchanged ROI, or None to read it.
+
+        A cached field is re-read when its signature changes and at least every
+        ``_CACHE_REFRESH_FRAMES`` frames regardless, so a stale entry cannot
+        outlive a change the signature failed to register.
+        """
+        if signature is None:
+            return None
+        with self._cache_lock:
+            entry = self._field_cache.get(field_name)
+            if entry is not None:
+                cached_signature, result, stored_at = entry
+                if (
+                    _signatures_match(cached_signature, signature)
+                    and frame_index - stored_at < _CACHE_REFRESH_FRAMES
+                ):
+                    return result
+            return None
+
+    def _store_result(
+        self,
+        field_name: str,
+        signature: np.ndarray,
+        result: OCRFieldResult,
+        frame_index: int,
+    ) -> None:
+        """Remember a freshly recognised result against its ROI signature."""
+        with self._cache_lock:
+            self._field_cache[field_name] = (signature, result, frame_index)
 
     def _build_field_result(
         self, field_name: str, text: str, confidence: float
@@ -563,9 +682,12 @@ class EasyOCREngine:
             return raw_text
 
     def reset(self) -> None:
-        """Reset T-0 detection state for a new pipeline run."""
+        """Reset T-0 detection and the static-ROI cache for a new pipeline run."""
         with self._t_zero_lock:
             self._t_zero_detected = False
+        with self._cache_lock:
+            self._field_cache.clear()
+            self._frame_counter = 0
 
     @property
     def t_zero_detected(self) -> bool:
