@@ -50,5 +50,7 @@ htmlcov/
 
 # Folders
 # results_previous/ is tracked via Git LFS (see .gitattributes)
+# Per-mission engine settings saved by the dashboard, kept local for now
+missions/
 # Claude Code worktrees (local checkouts, never committed)
 .claude/worktrees/

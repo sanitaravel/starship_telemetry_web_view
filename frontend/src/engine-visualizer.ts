@@ -1,4 +1,7 @@
 import type { StateManager, AppState } from './state';
+import { CurrentMission, type Vehicle } from './current-mission';
+import { EngineSerials } from './engine-serials';
+import { createSettingsButton, toggleEngineSettings, type EngineGroup } from './engine-settings';
 
 type EngineStatus = 'active' | 'inactive' | 'undetected';
 
@@ -21,6 +24,29 @@ const STARSHIP_ENGINES: EnginePosition[] = [
   { id: 'ss_e4', cx: 69, cy: 15, r: 14.5 },
   { id: 'ss_e5', cx: 42, cy: 61, r: 14.5 },
   { id: 'ss_e6', cx: 15, cy: 15, r: 14.5 },
+];
+
+/** A settings panel group of engines `first`..`last` of a vehicle, e.g. ss_e1..ss_e3. */
+function engineGroup(title: string, prefix: 'ss' | 'sh', first: number, last: number): EngineGroup {
+  const engines = [];
+  for (let n = first; n <= last; n++) {
+    const id = `${prefix}_e${n}`;
+    engines.push({ id, label: engineLabel(id) });
+  }
+  return { title, engines };
+}
+
+/** Starship's engines as the settings panel lists them. */
+const STARSHIP_ENGINE_GROUPS: EngineGroup[] = [
+  engineGroup('Sea level', 'ss', 1, 3),
+  engineGroup('Vacuum', 'ss', 4, 6),
+];
+
+/** Super Heavy's engines as the settings panel lists them, ring by ring. */
+const SUPERHEAVY_ENGINE_GROUPS: EngineGroup[] = [
+  engineGroup('Inner ring', 'sh', 1, 3),
+  engineGroup('Middle ring', 'sh', 4, 13),
+  engineGroup('Outer ring', 'sh', 14, 33),
 ];
 
 /** Super Heavy engine layout (native 96×96 coordinate space, from superheavy_engine_diagram.svg) */
@@ -81,6 +107,22 @@ const SUPERHEAVY_NATIVE = 96;
 const STARSHIP_NATIVE_W = 84;
 const STARSHIP_NATIVE_H = 76;
 
+/** "ss_e6" -> "E6": the engine id without its vehicle prefix. */
+function engineLabel(id: string): string {
+  return id.replace(/^(ss|sh)_/, '').toUpperCase();
+}
+
+/**
+ * Font size that fits `label` inside a circle of radius `r`.
+ * For monospace, approximate char width ≈ 0.6 * fontSize; text must fit
+ * within ~1.6 * r of usable horizontal space.
+ */
+function fitFontSize(label: string, r: number): number {
+  const maxWidthBasedSize = (r * 1.6) / (label.length * 0.6);
+  const maxHeightBasedSize = r * 1.0;
+  return Math.min(maxWidthBasedSize, maxHeightBasedSize);
+}
+
 /**
  * Returns the fill color for an engine status.
  */
@@ -126,13 +168,35 @@ export class EngineVisualizer {
   private starshipSvg!: SVGSVGElement;
   private superheavyCircles: Map<string, SVGGElement> = new Map();
   private starshipCircles: Map<string, SVGGElement> = new Map();
+  /** Serial numbers entered for this mission's engines, per vehicle. */
+  private readonly serials: Record<Vehicle, EngineSerials>;
+  /** The mission, ship and booster those serials belong to, saved to the mission's file. */
+  private readonly mission: CurrentMission;
+  private unsubscribeSerials: (() => void)[] = [];
+  private tooltip!: HTMLElement;
+  private tooltipLabel!: HTMLElement;
+  private tooltipSerial!: HTMLElement;
+  private hoveredEngine: SVGGElement | null = null;
 
-  constructor(container: HTMLElement, stateManager: StateManager) {
+  constructor(
+    container: HTMLElement,
+    stateManager: StateManager,
+    serials: Record<Vehicle, EngineSerials> = {
+      starship: new EngineSerials('starship'),
+      superheavy: new EngineSerials('superheavy'),
+    },
+    mission: CurrentMission = new CurrentMission(serials)
+  ) {
     this.container = container;
     this.stateManager = stateManager;
+    this.serials = serials;
+    this.mission = mission;
 
     this.render();
     this.subscribeToState();
+    this.unsubscribeSerials = (['starship', 'superheavy'] as const).map((vehicle) =>
+      serials[vehicle].subscribe(() => this.labelEngines(vehicle))
+    );
     this.update(this.stateManager.getState());
   }
 
@@ -152,6 +216,15 @@ export class EngineVisualizer {
     superheavyTitle.textContent = 'SUPER HEAVY';
     superheavySection.appendChild(superheavyTitle);
 
+    superheavySection.appendChild(
+      this.createSettingsButton('Super Heavy', {
+        title: 'Super Heavy engines',
+        groups: SUPERHEAVY_ENGINE_GROUPS,
+        vehicle: 'superheavy',
+        wide: true,
+      })
+    );
+
     this.superheavySvg = this.createSuperHeavySvg();
     superheavySection.appendChild(this.superheavySvg);
 
@@ -164,8 +237,22 @@ export class EngineVisualizer {
     starshipTitle.textContent = 'STARSHIP';
     starshipSection.appendChild(starshipTitle);
 
+    starshipSection.appendChild(
+      this.createSettingsButton('Starship', {
+        title: 'Starship engines',
+        groups: STARSHIP_ENGINE_GROUPS,
+        vehicle: 'starship',
+      })
+    );
+
     this.starshipSvg = this.createStarshipSvg();
     starshipSection.appendChild(this.starshipSvg);
+
+    this.createTooltip();
+    this.attachTooltip(this.superheavySvg);
+    this.attachTooltip(this.starshipSvg);
+    this.labelEngines('superheavy');
+    this.labelEngines('starship');
 
     this.container.appendChild(superheavySection);
     this.container.appendChild(starshipSection);
@@ -173,6 +260,18 @@ export class EngineVisualizer {
     // Legend
     const legend = this.createLegend();
     this.container.appendChild(legend);
+  }
+
+  /** Gear opening a vehicle's engine settings; both vehicles share the mission. */
+  private createSettingsButton(
+    vehicleName: string,
+    panel: { title: string; groups: EngineGroup[]; vehicle: Vehicle; wide?: boolean }
+  ): HTMLButtonElement {
+    const button = createSettingsButton(vehicleName);
+    button.addEventListener('click', () =>
+      toggleEngineSettings(button, { ...panel, serials: this.serials[panel.vehicle], mission: this.mission })
+    );
+    return button;
   }
 
   /**
@@ -273,32 +372,99 @@ export class EngineVisualizer {
     circle.setAttribute('stroke', getStatusStroke(status));
     circle.setAttribute('stroke-width', '0.5');
 
-    // Display label: strip vehicle prefix (ss_/sh_) for cleaner display
-    const displayLabel = engine.id.replace(/^(ss|sh)_/, '').toUpperCase();
-
-    // Scale font-size to fit inside the circle.
-    // For monospace, approximate char width ≈ 0.6 * fontSize.
-    // Text must fit within ~1.6 * r (usable horizontal space).
-    const charCount = displayLabel.length;
-    const maxWidthBasedSize = (engine.r * 1.6) / (charCount * 0.6);
-    const maxHeightBasedSize = engine.r * 1.0;
-    const fontSize = Math.min(maxWidthBasedSize, maxHeightBasedSize);
-
     const text = document.createElementNS(SVG_NS, 'text');
     text.setAttribute('x', String(engine.cx));
     text.setAttribute('y', String(engine.cy));
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dominant-baseline', 'central');
     text.setAttribute('fill', '#FEFEFE');
-    text.setAttribute('font-size', String(fontSize.toFixed(2)));
     text.setAttribute('font-family', "'JetBrains Mono', monospace");
     text.setAttribute('font-weight', '500');
-    text.textContent = displayLabel;
 
+    const label = engineLabel(engine.id);
+    text.setAttribute('font-size', fitFontSize(label, engine.r).toFixed(2));
+    text.textContent = label;
+
+    group.dataset.label = label;
+    group.setAttribute('role', 'img');
+    group.setAttribute('aria-label', label);
     group.appendChild(circle);
     group.appendChild(text);
 
     return { circle: group };
+  }
+
+  /**
+   * Attaches each of a vehicle's engine serials to its circle. The circle
+   * keeps showing its E-number; the serial appears in the hover tooltip.
+   */
+  private labelEngines(vehicle: Vehicle): void {
+    const circles = vehicle === 'starship' ? this.starshipCircles : this.superheavyCircles;
+    for (const [id, group] of circles) {
+      const serial = this.serials[vehicle].get(id);
+      const label = group.dataset.label!;
+      if (serial) {
+        group.dataset.serial = serial;
+        group.setAttribute('aria-label', `${label}, serial ${serial}`);
+      } else {
+        delete group.dataset.serial;
+        group.setAttribute('aria-label', label);
+      }
+    }
+    // Keep an open tooltip in step with the serial under the pointer
+    if (this.hoveredEngine) this.showTooltip(this.hoveredEngine);
+  }
+
+  /** Shows the serial of the engine under the pointer, above its circle. */
+  private showTooltip(group: SVGGElement): void {
+    this.hoveredEngine = group;
+    const serial = group.dataset.serial;
+    if (!serial) {
+      this.tooltip.hidden = true;
+      return;
+    }
+    this.tooltipLabel.textContent = group.dataset.label!;
+    this.tooltipSerial.textContent = serial;
+    this.tooltip.hidden = false;
+
+    const rect = group.querySelector('circle')!.getBoundingClientRect();
+    const { offsetWidth: width, offsetHeight: height } = this.tooltip;
+    const margin = 8;
+    const left = rect.left + rect.width / 2 - width / 2;
+    const above = rect.top - height - 6;
+    const top = above < margin ? rect.bottom + 6 : above;
+    this.tooltip.style.left = `${Math.min(Math.max(margin, left), window.innerWidth - width - margin)}px`;
+    this.tooltip.style.top = `${top}px`;
+  }
+
+  private hideTooltip(): void {
+    this.hoveredEngine = null;
+    this.tooltip.hidden = true;
+  }
+
+  /** The one tooltip both diagrams share. */
+  private createTooltip(): void {
+    this.tooltip = document.createElement('div');
+    this.tooltip.className = 'engine-tooltip';
+    this.tooltip.setAttribute('role', 'tooltip');
+    this.tooltip.hidden = true;
+    this.tooltipLabel = document.createElement('span');
+    this.tooltipLabel.className = 'engine-tooltip__engine';
+    this.tooltipSerial = document.createElement('span');
+    this.tooltipSerial.className = 'engine-tooltip__serial';
+    this.tooltip.append(this.tooltipLabel, this.tooltipSerial);
+    document.body.appendChild(this.tooltip);
+  }
+
+  /** Hovering an engine with a serial shows it straight away. */
+  private attachTooltip(svg: SVGSVGElement): void {
+    // Every <g> in this diagram is one engine (circle + label)
+    svg.addEventListener('pointerover', (e) => {
+      const group = (e.target as Element).closest('g');
+      if (group) this.showTooltip(group);
+      else this.hideTooltip();
+    });
+    svg.addEventListener('pointerleave', () => this.hideTooltip());
   }
 
   /**
@@ -368,5 +534,8 @@ export class EngineVisualizer {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+    for (const unsubscribe of this.unsubscribeSerials) unsubscribe();
+    this.unsubscribeSerials = [];
+    this.tooltip.remove();
   }
 }

@@ -32,7 +32,7 @@ from src.logging_context import correlation_id_var
 from src.pipeline import PipelineOrchestrator
 from src.template_registry import TemplateRegistry, load_default_template
 from src.version import get_version
-from src import previous_flights, trajectories
+from src import missions, previous_flights, trajectories
 
 # Initialize structured logging before any HTTP/WebSocket processing
 configure_logging()
@@ -335,6 +335,43 @@ def create_app() -> FastAPI:
                 content={"detail": f"Trajectory '{name}' not found."},
             )
         return points
+
+    # --- Mission Settings Endpoints ---
+    # One JSON file per mission in missions/ (see missions.py).
+
+    @app.get("/api/missions")
+    def list_missions() -> list[dict[str, Any]]:
+        """List saved missions as ``{id, mission, ship, updated_at}``, newest first."""
+        return missions.list_missions(missions.MISSIONS_DIR)
+
+    @app.get("/api/missions/{mission_id}")
+    def get_mission(mission_id: str) -> Any:
+        """Serve one mission's settings, engine serials included."""
+        record = missions.load_mission(mission_id, missions.MISSIONS_DIR)
+        if record is None:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": f"Mission '{mission_id}' not found."},
+            )
+        return record
+
+    @app.put("/api/missions/{mission_id}")
+    def put_mission(mission_id: str, settings: missions.MissionSettings) -> Any:
+        """Save a mission's settings to its file, replacing what was there.
+
+        The id must be the one the mission name maps to (``IFT 14`` ->
+        ``ift-14``), so a mission always lives in the file named after it.
+        """
+        expected = missions.mission_id(settings.mission)
+        if mission_id != expected:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "detail": f"Mission '{settings.mission}' is saved as '{expected}', "
+                    f"not '{mission_id}'."
+                },
+            )
+        return missions.save_mission(settings, missions.MISSIONS_DIR)
 
     @app.get("/api/status")
     async def get_pipeline_status() -> dict[str, Any]:
