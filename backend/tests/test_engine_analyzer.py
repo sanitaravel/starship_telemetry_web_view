@@ -1,14 +1,15 @@
 """Property-based tests for the Engine Analyzer module.
 
-Tests Properties 4, 5, and 6 from the design document:
+Tests Properties 4 and 6 from the design document, plus the icon check and
+panel gate:
 - Property 4: Engine Color Classification Correctness
-- Property 5: Circle Position Matching Determinism
 - Property 6: Engine Status Map Completeness
 
-**Validates: Requirements 3.4, 3.6, 3.7, 3.9**
-"""
+Property 5 (circle position matching) no longer applies: engines are checked
+at their fixed template positions instead of matched from Hough circles.
 
-from collections import Counter
+**Validates: Requirements 3.4, 3.6, 3.9**
+"""
 
 import cv2
 import numpy as np
@@ -19,9 +20,7 @@ from src.engine_analyzer import (
     EngineAnalyzerConfig,
     EngineAnalysisResult,
     _classify_engine_color,
-    _detect_circles,
     _looks_like_engine_icon,
-    _match_circles_to_positions,
     analyze_engines,
 )
 from src.enums import EngineStatus
@@ -39,38 +38,6 @@ def hsv_value_strategy():
 def hsv_saturation_strategy():
     """Strategy for HSV Saturation channel (0-255)."""
     return st.floats(min_value=0.0, max_value=255.0, allow_nan=False, allow_infinity=False)
-
-
-def circle_position_strategy():
-    """Strategy for generating circle positions within a reasonable frame area."""
-    return st.tuples(
-        st.floats(min_value=10.0, max_value=1900.0, allow_nan=False, allow_infinity=False),
-        st.floats(min_value=10.0, max_value=1060.0, allow_nan=False, allow_infinity=False),
-        st.floats(min_value=3.0, max_value=15.0, allow_nan=False, allow_infinity=False),
-    )
-
-
-def expected_position_strategy():
-    """Strategy for generating expected SVG positions with unique engine IDs and expected radius."""
-    return st.tuples(
-        st.text(
-            alphabet=st.sampled_from("abcdefghijklmnopqrstuvwxyz0123456789_"),
-            min_size=2,
-            max_size=6,
-        ),
-        st.floats(min_value=10.0, max_value=1900.0, allow_nan=False, allow_infinity=False),
-        st.floats(min_value=10.0, max_value=1060.0, allow_nan=False, allow_infinity=False),
-        st.floats(min_value=3.0, max_value=15.0, allow_nan=False, allow_infinity=False),
-    )
-
-
-def unique_expected_positions_strategy(min_size=1, max_size=10):
-    """Strategy for lists of expected positions with unique engine IDs."""
-    return st.lists(
-        expected_position_strategy(),
-        min_size=min_size,
-        max_size=max_size,
-    ).filter(lambda positions: len(set(p[0] for p in positions)) == len(positions))
 
 
 def engine_circles_strategy(n: int, bbox_x: float, bbox_y: float, bbox_w: float, bbox_h: float):
@@ -193,87 +160,6 @@ class TestEngineColorClassification:
             circle_radius=5.0, config=config,
         )
         assert result == EngineStatus.INACTIVE
-
-
-# ─── Property 5: Circle Position Matching Determinism ─────────────────────────
-# **Validates: Requirements 3.7**
-
-class TestCirclePositionMatchingDeterminism:
-    """Property 5: Circle Position Matching Determinism.
-
-    For any set of detected circle positions and expected SVG circle positions
-    with a given distance tolerance, the matching algorithm SHALL be deterministic —
-    running it twice on the same inputs produces the same matched pairs.
-    """
-
-    @given(
-        detected_circles=st.lists(
-            circle_position_strategy(),
-            min_size=0,
-            max_size=15,
-        ),
-        expected_positions=unique_expected_positions_strategy(min_size=1, max_size=15),
-        distance_tolerance=st.floats(min_value=1.0, max_value=50.0, allow_nan=False, allow_infinity=False),
-    )
-    def test_matching_is_deterministic(self, detected_circles, expected_positions, distance_tolerance):
-        """Running _match_circles_to_positions twice on same inputs produces identical results."""
-        radius_tolerance = 50.0  # large tolerance so radius doesn't filter in determinism test
-        result1 = _match_circles_to_positions(
-            detected_circles, expected_positions, distance_tolerance, radius_tolerance
-        )
-        result2 = _match_circles_to_positions(
-            detected_circles, expected_positions, distance_tolerance, radius_tolerance
-        )
-
-        assert result1 == result2
-
-    @given(
-        detected_circles=st.lists(
-            circle_position_strategy(),
-            min_size=0,
-            max_size=15,
-        ),
-        expected_positions=unique_expected_positions_strategy(min_size=1, max_size=15),
-        distance_tolerance=st.floats(min_value=1.0, max_value=50.0, allow_nan=False, allow_infinity=False),
-    )
-    def test_matching_returns_all_expected_keys(self, detected_circles, expected_positions, distance_tolerance):
-        """Result always contains an entry for every expected engine ID."""
-        radius_tolerance = 50.0  # large tolerance so radius doesn't filter in key completeness test
-        result = _match_circles_to_positions(
-            detected_circles, expected_positions, distance_tolerance, radius_tolerance
-        )
-
-        expected_ids = {eid for eid, _, _, _ in expected_positions}
-        assert set(result.keys()) == expected_ids
-
-    @given(
-        detected_circles=st.lists(
-            circle_position_strategy(),
-            min_size=0,
-            max_size=15,
-        ),
-        expected_positions=unique_expected_positions_strategy(min_size=1, max_size=15),
-        distance_tolerance=st.floats(min_value=1.0, max_value=50.0, allow_nan=False, allow_infinity=False),
-    )
-    def test_no_detected_circle_matched_twice(self, detected_circles, expected_positions, distance_tolerance):
-        """Each detected circle is matched to at most one expected position."""
-        radius_tolerance = 50.0  # large tolerance so radius doesn't filter in uniqueness test
-        result = _match_circles_to_positions(
-            detected_circles, expected_positions, distance_tolerance, radius_tolerance
-        )
-
-        matched_circles = [v for v in result.values() if v is not None]
-        # The function returns circle tuples, not indices, and detected_circles
-        # may contain identical tuples. "No detected circle used twice" is
-        # therefore a multiset property: each distinct tuple may appear among
-        # the matches at most as many times as it was detected.
-        matched_counts = Counter(matched_circles)
-        detected_counts = Counter(detected_circles)
-        for circle, count in matched_counts.items():
-            assert count <= detected_counts[circle], (
-                f"circle {circle} matched {count} times but detected "
-                f"only {detected_counts[circle]} times"
-            )
 
 
 # ─── Property 6: Engine Status Map Completeness ───────────────────────────────
@@ -564,7 +450,7 @@ class TestEnginePanelDetection:
         assert result.engine_group_bounding_boxes == [PANEL_BBOX]
 
     def test_textured_discs_are_undetected(self):
-        """Noisy discs at the expected positions are found by Hough but rejected."""
+        """Bright noisy discs at the expected positions are rejected."""
         group = _panel_group(8)
         frame = np.full((1080, 1920, 3), BACKGROUND, dtype=np.uint8)
         rng = np.random.default_rng(0)
@@ -585,20 +471,22 @@ class TestEnginePanelDetection:
     def test_text_in_box_is_undetected(self):
         """Digits where the panel would be (panel off screen) produce no engines.
 
-        Expected positions are placed exactly on the circles Hough finds in
-        the digits, the worst case for phantom matches.
+        Expected positions are the circles HoughCircles found in these digits
+        (crop coordinates), the worst case for phantom engines.
         """
         frame = np.full((1080, 1920, 3), BACKGROUND, dtype=np.uint8)
         cv2.putText(frame, "8060", (105, 165), cv2.FONT_HERSHEY_SIMPLEX, 1.6, WHITE, 3)
         cv2.putText(frame, "0980", (105, 215), cv2.FONT_HERSHEY_SIMPLEX, 1.6, WHITE, 3)
 
         config = EngineAnalyzerConfig()
-        crop = cv2.cvtColor(frame[100:220, 100:220], cv2.COLOR_BGR2GRAY)
-        phantoms = _detect_circles(crop, config.hough_superheavy)
-        assert phantoms, "fixture should give Hough something to find"
-
+        phantoms = [
+            (23.5, 55.5, 11.0), (87.5, 105.5, 11.0), (86.5, 51.5, 10.0),
+            (50.5, 93.5, 10.0), (86.5, 38.5, 10.0), (23.5, 38.5, 9.0),
+            (87.5, 88.5, 9.0), (20.5, 89.5, 11.0), (52.5, 39.5, 11.0),
+            (51.5, 108.5, 10.0), (20.5, 105.5, 7.0), (52.5, 55.5, 7.0),
+        ]
         circles = [
-            ROICircle(id=f"e{i}", cx=100.0 + x, cy=100.0 + y, r=float(round(r)))
+            ROICircle(id=f"e{i}", cx=100.0 + x, cy=100.0 + y, r=r)
             for i, (x, y, r) in enumerate(phantoms)
         ]
         group = EngineGroup(
@@ -643,51 +531,35 @@ class TestEnginePanelDetection:
         assert result.detection_accuracy == 5 / 8
         assert result.engine_group_bounding_boxes == [PANEL_BBOX]
 
-    def test_offset_match_on_small_icon_is_verified(self, monkeypatch):
-        """Regression (MET 60, sh_e33): a Hough match ~1.6 px off a 5.5 px icon.
+    def test_imperfect_icons_are_still_detected(self):
+        """Icons a circle finder could miss are detected at their template positions.
 
-        At the matched centre the 0.7*r inner disc reaches the icon's dark
-        edge and fails; the check must run at the expected template centre.
+        Real misses (T+14..T+20): no Hough circle near sh_e23, one oversized
+        circle swallowing sh_e21's neighbours. Detection must not depend on
+        finding a clean circle edge.
         """
-        import src.engine_analyzer as engine_analyzer
+        group = _panel_group(8)
+        circles = group.subgroups[0].circles
+        frame = _panel_frame(group, [None, None, None, WHITE, GREY, WHITE, GREY, WHITE])
 
-        r = 5.5
-        circles = [
-            ROICircle(id=f"e{i}", cx=120.0 + 25.0 * i, cy=130.0, r=r) for i in range(4)
+        # e0: blurred icon with no sharp edge
+        icon = np.full((40, 40, 3), BACKGROUND, dtype=np.uint8)
+        cv2.circle(icon, (20, 20), 6, WHITE, -1)
+        icon = cv2.GaussianBlur(icon, (0, 0), 1.5)
+        x, y = int(circles[0].cx), int(circles[0].cy)
+        frame[y - 20:y + 20, x - 20:x + 20] = icon
+        # e1: drawn 1 px smaller than the template
+        cv2.circle(frame, (int(circles[1].cx), int(circles[1].cy)), 5, GREY, -1)
+        # e2: drawn 1 px off the template centre
+        cv2.circle(frame, (int(circles[2].cx) + 1, int(circles[2].cy)), 6, WHITE, -1)
+
+        result = analyze_engines(frame, [group], EngineAnalyzerConfig(), CPU_CAPABILITIES)
+
+        expected = [
+            EngineStatus.ACTIVE, EngineStatus.INACTIVE, EngineStatus.ACTIVE, EngineStatus.ACTIVE,
+            EngineStatus.INACTIVE, EngineStatus.ACTIVE, EngineStatus.INACTIVE, EngineStatus.ACTIVE,
         ]
-        group = EngineGroup(
-            group_id="superheavy_engines",
-            bounding_box=PANEL_BBOX,
-            subgroups=[EngineSubgroup(name="all", circles=circles)],
-        )
-
-        # Anti-aliased icon with a soft dark rim, like the webcast HUD
-        frame = np.full((1080, 1920, 3), BACKGROUND, dtype=np.uint8)
-        yy, xx = np.mgrid[0:1080, 0:1920]
-        for c in circles:
-            dist = np.hypot(xx - c.cx, yy - c.cy)
-            alpha = np.clip(r - dist, 0.0, 1.0)  # 1 inside, ramps to 0 over the last px
-            rim = (dist > r - 1.0) & (dist <= r)
-            value = BACKGROUND + alpha * (255 - BACKGROUND)
-            value[rim] = BACKGROUND + 0.3 * alpha[rim] * (255 - BACKGROUND)
-            mask = alpha > 0
-            frame[mask] = value[mask, None].astype(np.uint8)
-
-        # Hough reports every centre 1.1 px right and 1.1 px down (~1.56 px off)
-        offset = 1.1
-        crop_circles = [
-            (c.cx - PANEL_BBOX.x + offset, c.cy - PANEL_BBOX.y + offset, r) for c in circles
-        ]
-        monkeypatch.setattr(engine_analyzer, "_detect_circles", lambda gray, params: crop_circles)
-
-        config = EngineAnalyzerConfig()
-        crop = cv2.cvtColor(frame[100:220, 100:220], cv2.COLOR_BGR2GRAY)
-        # The fixture reproduces the failure mode at the matched centre
-        mx, my, _ = crop_circles[0]
-        assert not _looks_like_engine_icon(crop, mx, my, r, config)
-
-        result = analyze_engines(frame, [group], config, CPU_CAPABILITIES)
-        assert all(result.engine_statuses[f"e{i}"] == EngineStatus.ACTIVE for i in range(4))
+        assert [result.engine_statuses[f"e{i}"] for i in range(8)] == expected
         assert result.detection_accuracy == 1.0
 
     def test_gate_is_per_group(self):
