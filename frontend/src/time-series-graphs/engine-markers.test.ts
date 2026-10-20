@@ -131,3 +131,82 @@ describe('eventMarkers', () => {
     expect(marker.tooltipLines).toEqual([formatEngineEvent(event(), 'IFT-12')]);
   });
 });
+
+describe('formatEngineEvent: more shapes', () => {
+  it('combines kind, multi-ring engines, a gap range and a comparison prefix', () => {
+    expect(
+      formatEngineEvent(
+        event({
+          kind: 'died_after_relight',
+          engineIds: ['sh_e5', 'sh_e6', 'sh_e21', 'sh_e22'],
+          rings: ['engines_middle', 'engines_outer'],
+          metSeconds: 153,
+          metRange: [150, 153],
+          runningAfter: 8,
+          expected: 20,
+        }),
+        'IFT-12',
+      ),
+    ).toBe(
+      'IFT-12 — Engine out after relight: Super Heavy E5, E6 (middle ring), E21, E22 (outer ring)' +
+        ' · between T+2:30 and T+2:33 · 8/20 running',
+    );
+  });
+
+  it('formats a several-engine failure to light', () => {
+    expect(
+      formatEngineEvent(event({
+        kind: 'failed_to_light',
+        engineIds: ['sh_e11', 'sh_e12', 'sh_e13'],
+        rings: ['engines_middle'],
+        metSeconds: 400,
+        runningAfter: 10,
+        expected: 13,
+      })),
+    ).toBe('Failed to light: Super Heavy E11, E12, E13 (middle ring) · T+6:40 · 10/13 running');
+  });
+
+  it('uses an hours clock for the ship landing burn', () => {
+    expect(
+      formatEngineEvent(event({
+        kind: 'failed_to_light',
+        vehicle: 'starship',
+        engineIds: ['ss_e3'],
+        rings: ['atmo'],
+        metSeconds: 3906,
+        runningAfter: 2,
+        expected: 3,
+      })),
+    ).toBe('Failed to light: Starship E3 (sea-level) · T+1:05:06 · 2/3 running');
+  });
+
+  it('groups sea-level and vacuum ship engines', () => {
+    expect(
+      formatEngineEvent(event({
+        vehicle: 'starship',
+        engineIds: ['ss_e3', 'ss_e5', 'ss_e6'],
+        rings: ['atmo', 'vacuum'],
+        metSeconds: 190,
+        runningAfter: 3,
+        expected: 6,
+      })),
+    ).toBe('Engine out: Starship E3 (sea-level), E5, E6 (vacuum) · T+3:10 · 3/6 running');
+  });
+
+  it('rounds sub-second MET, and formats a range on a failure to light with a prefix', () => {
+    expect(formatEngineEvent(event({ metSeconds: 101.6 }))).toBe(
+      'Engine out: Super Heavy E17 (outer ring) · T+1:42 · 32/33 running',
+    );
+    expect(
+      formatEngineEvent(event({ kind: 'failed_to_light', metSeconds: 3600, metRange: [3599.4, 3600.2] }), 'IFT-13'),
+    ).toBe('IFT-13 — Failed to light: Super Heavy E17 (outer ring) · between T+59:59 and T+1:00:00 · 32/33 running');
+  });
+
+  it('copies the gap range into the marker instead of aliasing it', () => {
+    const e = event({ metRange: [10, 20] });
+    const [marker] = eventMarkers([e], '#00bcd4', 'IFT-12');
+    expect(marker.range).toEqual([10, 20]);
+    expect(marker.range).not.toBe(e.metRange);
+    expect(marker.tooltipLines[0].startsWith('IFT-12 — Engine out: ')).toBe(true);
+  });
+});

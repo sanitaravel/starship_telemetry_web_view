@@ -74,23 +74,35 @@ export async function fetchPreviousFlightData(filename: string): Promise<Previou
   };
 }
 
+/** Rows before this MET are ignored by estimateSeparationMet (pad and clamp noise). */
+export const SEPARATION_MIN_MET_S = 30;
+
 /**
  * MET in seconds of stage separation. Separation is not recorded, but before
- * it both vehicles share one reading, so the first row where both speeds
- * exist and differ is taken as separation. Null when there is no such row.
+ * it both vehicles share one reading, so separation is where the shared run
+ * ends: the row after the last one (past SEPARATION_MIN_MET_S) where both
+ * speeds exist and are equal. The first differing row is no good: after
+ * separation the Super Heavy speed is often unread for up to a minute, and
+ * pad readings can differ. Null when there is no shared reading.
  */
 export function estimateSeparationMet(
   columns: PreviousFlightColumns,
   metSeconds: number[] = estimateMetSeconds(columns),
 ): number | null {
+  let last = -1;
   for (let i = 0; i < columns.met.length; i++) {
+    if (metSeconds[i] <= SEPARATION_MIN_MET_S) continue;
     const ss = columns.ss_speed[i];
     const sh = columns.sh_speed[i];
-    if (ss !== null && ss !== undefined && sh !== null && sh !== undefined && ss !== sh) {
-      return metSeconds[i];
-    }
+    if (ss !== null && ss !== undefined && sh !== null && sh !== undefined && ss === sh) last = i;
   }
-  return null;
+  if (last < 0) return null;
+  for (let i = last + 1; i < metSeconds.length; i++) {
+    if (metSeconds[i] > metSeconds[last]) return metSeconds[i];
+  }
+  // Shared to the end of the data: one row spacing after the last shared row
+  const spacing = last > 0 ? metSeconds[last] - metSeconds[last - 1] : 0;
+  return metSeconds[last] + spacing;
 }
 
 /**

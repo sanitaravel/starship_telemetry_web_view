@@ -86,15 +86,30 @@ describe('detectFlightEngineEvents', () => {
 });
 
 describe('estimateSeparationMet', () => {
-  it('is the MET of the first row where both speeds exist and differ', () => {
-    const flight = columns([[10, 10, 100], [11, 11, 200], [12, 12, 300], [13, 13, 400]]);
-    flight.ss_speed = [100, null, 300, 410];
-    flight.sh_speed = [100, 200, 300, 390];
-    expect(estimateSeparationMet(flight, [10, 11, 12, 13])).toBe(13);
+  it('is the MET of the row after the last shared reading', () => {
+    const flight = columns([[40, 40, 100], [41, 41, 200], [41, 41.5, 300], [42, 42, 400], [43, 43, 500]]);
+    flight.ss_speed = [100, 200, 300, 410, 500];
+    // Super Heavy unread right after separation, then differing
+    flight.sh_speed = [100, 200, 300, null, 390];
+    expect(estimateSeparationMet(flight, [40, 41, 41.5, 42, 43])).toBe(42);
   });
 
-  it('is null when the speeds never differ', () => {
-    const flight = columns([[10, 10, 100], [11, 11, null], [12, 12, 300]]);
-    expect(estimateSeparationMet(flight, [10, 11, 12])).toBeNull();
+  it('ignores shared and differing readings up to T+30', () => {
+    const flight = columns([[0, 0, 70], [10, 10, 100], [31, 31, 300], [32, 32, 400]]);
+    flight.ss_speed = [70, 100, 300, 410];
+    flight.sh_speed = [30, 100, 300, 390];
+    expect(estimateSeparationMet(flight, [0, 10, 31, 32])).toBe(32);
+  });
+
+  it('is one row spacing after the last row when the reading is shared to the end', () => {
+    const flight = columns([[40, 40, 100], [42, 42, 200]]);
+    expect(estimateSeparationMet(flight, [40, 42])).toBe(44);
+  });
+
+  it('is null without a shared reading after T+30', () => {
+    expect(estimateSeparationMet(columns([[10, 10, 100], [20, 20, 300]]), [10, 20])).toBeNull();
+    const flight = columns([[40, 40, 100], [41, 41, 200]]);
+    flight.sh_speed = [null, 190];
+    expect(estimateSeparationMet(flight, [40, 41])).toBeNull();
   });
 });

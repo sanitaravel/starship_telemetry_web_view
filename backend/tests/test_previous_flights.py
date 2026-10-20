@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 from httpx import AsyncClient, ASGITransport
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from src import previous_flights
 from src.server import create_app
@@ -104,6 +106,87 @@ class TestEngineChanges:
             {"i": 0, "sh": self.SH_ON},
             {"i": 2, "sh": self.SH_ONE_OUT},
         ]
+
+
+def _expand_engine_changes(columns: dict) -> list[dict]:
+    """Per-row engine maps from the change list, as the dashboard replays it:
+    each vehicle's map holds until its next entry."""
+    current = {"ss": None, "sh": None}
+    changes = iter(columns["engines"])
+    pending = next(changes, None)
+    rows = []
+    for i in range(len(columns["met"])):
+        while pending is not None and pending["i"] <= i:
+            for prefix in ("ss", "sh"):
+                if prefix in pending:
+                    current[prefix] = pending[prefix]
+            pending = next(changes, None)
+        rows.append(dict(current))
+    return rows
+
+
+_STATUS = st.sampled_from(["active", "inactive", "undetected"])
+_SH_MAP = st.one_of(st.just({}), st.fixed_dictionaries({f"sh_e{n}": _STATUS for n in range(1, 34)}))
+_SS_MAP = st.one_of(st.just({}), st.fixed_dictionaries({f"ss_e{n}": _STATUS for n in range(1, 7)}))
+
+
+class TestEngineChangeRoundTrip:
+    @given(
+        st.lists(
+            st.tuples(st.booleans(), _SS_MAP, _SH_MAP, st.integers(min_value=1, max_value=4)),
+            max_size=40,
+        )
+    )
+    @settings(deadline=None)
+    def test_replaying_the_change_list_restores_each_rows_last_reading(self, runs):
+        records, expected = [], []
+        last = {"ss": None, "sh": None}
+        second = 0
+        for has_met, ss, sh, repeat in runs:
+            for _ in range(repeat):
+                rec = record("T", second % 60, ss_engines=ss, sh_engines=sh)
+                second += 1
+                if not has_met:
+                    rec["time"] = {}
+                    records.append(rec)
+                    continue
+                records.append(rec)
+                # An empty map is "no reading": the row keeps the last one
+                if ss:
+                    last["ss"] = ss
+                if sh:
+                    last["sh"] = sh
+                expected.append(dict(last))
+        columns = previous_flights.to_columns(records)
+        assert len(columns["met"]) == len(expected)
+        assert _expand_engine_changes(columns) == expected
+        # Entries are in row order, one per row at most, never empty
+        indices = [c["i"] for c in columns["engines"]]
+        assert indices == sorted(set(indices))
+        assert all(set(c) - {"i"} for c in columns["engines"])
+
+    def test_results_previous_file_with_engines_round_trips_through_load_flight(self, tmp_path: Path):
+        sh_all = {f"sh_e{n}": "active" for n in range(1, 34)}
+        sh_out = {**sh_all, "sh_e20": "inactive"}
+        sh_hidden = {f"sh_e{n}": "undetected" for n in range(1, 34)}
+        ss_off = {f"ss_e{n}": "inactive" for n in range(1, 7)}
+        ss_on = {f"ss_e{n}": "active" for n in range(1, 7)}
+        records = [
+            record("T", 0, ss_speed=100, sh_speed=100, ss_engines=ss_off, sh_engines=sh_all),
+            record("T", 1, ss_speed=110, sh_speed=110, ss_engines=ss_off, sh_engines=sh_all),
+            record("T", 2, ss_speed=120, sh_speed=120, ss_engines=ss_off, sh_engines=sh_hidden),
+            record("T", 3, ss_speed=130, sh_speed=None, ss_engines=ss_on, sh_engines=sh_out),
+            record("T", 4, ss_speed=140, sh_speed=90, ss_engines=ss_on, sh_engines=sh_out),
+        ]
+        write_flight(tmp_path, "ift-99", records)
+        payload = json.loads(previous_flights.load_flight("ift-99", tmp_path))
+        assert payload["met"] == [f"+00:01:0{s}" for s in range(5)]
+        assert payload["engines"] == [
+            {"i": 0, "ss": ss_off, "sh": sh_all},
+            {"i": 2, "sh": sh_hidden},
+            {"i": 3, "ss": ss_on, "sh": sh_out},
+        ]
+        assert payload["sh_speed"] == [100, 110, 120, None, 90]
 
 
 class TestLoadFlight:

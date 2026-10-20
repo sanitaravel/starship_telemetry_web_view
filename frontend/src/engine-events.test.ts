@@ -150,6 +150,11 @@ describe('EngineEventDetector: no events', () => {
     expect(detect(timeline(100, 520, (t) => ({ ss: { on: on(t) } })))).toEqual([]);
   });
 
+  it('ship staggered SECO: sea-level ring cut before the vacuum ring', () => {
+    const on = schedule([0, []], [160, SS_ALL], [490, ['ss_e4', 'ss_e5', 'ss_e6']], [500, []]);
+    expect(detect(timeline(100, 520, (t) => ({ ss: { on: on(t) } })))).toEqual([]);
+  });
+
   it('ship landing burn 3 -> 2 -> 1 at MET 3900', () => {
     const on = schedule([0, []], [3900, SEA_LEVEL], [3910, ['ss_e1', 'ss_e2']], [3915, ['ss_e1']], [3920, []]);
     expect(detect(timeline(3880, 3930, (t) => ({ ss: { on: on(t) } })))).toEqual([]);
@@ -195,6 +200,42 @@ describe('EngineEventDetector: events', () => {
         runningAfter: 5,
         expected: 6,
       },
+    ]);
+  });
+
+  it('ship RVac out mid-ascent, then the 3 RSLs cut together, then the 2 RVacs: only the RVac engine_out', () => {
+    const on = schedule(
+      [0, []],
+      [160, SS_ALL],
+      [300, without(SS_ALL, 'ss_e5')],
+      [490, ['ss_e4', 'ss_e6']],
+      [500, []],
+    );
+    expect(detect(timeline(100, 520, (t) => ({ ss: { on: on(t) } })))).toEqual([
+      {
+        kind: 'engine_out',
+        vehicle: 'starship',
+        engineIds: ['ss_e5'],
+        rings: ['vacuum'],
+        metSeconds: 300,
+        runningAfter: 5,
+        expected: 6,
+      },
+    ]);
+  });
+
+  it('ship step that cuts the sea-level ring plus one RVac is still engine_out', () => {
+    const on = schedule([0, []], [160, SS_ALL], [490, ['ss_e4', 'ss_e6']], [500, []]);
+    expect(detect(timeline(100, 520, (t) => ({ ss: { on: on(t) } }))).map((e) => [e.kind, e.engineIds, e.runningAfter, e.expected])).toEqual([
+      ['engine_out', ['ss_e1', 'ss_e2', 'ss_e3', 'ss_e5'], 2, 6],
+    ]);
+  });
+
+  it('Super Heavy whole-ring shutdown still goes by count', () => {
+    // Outer ring alone cut mid-ascent leaves 13: planned. Middle ring alone leaves 23: engine_out.
+    const middleOut = schedule([0, SH_ALL], [60, [...INNER, ...OUTER]]);
+    expect(detect(timeline(30, 80, (t) => ({ sh: { on: middleOut(t) } }))).map((e) => [e.kind, e.runningAfter])).toEqual([
+      ['engine_out', 23],
     ]);
   });
 
@@ -348,8 +389,9 @@ describe('EngineEventDetector: events', () => {
       if (detector.push(r, exactMet(r)).length > 0) returnedAt.push(exactMet(r));
     }
     expect(returnedAt).toHaveLength(1);
-    expect(returnedAt[0]).toBeGreaterThan(62);
-    expect(returnedAt[0]).toBeLessThan(63);
+    // Step window: max(STEP_WINDOW_S = 3, 2.5 x 0.2 s spacing) = 3 s
+    expect(returnedAt[0]).toBeGreaterThan(63);
+    expect(returnedAt[0]).toBeLessThan(64);
     expect(detector.events()).toHaveLength(1);
     detector.reset();
     expect(detector.events()).toEqual([]);

@@ -14,13 +14,19 @@
  * - An engine's on/off state is debounced: it changes only after
  *   CONFIRM_FRAMES consecutive visible readings of the new state spanning at
  *   least CONFIRM_MIN_S. The change is dated at the first of those readings.
- * - Shutdowns within STEP_WINDOW_S of each other form one step. A step that
- *   leaves a planned running count (MECO, landing burn throttle-down,
- *   shutdown) is not an event; any other step is one event.
+ *   A change can only be confirmed across a panel gap with CONFIRM_FRAMES
+ *   readings after it, and frames with no engine active next to a gap (the
+ *   panel fading out or in) count as part of the gap.
+ * - Shutdowns within the step window of each other form one step (the
+ *   window grows with sparse sampling). A step that leaves a planned running
+ *   count (MECO, landing burn throttle-down, shutdown), or on Starship shuts
+ *   down whole rings (staggered SECO), is not an event; any other step is one
+ *   event.
  */
 
 import type { TelemetryRecord } from './types';
 import {
+  engineById,
   enginesInRing,
   enginesOf,
   type EngineRing,
@@ -58,8 +64,20 @@ export interface EngineEventConfig {
   CONFIRM_FRAMES: number;
   /** Minimum time those readings must span. */
   CONFIRM_MIN_S: number;
-  /** Shutdowns closer than this to the previous one join the same step. */
+  /** Shutdowns closer than this to the previous one join the same step (minimum window). */
   STEP_WINDOW_S: number;
+  /**
+   * The step window is at least this many times the recent spacing of
+   * visible records, so sparse sampling does not split a staggered MECO.
+   */
+  STEP_WINDOW_SAMPLES: number;
+  /** Visible-record spacings kept per vehicle for the running median. */
+  SPACING_HISTORY: number;
+  /**
+   * Frames with no engine active right before or after a panel gap are the
+   * panel fading out or in, not data, while their run is at most this long.
+   */
+  FADE_MAX_S: number;
   /** An engine_out this soon after a (non-first) burn starts is died_after_relight. */
   RELIGHT_GRACE_S: number;
   /** Engines that have not lit this long after a burn starts failed to light. */
@@ -82,7 +100,10 @@ export interface EngineEventConfig {
 export const ENGINE_EVENT_CONFIG: Readonly<EngineEventConfig> = {
   CONFIRM_FRAMES: 2,
   CONFIRM_MIN_S: 0.5,
-  STEP_WINDOW_S: 2,
+  STEP_WINDOW_S: 3,
+  STEP_WINDOW_SAMPLES: 2.5,
+  SPACING_HISTORY: 9,
+  FADE_MAX_S: 1,
   RELIGHT_GRACE_S: 5,
   IGNITION_WINDOW_S: 3,
   LIFTOFF_MAX_MET_S: 30,
@@ -130,6 +151,14 @@ interface Candidate {
   count: number;
   /** Set when the first reading was the first visible record after a gap. */
   range?: [number, number];
+  /** Readings since the latest gap, when the candidate started before it. */
+  afterGap?: number;
+}
+
+/** One record's statuses for a vehicle. */
+interface Frame {
+  t: number;
+  statuses: EngineStatusMap;
 }
 
 interface Change {
@@ -185,6 +214,12 @@ class VehicleTracker {
   private step: Step | null = null;
   private ignitionPending: Burn[] = [];
   private shipAltitude: number | undefined;
+  /** Frames with no engine active, held until it is known whether a gap follows. */
+  private fadeOut: Frame[] = [];
+  /** Time of the first no-engine-active frame right after a gap, while treated as gap. */
+  private fadeInStart: number | null = null;
+  /** Recent spacings between consecutive visible records (no gap in between). */
+  private spacings: number[] = [];
 
   constructor(
     private readonly vehicle: Vehicle,
@@ -200,12 +235,73 @@ class VehicleTracker {
 
     const visible = this.ids.some((id) => statuses[id] === 'active' || statuses[id] === 'inactive');
     if (!visible) {
-      if (this.lastVisibleT !== null) this.inGap = true;
+      // Dark frames right before the gap were the panel fading out
+      this.fadeOut = [];
+      this.fadeInStart = null;
+      this.enterGap();
       return this.finalize(t, false);
     }
 
+    const dark = !this.ids.some((id) => statuses[id] === 'active');
+    if (dark && this.inGap) {
+      // Panel fading in: part of the gap while the dark run is short
+      this.fadeInStart ??= t;
+      if (t - this.fadeInStart <= this.config.FADE_MAX_S) return this.finalize(t, false);
+    } else if (dark) {
+      // Maybe fading out: hold until a gap or an active frame shows which
+      this.fadeOut.push({ t, statuses });
+      const events: EngineEvent[] = [];
+      while (this.fadeOut.length > 0 && t - this.fadeOut[0].t > this.config.FADE_MAX_S) {
+        events.push(...this.process(this.fadeOut.shift()!));
+      }
+      return events;
+    }
+
+    const events = this.processFadeOut();
+    events.push(...this.process({ t, statuses }));
+    return events;
+  }
+
+  /** Finalize everything that can be: the open step, and ignition checks whose window has passed. */
+  flush(t: number | null): EngineEvent[] {
+    // No more records: held dark frames were not followed by a gap
+    const events = this.processFadeOut();
+    events.push(...this.finalize(t ?? Number.NEGATIVE_INFINITY, true));
+    return events;
+  }
+
+  private processFadeOut(): EngineEvent[] {
+    const events: EngineEvent[] = [];
+    for (const frame of this.fadeOut) events.push(...this.process(frame));
+    this.fadeOut = [];
+    return events;
+  }
+
+  private enterGap(): void {
+    if (this.lastVisibleT === null || this.inGap) return;
+    this.inGap = true;
+    // Readings before the gap alone cannot confirm a change across it
+    for (const candidate of this.candidates.values()) candidate.afterGap = 0;
+  }
+
+  /** Step window: STEP_WINDOW_S, or more when records are sparse. */
+  private stepWindow(): number {
+    if (this.spacings.length === 0) return this.config.STEP_WINDOW_S;
+    const sorted = [...this.spacings].sort((a, b) => a - b);
+    const mid = sorted.length >> 1;
+    const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    return Math.max(this.config.STEP_WINDOW_S, this.config.STEP_WINDOW_SAMPLES * median);
+  }
+
+  /** Process one visible frame. */
+  private process({ t, statuses }: Frame): EngineEvent[] {
+    this.fadeInStart = null;
     const edge: [number, number] | undefined =
       this.inGap && this.lastVisibleT !== null ? [this.lastVisibleT, t] : undefined;
+    if (!this.inGap && this.lastVisibleT !== null && t > this.lastVisibleT) {
+      this.spacings.push(t - this.lastVisibleT);
+      if (this.spacings.length > this.config.SPACING_HISTORY) this.spacings.shift();
+    }
     this.inGap = false;
     this.lastVisibleT = t;
 
@@ -230,11 +326,6 @@ class VehicleTracker {
     return events;
   }
 
-  /** Finalize everything that can be: the open step, and ignition checks whose window has passed. */
-  flush(t: number | null): EngineEvent[] {
-    return this.finalize(t ?? Number.NEGATIVE_INFINITY, true);
-  }
-
   /** Update debounced states from one visible record; returns confirmed changes. */
   private debounce(t: number, statuses: EngineStatusMap, edge: [number, number] | undefined): Change[] {
     const changes: Change[] = [];
@@ -253,7 +344,12 @@ class VehicleTracker {
         this.candidates.set(id, candidate);
       }
       candidate.count++;
-      if (candidate.count >= this.config.CONFIRM_FRAMES && t - candidate.firstT >= this.config.CONFIRM_MIN_S) {
+      if (candidate.afterGap !== undefined) candidate.afterGap++;
+      if (
+        candidate.count >= this.config.CONFIRM_FRAMES &&
+        t - candidate.firstT >= this.config.CONFIRM_MIN_S &&
+        (candidate.afterGap === undefined || candidate.afterGap >= this.config.CONFIRM_FRAMES)
+      ) {
         this.candidates.delete(id);
         this.state.set(id, on);
         // After the baseline, an engine never read before counts as off
@@ -302,7 +398,7 @@ class VehicleTracker {
     const events: EngineEvent[] = [];
     this.running = Math.max(0, this.running - 1);
     const step = this.step;
-    if (step && change.t - step.lastT <= this.config.STEP_WINDOW_S) {
+    if (step && change.t - step.lastT <= this.stepWindow()) {
       step.offs.push(change.id);
       step.lastT = Math.max(step.lastT, change.t);
       step.after = this.running;
@@ -334,6 +430,19 @@ class VehicleTracker {
       && this.config.SHIP_LANDING_PLANNED_COUNTS.includes(count);
   }
 
+  /**
+   * Starship staggered SECO: a step whose engines all belong to rings left
+   * with nothing running (e.g. the sea-level ring cut before the vacuum one)
+   * is planned whatever the remaining count. Super Heavy uses counts only.
+   */
+  private isRingShutdown(step: Step): boolean {
+    if (this.vehicle !== 'starship') return false;
+    const rings = new Set(step.offs.map((id) => engineById(id)!.ring));
+    return [...rings].every((ring) =>
+      enginesInRing(this.vehicle, ring).every((e) => this.state.get(e.id) !== true),
+    );
+  }
+
   /** Whether an engine may still confirm a change (on/off) dated no later than `limit`. */
   private hasPending(on: boolean, limit: number): boolean {
     for (const [id, candidate] of this.candidates) {
@@ -348,7 +457,7 @@ class VehicleTracker {
     const events: EngineEvent[] = [];
     const step = this.step;
     if (step) {
-      const windowEnd = step.lastT + this.config.STEP_WINDOW_S;
+      const windowEnd = step.lastT + this.stepWindow();
       if (force || (now > windowEnd && !this.hasPending(false, windowEnd))) {
         events.push(...this.closeStep());
       }
@@ -365,7 +474,7 @@ class VehicleTracker {
   private closeStep(): EngineEvent[] {
     const step = this.step;
     this.step = null;
-    if (!step || this.isPlanned(step.after, step.burn)) return [];
+    if (!step || this.isPlanned(step.after, step.burn) || this.isRingShutdown(step)) return [];
     const burn = step.burn;
     const relight = burn !== null && burn.index > 0
       && step.firstT - burn.start <= this.config.RELIGHT_GRACE_S;
@@ -438,7 +547,9 @@ class VehicleTracker {
 /**
  * Incremental engine event detector. Push records in sequence order; each
  * push returns the events it finalized (a shutdown step is only finalized
- * once its STEP_WINDOW_S has passed, so events come a little after the fact).
+ * once its step window has passed, and frames with no engine active are held
+ * up to FADE_MAX_S in case a panel gap follows, so events come a little after
+ * the fact).
  */
 export class EngineEventDetector {
   private trackers!: Record<Vehicle, VehicleTracker>;
