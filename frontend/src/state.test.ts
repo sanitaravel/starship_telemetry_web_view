@@ -65,6 +65,39 @@ describe('StateManager', () => {
     expect(manager.getState().telemetryRecords).toEqual([]);
   });
 
+  it('detects engine events from live telemetry and clears them on reset', () => {
+    const manager = new StateManager();
+    const engines = (offAt: number, t: number) =>
+      Object.fromEntries(
+        Array.from({ length: 33 }, (_, i) => [`sh_e${i + 1}`, i === 19 && t >= offAt ? 'inactive' : 'active'] as const)
+      );
+    // 5 frames per second from MET 50 to 70; sh_e20 shuts down at 60
+    for (let k = 0; k < 100; k++) {
+      const t = 50 + k / 5;
+      const s = Math.floor(t);
+      manager.handleMessage({
+        type: 'telemetry',
+        payload: createTestTelemetryRecord({
+          sequence_number: k,
+          mission_elapsed_time: `T+00:${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`,
+          timestamp: t * 1000,
+          starship_engines: {},
+          superheavy_engines: engines(60, t),
+        }),
+      });
+    }
+
+    const state = manager.getState();
+    expect(state.engineEvents).toHaveLength(1);
+    expect(state.engineEvents[0]).toMatchObject({ kind: 'engine_out', vehicle: 'superheavy', engineIds: ['sh_e20'] });
+    expect(state.engineEvents[0].metSeconds).toBeCloseTo(60, 5);
+    expect(state.engineEventsVersion).toBe(1);
+
+    manager.reset();
+    expect(manager.getState().engineEvents).toEqual([]);
+    expect(manager.getState().engineEventsVersion).toBe(0);
+  });
+
   it('updates pipelineStatus on status message', () => {
     const manager = new StateManager();
     const status: PipelineStatus = {

@@ -3,7 +3,9 @@
 Each JSON file in ``results_previous/`` (e.g. ``ift-13.json``) is a ~14 MB
 pretty-printed array of per-frame records. The dashboard only plots MET, the
 frame clock and both vehicles' speed and altitude, so each file is reduced
-once to a compact columnar payload and the encoded bytes are cached.
+once to a compact columnar payload and the encoded bytes are cached. Engine
+statuses, when a file has them, are passed through as change entries; the
+dashboard derives engine events from them.
 """
 
 import json
@@ -39,11 +41,21 @@ def _format_met(time: dict[str, Any]) -> str | None:
     return f"{prefix}{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
 
 
+# Vehicle keys in a flight record and their prefix in the ``engines`` column
+_ENGINE_VEHICLES = (("starship", "ss"), ("superheavy", "sh"))
+
+
 def to_columns(records: list[dict[str, Any]]) -> dict[str, list[Any]]:
     """Reduce raw flight records to the columns the dashboard plots.
 
     Records without a complete MET are dropped. Speed and altitude columns
     keep ``None`` where a vehicle had no reading.
+
+    ``engines`` is not a per-row column but a list of change entries
+    ``{"i": row, "ss": {...}, "sh": {...}}``: a vehicle's full engine map is
+    included only on rows where it differs from the last one emitted for
+    that vehicle, and empty maps are never emitted. ``i`` indexes the other
+    columns (after dropped rows).
     """
     columns: dict[str, list[Any]] = {
         "met": [],
@@ -52,7 +64,9 @@ def to_columns(records: list[dict[str, Any]]) -> dict[str, list[Any]]:
         "sh_speed": [],
         "ss_alt": [],
         "sh_alt": [],
+        "engines": [],
     }
+    last_engines: dict[str, dict[str, Any]] = {}
     for record in records:
         met = _format_met(record.get("time") or {})
         if met is None:
@@ -66,6 +80,15 @@ def to_columns(records: list[dict[str, Any]]) -> dict[str, list[Any]]:
         columns["sh_speed"].append(superheavy.get("speed"))
         columns["ss_alt"].append(starship.get("altitude"))
         columns["sh_alt"].append(superheavy.get("altitude"))
+
+        change: dict[str, Any] = {}
+        for key, prefix in _ENGINE_VEHICLES:
+            engines = (vehicles.get(key) or {}).get("engines")
+            if engines and engines != last_engines.get(prefix):
+                last_engines[prefix] = engines
+                change[prefix] = engines
+        if change:
+            columns["engines"].append({"i": len(columns["met"]) - 1, **change})
     return columns
 
 

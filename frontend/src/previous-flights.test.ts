@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { transformToTimeSeries, type PreviousFlightColumns } from './previous-flights';
+import { detectFlightEngineEvents, transformToTimeSeries, type PreviousFlightColumns } from './previous-flights';
 
 /** Build a columnar flight whose Super Heavy and Starship share the same speeds. */
 function columns(rows: [seconds: number, realTimeSeconds: number, speed: number | null][]): PreviousFlightColumns {
@@ -47,5 +47,40 @@ describe('transformToTimeSeries null handling', () => {
     expect(store.speedSuperHeavy.map((p) => p.value)).toEqual([3]);
     expect(store.altitudeStarship.map((p) => p.unit)).toEqual(['km', 'km']);
     expect(store.altitudeSuperHeavy).toEqual([]);
+  });
+});
+
+describe('detectFlightEngineEvents', () => {
+  const allSh = (status: 'active' | 'inactive', except: Record<string, 'active' | 'inactive'> = {}) =>
+    Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`sh_e${i + 1}`, except[`sh_e${i + 1}`] ?? status]));
+
+  /** 5 rows per second from MET 50 to 70 with the given engine changes. */
+  function flight(engines: PreviousFlightColumns['engines']): PreviousFlightColumns {
+    const rows = Array.from({ length: 100 }, (_, k) => 50 + k / 5);
+    return {
+      met: rows.map((t) => `+00:00:${String(Math.floor(t)).padStart(2, '0')}`),
+      t: rows,
+      ss_speed: rows.map(() => null),
+      sh_speed: rows.map(() => null),
+      ss_alt: rows.map(() => null),
+      sh_alt: rows.map(() => null),
+      engines,
+    };
+  }
+
+  it('has no events without engine statuses', () => {
+    expect(detectFlightEngineEvents(flight(undefined))).toEqual([]);
+    expect(detectFlightEngineEvents(flight([]))).toEqual([]);
+  });
+
+  it('replays status changes: each map holds until the next change', () => {
+    // Row 50 is MET 60
+    const events = detectFlightEngineEvents(flight([
+      { i: 0, sh: allSh('active'), ss: { ss_e1: 'inactive' } },
+      { i: 50, sh: allSh('active', { sh_e20: 'inactive' }) },
+    ]));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'engine_out', vehicle: 'superheavy', engineIds: ['sh_e20'], runningAfter: 32 });
+    expect(events[0].metSeconds).toBeCloseTo(60, 5);
   });
 });

@@ -37,7 +37,7 @@ vi.mock('./export-png', async (importOriginal) => ({
 
 import { Chart } from 'chart.js/auto';
 import { TimeSeriesGraphs } from './graphs';
-import { fetchPreviousFlightList, fetchPreviousFlightData } from '../previous-flights';
+import { fetchPreviousFlightList, fetchPreviousFlightData, type PreviousFlightData } from '../previous-flights';
 import { EXPORT_THEMES, saveCanvasAsPng } from './export-png';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,6 +49,8 @@ const EMPTY: TimeSeriesStore = {
   altitudeSuperHeavy: [],
   altitudeStarship: [],
 };
+
+const EMPTY_FLIGHT: PreviousFlightData = { store: EMPTY, engineEvents: [] };
 
 /** A promise whose resolution is controlled by the test. */
 function deferred<T>() {
@@ -99,22 +101,22 @@ describe('TimeSeriesGraphs comparison loading overlay', () => {
 
   it('shows while a comparison loads and hides once it has loaded', async () => {
     const container = await setup();
-    const load = deferred<TimeSeriesStore | null>();
+    const load = deferred<PreviousFlightData | null>();
     vi.mocked(fetchPreviousFlightData).mockReturnValue(load.promise);
 
     toggle(container, 'flight-a.json');
     await flush();
     expect(overlay(container).hidden).toBe(false);
 
-    load.resolve(EMPTY);
+    load.resolve(EMPTY_FLIGHT);
     await flush();
     expect(overlay(container).hidden).toBe(true);
   });
 
   it('stays visible until every selected comparison has loaded', async () => {
     const container = await setup();
-    const loadA = deferred<TimeSeriesStore | null>();
-    const loadB = deferred<TimeSeriesStore | null>();
+    const loadA = deferred<PreviousFlightData | null>();
+    const loadB = deferred<PreviousFlightData | null>();
     vi.mocked(fetchPreviousFlightData).mockImplementation((f) =>
       f === 'flight-a.json' ? loadA.promise : loadB.promise,
     );
@@ -122,18 +124,18 @@ describe('TimeSeriesGraphs comparison loading overlay', () => {
     toggle(container, 'flight-a.json');
     toggle(container, 'flight-b.json');
 
-    loadA.resolve(EMPTY);
+    loadA.resolve(EMPTY_FLIGHT);
     await flush();
     expect(overlay(container).hidden).toBe(false);
 
-    loadB.resolve(EMPTY);
+    loadB.resolve(EMPTY_FLIGHT);
     await flush();
     expect(overlay(container).hidden).toBe(true);
   });
 
   it('hides after a failed load', async () => {
     const container = await setup();
-    const load = deferred<TimeSeriesStore | null>();
+    const load = deferred<PreviousFlightData | null>();
     vi.mocked(fetchPreviousFlightData).mockReturnValue(load.promise);
 
     toggle(container, 'flight-a.json');
@@ -144,16 +146,16 @@ describe('TimeSeriesGraphs comparison loading overlay', () => {
 
   it('does not fetch a comparison again while it is still loading', async () => {
     const container = await setup();
-    const loadA = deferred<TimeSeriesStore | null>();
-    const loadB = deferred<TimeSeriesStore | null>();
+    const loadA = deferred<PreviousFlightData | null>();
+    const loadB = deferred<PreviousFlightData | null>();
     vi.mocked(fetchPreviousFlightData).mockImplementation((f) =>
       f === 'flight-a.json' ? loadA.promise : loadB.promise,
     );
 
     toggle(container, 'flight-a.json');
     toggle(container, 'flight-b.json');
-    loadA.resolve(EMPTY);
-    loadB.resolve(EMPTY);
+    loadA.resolve(EMPTY_FLIGHT);
+    loadB.resolve(EMPTY_FLIGHT);
     await flush();
 
     const calls = vi.mocked(fetchPreviousFlightData).mock.calls.map((c) => c[0]);
@@ -175,7 +177,7 @@ describe('TimeSeriesGraphs update path', () => {
 
   it('reuses a fetched comparison when it is selected again', async () => {
     const container = await setup();
-    vi.mocked(fetchPreviousFlightData).mockResolvedValue(EMPTY);
+    vi.mocked(fetchPreviousFlightData).mockResolvedValue(EMPTY_FLIGHT);
 
     toggle(container, 'flight-a.json');
     await flush();

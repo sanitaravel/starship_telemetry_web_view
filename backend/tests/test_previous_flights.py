@@ -11,15 +11,24 @@ from src import previous_flights
 from src.server import create_app
 
 
-def record(sign: str, seconds: int, ss_speed=None, sh_speed=None, ss_alt=None, sh_alt=None) -> dict:
-    def vehicle(speed, altitude):
-        return {"speed": speed, "altitude": altitude, "fuel": {}, "engines": {}}
+def record(
+    sign: str,
+    seconds: int,
+    ss_speed=None,
+    sh_speed=None,
+    ss_alt=None,
+    sh_alt=None,
+    ss_engines=None,
+    sh_engines=None,
+) -> dict:
+    def vehicle(speed, altitude, engines):
+        return {"speed": speed, "altitude": altitude, "fuel": {}, "engines": engines or {}}
 
     return {
         "frame_number": 0,
         "vehicles": {
-            "starship": vehicle(ss_speed, ss_alt),
-            "superheavy": vehicle(sh_speed, sh_alt),
+            "starship": vehicle(ss_speed, ss_alt, ss_engines),
+            "superheavy": vehicle(sh_speed, sh_alt, sh_engines),
         },
         "time": {"sign": sign, "hours": 0, "minutes": 1, "seconds": seconds},
         "real_time_seconds": 60.0 + seconds,
@@ -46,12 +55,55 @@ class TestToColumns:
             "sh_speed": [90, None],
             "ss_alt": [1.5, None],
             "sh_alt": [None, None],
+            "engines": [],
         }
 
     def test_drops_records_without_a_complete_met(self):
         incomplete = record("+", 1)
         incomplete["time"]["minutes"] = None
         assert previous_flights.to_columns([incomplete, {"vehicles": {}}])["met"] == []
+
+
+class TestEngineChanges:
+    SH_ON = {"sh_e1": "active", "sh_e2": "active"}
+    SH_ONE_OUT = {"sh_e1": "active", "sh_e2": "inactive"}
+    SS_OFF = {"ss_e1": "inactive", "ss_e2": "inactive"}
+
+    def test_empty_engine_maps_emit_nothing(self):
+        columns = previous_flights.to_columns([record("T", s) for s in range(3)])
+        assert columns["engines"] == []
+
+    def test_emits_a_vehicle_map_only_when_it_changes(self):
+        columns = previous_flights.to_columns([
+            record("T", 0, sh_engines=self.SH_ON),
+            record("T", 1, sh_engines=self.SH_ON, ss_engines=self.SS_OFF),
+            record("T", 2, sh_engines=self.SH_ON, ss_engines=self.SS_OFF),
+            # An empty map means no reading, not a change
+            record("T", 3, ss_engines=self.SS_OFF),
+            record("T", 4, sh_engines=self.SH_ONE_OUT, ss_engines=self.SS_OFF),
+            record("T", 5, sh_engines=self.SH_ON, ss_engines=self.SS_OFF),
+        ])
+        assert columns["engines"] == [
+            {"i": 0, "sh": self.SH_ON},
+            {"i": 1, "ss": self.SS_OFF},
+            {"i": 4, "sh": self.SH_ONE_OUT},
+            {"i": 5, "sh": self.SH_ON},
+        ]
+
+    def test_row_index_skips_records_without_met(self):
+        no_met = record("T", 1, sh_engines=self.SH_ONE_OUT)
+        no_met["time"] = {}
+        columns = previous_flights.to_columns([
+            record("T", 0, sh_engines=self.SH_ON),
+            no_met,
+            record("T", 2, sh_engines=self.SH_ON),
+            record("T", 3, sh_engines=self.SH_ONE_OUT),
+        ])
+        assert columns["met"] == ["+00:01:00", "+00:01:02", "+00:01:03"]
+        assert columns["engines"] == [
+            {"i": 0, "sh": self.SH_ON},
+            {"i": 2, "sh": self.SH_ONE_OUT},
+        ]
 
 
 class TestLoadFlight:

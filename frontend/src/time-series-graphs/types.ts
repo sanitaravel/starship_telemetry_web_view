@@ -1,4 +1,5 @@
 import type { TimeSeriesStore } from '../state';
+import type { EngineEvent } from '../engine-events';
 
 export type DatasetKey = 'speedSuperHeavy' | 'speedStarship' | 'altitudeSuperHeavy' | 'altitudeStarship';
 
@@ -20,4 +21,6 @@ export interface LoadedComparison {
   filename: string;
   name: string;
   data: TimeSeriesStore;
+  /** Engine events detected in the flight's recorded engine statuses. */
+  engineEvents: EngineEvent[];
 }

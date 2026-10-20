@@ -1,6 +1,6 @@
 import { Chart, ChartConfiguration } from 'chart.js/auto';
 import type { StateManager, TimeSeriesPoint, TimeSeriesStore } from '../state';
-import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightInfo } from '../previous-flights';
+import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightData, PreviousFlightInfo } from '../previous-flights';
 import type { DatasetKey, LoadedComparison, SeriesKey, SeriesOption } from './types';
 import { COMPARE_COLORS, SERIES_OPTIONS } from './panels';
 import { NEAREST_PER_DATASET } from './interaction-mode';
@@ -69,7 +69,7 @@ export class TimeSeriesGraphs {
   /** In-flight comparison fetches, keyed by filename. */
   private pendingLoads: Map<string, Promise<void>> = new Map();
   /** Fetched comparison flights, kept so re-selecting one needs no refetch. */
-  private flightCache: Map<string, TimeSeriesStore> = new Map();
+  private flightCache: Map<string, PreviousFlightData> = new Map();
   /** Chart data per comparison flight and series; flights never change. */
   private overlayXY: Map<string, Map<SeriesKey, XY[]>> = new Map();
   /** User-picked overlay colours, keyed by flight filename. */
@@ -559,10 +559,15 @@ export class TimeSeriesGraphs {
   }
 
   /** Add a comparison flight to the chart data unless it is already there. */
-  private addComparison(filename: string, data: TimeSeriesStore): void {
+  private addComparison(filename: string, flight: PreviousFlightData): void {
     if (this.loadedComparisons.some((c) => c.filename === filename)) return;
     const info = this.previousFlights.find((f) => f.filename === filename);
-    this.loadedComparisons.push({ filename, name: info?.name ?? filename, data });
+    this.loadedComparisons.push({
+      filename,
+      name: info?.name ?? filename,
+      data: flight.store,
+      engineEvents: flight.engineEvents,
+    });
   }
 
   /**
