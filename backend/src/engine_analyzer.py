@@ -2,7 +2,9 @@
 
 Uses OpenCV Hough Circle Detection with user-tuned parameters to find
 circular engine indicators in frame regions, then classifies each engine's
-status based on HSV color sampling within the detected circles.
+status based on brightness sampled within the detected circles. Matches
+are verified as flat, contrasting engine icons, and a group whose panel is
+not on screen (too few verified icons) is reported as UNDETECTED.
 """
 
 import math
@@ -35,6 +37,9 @@ class EngineAnalyzerConfig:
     distance_tolerance: float = 2.0  # pixels — matching reference implementation
     radius_tolerance: float = 3.0  # pixels — max allowed deviation from expected radius
     brightness_threshold: float = 166.0  # V channel in HSV — midpoint between #4e4e4e (V=78) and #ffffff (V=255)
+    max_fill_std: float = 20.0  # grayscale — max std of pixels inside 0.7*r; icons are flat discs (real <= 17)
+    min_ring_contrast: float = 10.0  # grayscale — min (inner mean - ring mean); icons stand out from the panel (real >= 17)
+    min_panel_fraction: float = 0.6  # min share of a group's icons verified for the panel to count as on screen
     hough_starship: HoughParams = field(
         default_factory=lambda: HoughParams(
             dp=1.0,
@@ -222,6 +227,54 @@ def _classify_engine_color(
         return EngineStatus.INACTIVE
 
 
+def _looks_like_engine_icon(
+    gray: np.ndarray,
+    circle_x: float,
+    circle_y: float,
+    circle_radius: float,
+    config: EngineAnalyzerConfig,
+) -> bool:
+    """Check that a matched circle looks like a HUD engine icon.
+
+    Engine icons are flat-filled discs (white or dark grey) that are brighter
+    than the panel immediately around them. Hough also finds circles in
+    digits, text and scenery when the engine panel is not on screen; those
+    have textured interiors or no contrast with their surroundings.
+
+    Works on a small window around the circle only:
+    - inner: pixels within 0.7 * radius of the centre
+    - ring: annulus radius + 1.5 .. radius + 3.5 px (clipped to the crop)
+
+    Passes when inner std <= max_fill_std and
+    (inner mean - ring mean) >= min_ring_contrast. Empty inner or ring → fails.
+    """
+    h, w = gray.shape[:2]
+    inner_r = 0.7 * circle_radius
+    ring_r1 = circle_radius + 1.5
+    ring_r2 = circle_radius + 3.5
+
+    # Local window covering the outer edge of the ring, clamped to the crop
+    x0 = max(0, int(math.floor(circle_x - ring_r2)))
+    y0 = max(0, int(math.floor(circle_y - ring_r2)))
+    x1 = min(w, int(math.ceil(circle_x + ring_r2)) + 1)
+    y1 = min(h, int(math.ceil(circle_y + ring_r2)) + 1)
+    if x0 >= x1 or y0 >= y1:
+        return False
+
+    window = gray[y0:y1, x0:x1].astype(np.float32)
+    yy, xx = np.mgrid[y0:y1, x0:x1]
+    dist = np.hypot(xx - circle_x, yy - circle_y)
+
+    inner = window[dist <= inner_r]
+    ring = window[(dist >= ring_r1) & (dist <= ring_r2)]
+    if inner.size == 0 or ring.size == 0:
+        return False
+
+    if float(inner.std()) > config.max_fill_std:
+        return False
+    return float(inner.mean()) - float(ring.mean()) >= config.min_ring_contrast
+
+
 def _get_all_expected_positions(
     group: EngineGroup, offset_x: float, offset_y: float
 ) -> list[tuple[str, float, float, float]]:
@@ -258,10 +311,16 @@ def analyze_engines(
     2. Convert cropped region to grayscale
     3. Apply HoughCircles with tuned params (dp=1.0, minDist=7, param1=50, param2=10)
     4. Match detected circles to expected SVG positions within distance_tolerance
-    5. For matched circles: convert to HSV, sample color inside circle
-       - High brightness (V > threshold) AND high saturation (S > threshold) → ACTIVE
+    5. Verify each match looks like an engine icon (flat fill, brighter than
+       its surrounding ring); matches that fail are dropped
+    6. Panel gate: if fewer than min_panel_fraction of the group's icons are
+       verified, the panel is treated as off screen — every engine in the
+       group is UNDETECTED, it adds 0 matches to accuracy and its bounding
+       box is not reported
+    7. For verified circles: convert to HSV, sample brightness inside circle
+       - High brightness (V > threshold) → ACTIVE
        - Low brightness (V <= threshold) → INACTIVE
-    6. Unmatched expected positions → UNDETECTED
+    8. Unmatched or unverified expected positions → UNDETECTED
 
     Args:
         frame: BGR numpy array (1920x1080)
@@ -323,6 +382,28 @@ def analyze_engines(
             detected_circles, expected_positions, config.distance_tolerance, config.radius_tolerance
         )
 
+        # Step 5: Drop matches that do not look like engine icons. Verify at
+        # the expected template centre and radius: the template is reliable,
+        # while a Hough centre up to distance_tolerance off pushes the inner
+        # disc onto a small icon's dark edge.
+        expected_by_id = {eid: (ex, ey, er) for eid, ex, ey, er in expected_positions}
+        verified: dict[str, tuple[float, float, float] | None] = {}
+        for engine_id, matched_circle in matches.items():
+            ex, ey, er = expected_by_id[engine_id]
+            if matched_circle is not None and _looks_like_engine_icon(
+                gray, ex, ey, er, config
+            ):
+                verified[engine_id] = matched_circle
+            else:
+                verified[engine_id] = None
+
+        # Step 6: Panel gate — too few icons means the panel is not on screen
+        verified_count = sum(1 for c in verified.values() if c is not None)
+        if verified_count < config.min_panel_fraction * len(expected_positions):
+            for engine_id in verified:
+                engine_statuses[engine_id] = EngineStatus.UNDETECTED
+            continue
+
         # Convert cropped BGR to HSV for color sampling
         if len(cropped.shape) == 3:
             hsv_cropped = cv2.cvtColor(cropped, cv2.COLOR_BGR2HSV)
@@ -332,9 +413,9 @@ def analyze_engines(
                 cv2.cvtColor(cropped, cv2.COLOR_GRAY2BGR), cv2.COLOR_BGR2HSV
             )
 
-        # Steps 5 & 6: Classify matched engines, mark unmatched as UNDETECTED
+        # Steps 7 & 8: Classify verified engines, mark the rest as UNDETECTED
         group_has_detection = False
-        for engine_id, matched_circle in matches.items():
+        for engine_id, matched_circle in verified.items():
             if matched_circle is None:
                 engine_statuses[engine_id] = EngineStatus.UNDETECTED
             else:
