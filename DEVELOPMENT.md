@@ -31,6 +31,8 @@ No linter is configured for either side. Backend imports use the `src.` package 
 
 `results_previous/` is tracked with Git LFS. Without `git lfs install`/`git lfs pull` it contains pointer stubs, not real data.
 
+**Test videos**: downloaded broadcast streams live in `test_videos/<flight>/` (`output.m3u8` plus `seg_*.ts`), e.g. `ift-12/` and `ift-13/`. The folder is local-only: it is excluded through `.git/info/exclude`, not `.gitignore`, so each checkout has to fetch its own copy. The IFT-12 and IFT-13 streams are trimmed to start about 30 s before T-0. Serve one with `python scripts/serve_test_videos.py ift-12` and point the pipeline at `http://localhost:8001/output.m3u8`; without a flight argument every flight is served at `http://localhost:8001/<flight>/output.m3u8`. `--port`, `--host` and `--dir` override the defaults, and the server sends HLS MIME types and `Access-Control-Allow-Origin: *`.
+
 ## Architecture
 
 **Backend pipeline** (`backend/src/`): `frame_extractor` → `engine_analyzer` (Hough circles, colour classification against SVG-derived ROI templates) and `ocr_engine` (EasyOCR on defined regions) → `stage_assignment` (attributes values to Starship or Super Heavy by separation state) → `record_assembler` → `telemetry_record`, then a WebSocket broadcast in `server.py`.
