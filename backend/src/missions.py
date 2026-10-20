@@ -7,7 +7,7 @@ the mission, ship and booster names. Each mission is a file in ``missions/`` nam
 (``IFT 14`` -> ``engines_ift-14.json``). The id matches the recorded flight's
 ``results_previous/ift-14.json``, but the ``engines_`` prefix and the separate
 directory keep the two files apart: a recorded flight is never written to.
-For now the files stay on this machine; the directory is not committed.
+Missions whose serials are known are committed with the repository.
 """
 
 import json
