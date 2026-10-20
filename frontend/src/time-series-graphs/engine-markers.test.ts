@@ -94,6 +94,20 @@ describe('formatEngineEvent', () => {
     ).toBe('Engine out: Super Heavy E5 (middle ring), E17 (outer ring) · T+1:52 · 31/33 running');
   });
 
+  it('collapses runs of 3+ consecutive engines within a ring', () => {
+    const ids = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((n) => `sh_e${n}`);
+    expect(
+      formatEngineEvent(event({ engineIds: ids, rings: ['engines_middle', 'engines_outer'], runningAfter: 21 })),
+    ).toBe('Engine out: Super Heavy E9–E13 (middle ring), E14–E20 (outer ring) · T+1:52 · 21/33 running');
+  });
+
+  it('keeps runs of two and gaps as separate engines', () => {
+    const ids = ['sh_e4', 'sh_e5', 'sh_e7', 'sh_e8', 'sh_e9', 'sh_e11'];
+    expect(formatEngineEvent(event({ engineIds: ids, rings: ['engines_middle'], runningAfter: 27 }))).toBe(
+      'Engine out: Super Heavy E4, E5, E7–E9, E11 (middle ring) · T+1:52 · 27/33 running',
+    );
+  });
+
   it('names Starship engines', () => {
     expect(
       formatEngineEvent(event({ vehicle: 'starship', engineIds: ['ss_e2'], rings: ['atmo'], runningAfter: 5, expected: 6 })),
@@ -163,7 +177,7 @@ describe('formatEngineEvent: more shapes', () => {
         runningAfter: 10,
         expected: 13,
       })),
-    ).toBe('Failed to light: Super Heavy E11, E12, E13 (middle ring) · T+6:40 · 10/13 running');
+    ).toBe('Failed to light: Super Heavy E11–E13 (middle ring) · T+6:40 · 10/13 running');
   });
 
   it('uses an hours clock for the ship landing burn', () => {

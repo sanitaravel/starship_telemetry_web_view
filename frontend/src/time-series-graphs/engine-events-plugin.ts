@@ -196,10 +196,16 @@ export const engineEventsPlugin: Plugin<ChartType, EngineEventsPluginOptions> = 
       .flatMap((m) => m.tooltipLines);
     showTooltip(chart, lines, pixels[hit]);
 
-    // The marker tooltip replaces the regular one (and its crosshair)
+    // The marker tooltip replaces the regular one (and its crosshair) and
+    // the hover dot on the line. Both come back on the next move off the
+    // marker, when Chart.js recomputes them from the event.
     const tooltip = chart.tooltip;
     if (tooltip && tooltip.getActiveElements().length > 0) {
       tooltip.setActiveElements([], { x: event.x, y: event.y });
+      args.changed = true;
+    }
+    if (chart.getActiveElements().length > 0) {
+      chart.setActiveElements([]);
       args.changed = true;
     }
   },

@@ -48,6 +48,8 @@ describe('engineEventsPlugin hover tooltip', () => {
       chartArea: AREA,
       scales: { x: { min: 0, max: 100, getPixelForValue: (v: number) => 50 + v * 7 } },
       tooltip,
+      getActiveElements: vi.fn(() => [{}]),
+      setActiveElements: vi.fn(),
     };
     return { chart, container, tooltip };
   }
@@ -80,6 +82,24 @@ describe('engineEventsPlugin hover tooltip', () => {
     ]);
     expect(tooltip.setActiveElements).toHaveBeenCalledWith([], { x: 122, y: 200 });
     expect(args.changed).toBe(true);
+  });
+
+  it('clears the hover dot on the line only while a marker is hovered', () => {
+    const { chart, tooltip } = fakeChart();
+    fire(chart, 'mousemove', 300, 200);
+    expect(chart.setActiveElements).not.toHaveBeenCalled();
+    expect(tooltip.setActiveElements).not.toHaveBeenCalled();
+
+    const args = fire(chart, 'mousemove', 122, 200);
+    expect(chart.setActiveElements).toHaveBeenCalledWith([]);
+    expect(args.changed).toBe(true);
+
+    // Nothing active (already cleared): no extra redraw requested
+    chart.getActiveElements.mockReturnValue([]);
+    tooltip.getActiveElements.mockReturnValue([]);
+    chart.setActiveElements.mockClear();
+    expect(fire(chart, 'mousemove', 123, 200).changed).toBeUndefined();
+    expect(chart.setActiveElements).not.toHaveBeenCalled();
   });
 
   it('hides when the mouse leaves the marker or the chart', () => {

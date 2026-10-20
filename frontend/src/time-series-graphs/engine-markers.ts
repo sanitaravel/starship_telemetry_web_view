@@ -59,7 +59,29 @@ function metText(seconds: number): string {
   return `T${formatSecondsToMET(seconds)}`;
 }
 
-/** Engine labels grouped by ring: "E5 (middle ring), E17, E22 (outer ring)". */
+/**
+ * Engine labels of one ring with runs of 3+ consecutive numbers collapsed:
+ * ["E9", "E10", "E11", "E13", "E14"] -> "E9–E11, E13, E14".
+ */
+function labelsText(labels: readonly string[]): string {
+  const parts: string[] = [];
+  let i = 0;
+  while (i < labels.length) {
+    let j = i;
+    while (j + 1 < labels.length && labelNumber(labels[j + 1]) === labelNumber(labels[j]) + 1) j++;
+    if (j - i >= 2) parts.push(`${labels[i]}–${labels[j]}`);
+    else parts.push(...labels.slice(i, j + 1));
+    i = j + 1;
+  }
+  return parts.join(', ');
+}
+
+/** Engine number of a label ("E17" -> 17), NaN if it has none. */
+function labelNumber(label: string): number {
+  return Number(label.replace(/^E/, ''));
+}
+
+/** Engine labels grouped by ring: "E5 (middle ring), E14–E17, E22 (outer ring)". */
 function enginesText(engineIds: readonly string[]): string {
   const groups: { ring: string | undefined; labels: string[] }[] = [];
   for (const id of engineIds) {
@@ -69,7 +91,7 @@ function enginesText(engineIds: readonly string[]): string {
     else groups.push({ ring, labels: [engineLabel(id)] });
   }
   return groups
-    .map((g) => (g.ring ? `${g.labels.join(', ')} (${g.ring})` : g.labels.join(', ')))
+    .map((g) => (g.ring ? `${labelsText(g.labels)} (${g.ring})` : labelsText(g.labels)))
     .join(', ');
 }
 
