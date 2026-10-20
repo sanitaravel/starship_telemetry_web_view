@@ -60,6 +60,11 @@ export interface AppState {
   engineEvents: EngineEvent[];
   /** Incremented whenever events are appended to engineEvents */
   engineEventsVersion: number;
+  /**
+   * MET in seconds (same estimate as metSeconds) of the first record after
+   * stage separation, or null until one arrives.
+   */
+  separationMetSeconds: number | null;
   /** Frames processed per second, measured from actual message arrivals */
   processingFps: number;
 }
@@ -155,8 +160,12 @@ export class StateManager {
     this.state.telemetryRecords.push(record);
     const engineEvents = this.engineEventDetector.push(record, metSeconds);
     this.state.engineEvents.push(...engineEvents);
+    const separationMetSeconds =
+      this.state.separationMetSeconds ??
+      (record.separation_state === 'post_separation' && metSeconds !== undefined ? metSeconds : null);
     this.state = {
       ...this.state,
+      separationMetSeconds,
       latestTelemetry: record,
       timeSeriesVersion: this.state.timeSeriesVersion + (appended ? 1 : 0),
       engineEventsVersion: this.state.engineEventsVersion + (engineEvents.length > 0 ? 1 : 0),
@@ -236,6 +245,7 @@ export function createInitialState(): AppState {
     telemetryRecords: [],
     engineEvents: [],
     engineEventsVersion: 0,
+    separationMetSeconds: null,
     processingFps: 0,
   };
 }

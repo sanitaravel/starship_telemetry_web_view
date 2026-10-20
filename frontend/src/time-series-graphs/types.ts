@@ -23,4 +23,6 @@ export interface LoadedComparison {
   data: TimeSeriesStore;
   /** Engine events detected in the flight's recorded engine statuses. */
   engineEvents: EngineEvent[];
+  /** Estimated MET of stage separation in seconds, or null if unknown. */
+  separationMetSeconds: number | null;
 }

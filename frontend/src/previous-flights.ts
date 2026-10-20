@@ -34,6 +34,8 @@ export interface PreviousFlightColumns {
 export interface PreviousFlightData {
   store: TimeSeriesStore;
   engineEvents: EngineEvent[];
+  /** Estimated MET of stage separation in seconds, or null if unknown (see estimateSeparationMet). */
+  separationMetSeconds: number | null;
 }
 
 /**
@@ -68,7 +70,27 @@ export async function fetchPreviousFlightData(filename: string): Promise<Previou
   return {
     store: transformToTimeSeries(columns, metSeconds),
     engineEvents: detectFlightEngineEvents(columns, metSeconds),
+    separationMetSeconds: estimateSeparationMet(columns, metSeconds),
   };
+}
+
+/**
+ * MET in seconds of stage separation. Separation is not recorded, but before
+ * it both vehicles share one reading, so the first row where both speeds
+ * exist and differ is taken as separation. Null when there is no such row.
+ */
+export function estimateSeparationMet(
+  columns: PreviousFlightColumns,
+  metSeconds: number[] = estimateMetSeconds(columns),
+): number | null {
+  for (let i = 0; i < columns.met.length; i++) {
+    const ss = columns.ss_speed[i];
+    const sh = columns.sh_speed[i];
+    if (ss !== null && ss !== undefined && sh !== null && sh !== undefined && ss !== sh) {
+      return metSeconds[i];
+    }
+  }
+  return null;
 }
 
 /**

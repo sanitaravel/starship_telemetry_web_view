@@ -98,6 +98,30 @@ describe('StateManager', () => {
     expect(manager.getState().engineEventsVersion).toBe(0);
   });
 
+  it('records the MET of the first post-separation record and clears it on reset', () => {
+    const manager = new StateManager();
+    const send = (seq: number, met: string, separation: TelemetryRecord['separation_state']) =>
+      manager.handleMessage({
+        type: 'telemetry',
+        payload: createTestTelemetryRecord({
+          sequence_number: seq,
+          mission_elapsed_time: met,
+          separation_state: separation,
+          timestamp: 1700000000000 + seq * 1000,
+        }),
+      });
+
+    send(1, 'T+00:02:40', 'pre_separation');
+    expect(manager.getState().separationMetSeconds).toBeNull();
+    send(2, 'T+00:02:41', 'post_separation');
+    expect(manager.getState().separationMetSeconds).toBeCloseTo(161, 0);
+    send(3, 'T+00:02:42', 'post_separation');
+    expect(manager.getState().separationMetSeconds).toBeCloseTo(161, 0);
+
+    manager.reset();
+    expect(manager.getState().separationMetSeconds).toBeNull();
+  });
+
   it('updates pipelineStatus on status message', () => {
     const manager = new StateManager();
     const status: PipelineStatus = {

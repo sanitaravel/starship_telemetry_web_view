@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectFlightEngineEvents, transformToTimeSeries, type PreviousFlightColumns } from './previous-flights';
+import { detectFlightEngineEvents, estimateSeparationMet, transformToTimeSeries, type PreviousFlightColumns } from './previous-flights';
 
 /** Build a columnar flight whose Super Heavy and Starship share the same speeds. */
 function columns(rows: [seconds: number, realTimeSeconds: number, speed: number | null][]): PreviousFlightColumns {
@@ -82,5 +82,19 @@ describe('detectFlightEngineEvents', () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ kind: 'engine_out', vehicle: 'superheavy', engineIds: ['sh_e20'], runningAfter: 32 });
     expect(events[0].metSeconds).toBeCloseTo(60, 5);
+  });
+});
+
+describe('estimateSeparationMet', () => {
+  it('is the MET of the first row where both speeds exist and differ', () => {
+    const flight = columns([[10, 10, 100], [11, 11, 200], [12, 12, 300], [13, 13, 400]]);
+    flight.ss_speed = [100, null, 300, 410];
+    flight.sh_speed = [100, 200, 300, 390];
+    expect(estimateSeparationMet(flight, [10, 11, 12, 13])).toBe(13);
+  });
+
+  it('is null when the speeds never differ', () => {
+    const flight = columns([[10, 10, 100], [11, 11, null], [12, 12, 300]]);
+    expect(estimateSeparationMet(flight, [10, 11, 12])).toBeNull();
   });
 });

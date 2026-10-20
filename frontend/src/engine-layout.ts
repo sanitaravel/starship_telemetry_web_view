@@ -7,6 +7,12 @@
 
 export type Vehicle = 'superheavy' | 'starship';
 
+/** Display names of the vehicles, e.g. for "Super Heavy E17". */
+export const VEHICLE_NAMES: Record<Vehicle, string> = {
+  superheavy: 'Super Heavy',
+  starship: 'Starship',
+};
+
 /** SVG subgroup id an engine belongs to. */
 export type EngineRing = 'engines_inner' | 'engines_middle' | 'engines_outer' | 'atmo' | 'vacuum';
 
