@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { TimeSeriesStore } from '../core/time-series';
+import type { TimeSeriesStore } from '../../core/time-series';
 
 vi.mock('chart.js/auto', () => {
   class Chart {
@@ -25,20 +25,20 @@ vi.mock('chart.js/auto', () => {
   return { Chart };
 });
 
-vi.mock('../api/previous-flights', () => ({
+vi.mock('../../api/previous-flights', () => ({
   fetchPreviousFlightList: vi.fn(),
   fetchPreviousFlightData: vi.fn(),
 }));
 
-vi.mock('./export-png', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./export-png')>()),
+vi.mock('./export/export-png', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./export/export-png')>()),
   saveCanvasAsPng: vi.fn(),
 }));
 
 import { Chart } from 'chart.js/auto';
 import { TimeSeriesGraphs } from './graphs';
-import { fetchPreviousFlightList, fetchPreviousFlightData, type PreviousFlightData } from '../api/previous-flights';
-import { EXPORT_THEMES, saveCanvasAsPng } from './export-png';
+import { fetchPreviousFlightList, fetchPreviousFlightData, type PreviousFlightData } from '../../api/previous-flights';
+import { EXPORT_THEMES, saveCanvasAsPng } from './export/export-png';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const chartInstances = (Chart as any).instances as any[];

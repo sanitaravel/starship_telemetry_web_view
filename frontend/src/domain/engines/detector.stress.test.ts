@@ -8,7 +8,7 @@ import type { TelemetryRecord } from '../../core/types';
 import { enginesInRing, enginesOf } from './layout';
 import { EngineEventDetector, detectEngineEvents } from './detector';
 import type { EngineEvent, EngineStatusMap } from './events';
-import { eventsForSeries } from '../../time-series-graphs/engine-markers';
+import { eventsForSeries } from '../../features/graphs/plugins/engine-markers';
 
 const ids = (engines: readonly { id: string }[]) => engines.map((e) => e.id);
 const SH_ALL = ids(enginesOf('superheavy'));

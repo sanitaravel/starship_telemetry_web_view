@@ -1,5 +1,5 @@
-import type { TimeSeriesStore } from '../core/time-series';
-import type { EngineEvent } from '../domain/engines/events';
+import type { TimeSeriesStore } from '../../core/time-series';
+import type { EngineEvent } from '../../domain/engines/events';
 
 export type DatasetKey = 'speedSuperHeavy' | 'speedStarship' | 'altitudeSuperHeavy' | 'altitudeStarship';
 

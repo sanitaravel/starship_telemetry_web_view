@@ -1,8 +1,8 @@
 import { Chart, Interaction } from 'chart.js/auto';
 import zoomPlugin from 'chartjs-plugin-zoom';
-import { crosshairPlugin } from './crosshair-plugin';
-import { engineEventsPlugin } from './engine-events-plugin';
-import { nearestPerDataset, NEAREST_PER_DATASET } from './interaction-mode';
+import { crosshairPlugin } from './plugins/crosshair-plugin';
+import { engineEventsPlugin } from './plugins/engine-events-plugin';
+import { nearestPerDataset, NEAREST_PER_DATASET } from './plugins/interaction-mode';
 
 Chart.register(zoomPlugin);
 Chart.register(crosshairPlugin);

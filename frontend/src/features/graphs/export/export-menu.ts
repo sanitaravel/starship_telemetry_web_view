@@ -4,7 +4,7 @@ import {
   type ExportBackground,
   type ExportOptions,
 } from './export-png';
-import { bindDismiss } from '../ui/popover';
+import { bindDismiss } from '../../../ui/popover';
 
 const STORAGE_KEY = 'time-series-graphs.export-options';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { EngineEvent } from '../domain/engines/events';
+import type { EngineEvent } from '../../../domain/engines/events';
 import {
   ENGINE_OUT_COLOR,
   eventMarkers,
