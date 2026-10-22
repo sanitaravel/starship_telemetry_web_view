@@ -22,7 +22,6 @@ from src.capture.source import (
     advance,
     configure_capture,
     open_capture,
-    parse_source_fps,
     probe_frame_count,
     validate_source,
 )
@@ -162,8 +161,6 @@ class FrameExtractor(CaptureNotifier):
         """
         return cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
 
-    _parse_source_fps = staticmethod(parse_source_fps)
-
     async def _capture_loop(self) -> None:
         """Main async capture loop.
 
@@ -276,8 +273,9 @@ class FrameExtractor(CaptureNotifier):
         # Grab the frames that will be skipped and read only the
         # next processed one, in a single executor hop.
         to_skip = skip - 1 - (self._frame_counter % skip)
+        # Under the capture lock per grab and read (see source.advance).
         grabbed, ret, frame = await loop.run_in_executor(
-            None, self._advance, self._capture, to_skip
+            None, advance, self._capture, to_skip, self._capture_lock, self._stop_event
         )
         self._frame_counter += grabbed
         return ret, frame
@@ -321,15 +319,6 @@ class FrameExtractor(CaptureNotifier):
             resized, self._sequence_number, frame_number, self._source_fps
         )
 
-    def _advance(
-        self, capture: cv2.VideoCapture, to_skip: int
-    ) -> tuple[int, bool, np.ndarray | None]:
-        """Grab ``to_skip`` frames, then read one (see source.advance).
-
-        Runs in the executor, under the capture lock per grab and read.
-        """
-        return advance(capture, to_skip, self._capture_lock, self._stop_event)
-
     async def _decoder_for(
         self, frame_counter: int, skip: int
     ) -> ParallelFileDecoder | None:
@@ -346,7 +335,10 @@ class FrameExtractor(CaptureNotifier):
         if self._decoder is not None:
             await loop.run_in_executor(None, self._close_decoder)
 
-        plan = self._parallel_plan(skip)
+        # (kept frames per chunk, decoders, FFmpeg threads per decoder), or None
+        # when parallel decoding is off or would not pay at this skip interval
+        assert self._config is not None
+        plan = parallel_plan(self._config.decode_workers, skip)
         if plan is None:
             return None
         if self._frame_count is None:
@@ -354,20 +346,10 @@ class FrameExtractor(CaptureNotifier):
         if not self._frame_count:
             return None
 
-        assert self._config is not None
         self._decoder = start_decoder(
             self._config.source_url, frame_counter, skip, plan, self._frame_count
         )
         return self._decoder
-
-    def _parallel_plan(self, skip: int) -> tuple[int, int, int] | None:
-        """Return (kept frames per chunk, decoders, FFmpeg threads per decoder).
-
-        See planning.parallel_plan; None when parallel decoding is off or
-        would not pay at this skip interval.
-        """
-        assert self._config is not None
-        return parallel_plan(self._config.decode_workers, skip)
 
     def _probe_seekable(self) -> int:
         """Return the source's frame count if it seeks accurately, else 0.

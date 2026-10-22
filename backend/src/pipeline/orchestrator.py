@@ -19,14 +19,11 @@ from src.capture import FrameExtractor, FrameExtractorConfig
 from src.core.enums import PipelineStatus, SeparationState
 from src.core.gpu import GPUCapabilities
 from src.core.logging_context import frame_seq_var
-from src.ocr.engine import EasyOCREngine
-from src.ocr.results import OCRResult
 from src.pipeline.broadcast import Broadcaster
 from src.pipeline.concurrency_controller import ConcurrencyController
 from src.pipeline.frame_processor import FrameProcessor
 from src.pipeline.ordering import ReorderCoordinator
 from src.pipeline.parallel_config import ParallelPipelineConfig
-from src.pipeline.stages import unpack_stage_results
 from src.pipeline.state import PipelineState
 from src.pipeline.status_payload import build_status_payload
 from src.telemetry.record_assembler import RecordAssembler
@@ -35,14 +32,6 @@ from src.templates.template_registry import TemplateRegistry, TemplateNotFoundEr
 
 
 logger = logging.getLogger(__name__)
-
-
-def _forward(collaborator: str, name: str) -> property:
-    """A read/write property for an attribute owned by one of the collaborators."""
-    return property(
-        lambda self: getattr(getattr(self, collaborator), name),
-        lambda self, value: setattr(getattr(self, collaborator), name, value),
-    )
 
 
 class PipelineOrchestrator:
@@ -129,40 +118,9 @@ class PipelineOrchestrator:
         """Return the frame extractor instance (for URL validation)."""
         return self._frame_extractor
 
-    # --- Collaborator state, reachable from the orchestrator (tests and tools) ---
-
-    _reorder_buffer = _forward("_ordering", "buffer")
-    _broadcast_queue = _forward("_broadcaster", "queue")
-    _roi_config = _forward("_frames", "roi_config")
-    _ocr_engine = _forward("_frames", "ocr_engine")
-    _t_zero_detected = _forward("_frames", "t_zero_detected")
-
-    def _ensure_ocr_engine(self) -> EasyOCREngine:
-        """Lazily initialize the OCR engine (expensive neural net load)."""
-        return self._frames.ensure_ocr_engine()
-
-    _unpack_stage_results = staticmethod(unpack_stage_results)
-
-    async def _process_frame(
-        self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float,
-        *, detect_t_zero: bool,
-    ) -> None:
-        """Process one frame; see FrameProcessor.process_frame."""
-        await self._frames.process_frame(
-            frame, seq, frame_number, source_fps, detect_t_zero=detect_t_zero
-        )
-
-    async def _process_frame_with_timeout(
-        self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float
-    ) -> None:
-        """Process one frame under the frame timeout; see FrameProcessor."""
-        await self._frames.process_frame_with_timeout(frame, seq, frame_number, source_fps)
-
-    async def _submit_to_reorder_buffer(
-        self, seq: int, record: Any, frame_b64: str | None, ocr_result: OCRResult | None = None
-    ) -> None:
-        """Submit a processed result for ordered broadcast; see ReorderCoordinator."""
-        await self._ordering.submit(seq, record, frame_b64, ocr_result)
+    def load_ocr_engine(self) -> None:
+        """Load the OCR model now rather than on the first start (expensive neural net load)."""
+        self._frames.ensure_ocr_engine()
 
     def _concurrency_limit(self) -> int:
         """The current concurrency limit, or the configured one before start."""

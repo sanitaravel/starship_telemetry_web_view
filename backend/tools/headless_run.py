@@ -177,7 +177,7 @@ async def run_pipeline(
 
     orchestrator = PipelineOrchestrator(gpu, registry, broadcast)
     # Load the OCR model before the clock starts, as the server does at startup
-    orchestrator._ensure_ocr_engine()
+    orchestrator.load_ocr_engine()
 
     log.info("Running for %.0f s against %s (skip_frames=%d)", seconds, url, skip_frames)
     capture.started_at = time.time()

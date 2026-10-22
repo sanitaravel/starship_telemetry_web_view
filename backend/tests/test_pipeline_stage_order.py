@@ -42,8 +42,8 @@ async def test_frames_finishing_out_of_order_are_assigned_in_video_order():
     cpu = GPUCapabilities(backend=AccelerationBackend.CPU, device_name=None,
                           cuda_version=None, gpu_available=False)
     orchestrator = PipelineOrchestrator(cpu, registry, broadcast=None)
-    orchestrator._reorder_buffer = ReorderBuffer()
-    orchestrator._broadcast_queue = asyncio.Queue()
+    orchestrator._ordering.buffer = ReorderBuffer()
+    orchestrator._broadcaster.queue = asyncio.Queue()
 
     frames = {
         1: _ocr("SUPER HEAVY", "STARSHIP", sep=True),  # separation, labels read
@@ -54,11 +54,11 @@ async def test_frames_finishing_out_of_order_are_assigned_in_video_order():
     for seq in (3, 2, 1):
         record = _Record(sequence_number=0, stage_assignment_left="?", stage_assignment_right="?",
                          separation_state="?", stage_sep_found=False)
-        await orchestrator._submit_to_reorder_buffer(seq, record, None, frames[seq])
+        await orchestrator._ordering.submit(seq, record, None, frames[seq])
 
     sent = []
-    while not orchestrator._broadcast_queue.empty():
-        message = orchestrator._broadcast_queue.get_nowait()
+    while not orchestrator._broadcaster.queue.empty():
+        message = orchestrator._broadcaster.queue.get_nowait()
         if message["type"] == "telemetry":
             sent.append(message["payload"])
 

@@ -15,6 +15,7 @@ import pytest
 
 from src.capture import FrameExtractor, FrameExtractorConfig
 from src.capture.parallel_decoder import ParallelFileDecoder
+from src.capture.planning import parallel_plan
 from src.core.enums import PipelineStatus
 
 
@@ -222,14 +223,16 @@ def test_skip_change_mid_run_hands_over_to_serial(video):
     "skip,expected_workers",
     [(30, 8), (24, 8), (15, 5), (8, 2), (5, None), (1, None)],
 )
-def test_plan_trades_decoders_for_chunk_length(skip, expected_workers):
+def test_plan_trades_decoders_for_chunk_length(skip, expected_workers, monkeypatch):
     # Every chunk must span at least 120 source frames to pay for its seek,
     # and all decoders' chunks must fit the 48-frame buffer, so shorter skip
-    # intervals get fewer decoders, and the shortest none at all.
+    # intervals get fewer decoders, and the shortest none at all. Enough cores
+    # that the physical-core cap doesn't bind.
+    monkeypatch.setattr("src.capture.planning.os.cpu_count", lambda: 16)
     extractor = FrameExtractor()
     extractor._config = FrameExtractorConfig(source_url="clip.mp4", skip_frames=skip)
 
-    plan = extractor._parallel_plan(skip)
+    plan = parallel_plan(extractor._config.decode_workers, skip)
 
     if expected_workers is None:
         assert plan is None
@@ -247,7 +250,7 @@ def test_plan_never_runs_more_decoders_than_physical_cores(cpus, expected, monke
     extractor = FrameExtractor()
     extractor._config = FrameExtractorConfig(source_url="clip.mp4", skip_frames=30)
 
-    plan = extractor._parallel_plan(30)
+    plan = parallel_plan(extractor._config.decode_workers, 30)
 
     assert (plan[1] if plan else None) == expected
 
@@ -256,4 +259,4 @@ def test_plan_respects_a_serial_setting():
     extractor = FrameExtractor()
     extractor._config = FrameExtractorConfig(source_url="clip.mp4", decode_workers=1)
 
-    assert extractor._parallel_plan(30) is None
+    assert parallel_plan(extractor._config.decode_workers, 30) is None

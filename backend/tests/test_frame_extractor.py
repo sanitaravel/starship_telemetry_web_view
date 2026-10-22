@@ -13,6 +13,7 @@ import pytest
 
 from src.capture import FrameExtractor, FrameExtractorConfig, SourceUnavailable
 from src.capture.config import DEFAULT_SOURCE_FPS
+from src.capture.source import advance, parse_source_fps
 from src.core.enums import PipelineStatus
 
 
@@ -29,28 +30,28 @@ def config() -> FrameExtractorConfig:
 
 
 class TestParseSourceFps:
-    """Tests for FrameExtractor._parse_source_fps FPS coercion/fallback."""
+    """Tests for source.parse_source_fps FPS coercion/fallback."""
 
     def test_valid_fps_is_used(self) -> None:
-        assert FrameExtractor._parse_source_fps(29.97) == pytest.approx(29.97)
+        assert parse_source_fps(29.97) == pytest.approx(29.97)
 
     def test_integer_fps_is_used(self) -> None:
-        assert FrameExtractor._parse_source_fps(30) == 30.0
+        assert parse_source_fps(30) == 30.0
 
     def test_zero_falls_back_to_default(self) -> None:
-        assert FrameExtractor._parse_source_fps(0.0) == DEFAULT_SOURCE_FPS
+        assert parse_source_fps(0.0) == DEFAULT_SOURCE_FPS
 
     def test_negative_falls_back_to_default(self) -> None:
-        assert FrameExtractor._parse_source_fps(-1.0) == DEFAULT_SOURCE_FPS
+        assert parse_source_fps(-1.0) == DEFAULT_SOURCE_FPS
 
     def test_nan_falls_back_to_default(self) -> None:
-        assert FrameExtractor._parse_source_fps(float("nan")) == DEFAULT_SOURCE_FPS
+        assert parse_source_fps(float("nan")) == DEFAULT_SOURCE_FPS
 
     def test_inf_falls_back_to_default(self) -> None:
-        assert FrameExtractor._parse_source_fps(float("inf")) == DEFAULT_SOURCE_FPS
+        assert parse_source_fps(float("inf")) == DEFAULT_SOURCE_FPS
 
     def test_non_numeric_falls_back_to_default(self) -> None:
-        assert FrameExtractor._parse_source_fps(object()) == DEFAULT_SOURCE_FPS
+        assert parse_source_fps(object()) == DEFAULT_SOURCE_FPS
 
 
 class TestFrameExtractorConfig:
@@ -523,10 +524,12 @@ class TestCaptureReleaseRace:
         extractor._stop_event.clear()
 
         loop = asyncio.get_running_loop()
-        advance = loop.run_in_executor(None, extractor._advance, capture, 5)
+        advancing = loop.run_in_executor(
+            None, advance, capture, 5, extractor._capture_lock, extractor._stop_event
+        )
         await loop.run_in_executor(None, grab_started.wait)
         extractor.stop()
-        grabbed, ret, _ = await advance
+        grabbed, ret, _ = await advancing
 
         # The release came after the running grab, and no grab followed it
         assert events == ["grab-start", "grab-end", "release"]

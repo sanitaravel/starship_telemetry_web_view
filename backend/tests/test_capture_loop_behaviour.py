@@ -36,6 +36,7 @@ from src.core.enums import PipelineStatus
 # Where the extractor constructs its OpenCV captures and parallel decoders
 VIDEO_CAPTURE = "src.capture.source.cv2.VideoCapture"
 PARALLEL_DECODER = "src.capture.planning.ParallelFileDecoder"
+PARALLEL_PLAN = "src.capture.extractor.parallel_plan"
 
 WIDTH, HEIGHT = 8, 6
 URL = "http://test.example.com/stream"
@@ -274,9 +275,11 @@ class TestReconnectRestartsNumbering:
             patch(VIDEO_CAPTURE, source),
             patch(PARALLEL_DECODER, decoder.construct),
             patch.object(extractor, "_probe_seekable", return_value=1000),
-            patch.object(
-                extractor, "_parallel_plan",
-                side_effect=lambda skip: (2, 2, 1) if skip >= 10 and not decoder.started else None,
+            patch(
+                PARALLEL_PLAN,
+                side_effect=lambda workers, skip: (
+                    (2, 2, 1) if skip >= 10 and not decoder.started else None
+                ),
             ),
         ):
             await asyncio.wait_for(extractor._capture_loop(), timeout=10)
@@ -412,9 +415,9 @@ class TestParallelToSerialHandover:
             patch(VIDEO_CAPTURE, source),
             patch(PARALLEL_DECODER, decoder.construct),
             patch.object(extractor, "_probe_seekable", return_value=1000),
-            patch.object(
-                extractor, "_parallel_plan",
-                side_effect=lambda skip: (2, 2, 1) if skip >= 10 else None,
+            patch(
+                PARALLEL_PLAN,
+                side_effect=lambda workers, skip: (2, 2, 1) if skip >= 10 else None,
             ),
         ):
             await asyncio.wait_for(extractor._capture_loop(), timeout=10)
