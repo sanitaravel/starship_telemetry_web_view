@@ -6,8 +6,8 @@
  *
  *   core 0 < domain 1 < api 2 < state 3 < ui 4 < features 5 < app 6
  *
- * Files under a layer folder (core/, domain/, ...) get that layer. Files not
- * yet moved get theirs from TRANSITIONAL_LAYERS. Upward edges and cycles that
+ * Every module lives under a layer folder (core/, domain/, ...) and gets that
+ * layer; a file anywhere else fails the test. Upward edges and cycles that
  * exist today are listed in ALLOWED_UPWARD_EDGES and ALLOWED_CYCLES; both
  * lists only shrink: an entry that no longer occurs fails the test.
  */
@@ -24,17 +24,6 @@ const RANK: Record<Layer, number> = Object.fromEntries(LAYERS.map((l, i) => [l, 
   Layer,
   number
 >;
-
-/**
- * TRANSITIONAL: target layer of each file still sitting outside a layer
- * folder (src-relative path without `.ts`). Delete an entry when its file
- * moves into core/, domain/, api/, state/, ui/, features/ or app/; the map
- * should be empty once the refactor is done.
- */
-const TRANSITIONAL_LAYERS: Readonly<Record<string, Layer>> = {
-  // app
-  main: 'app',
-};
 
 /**
  * Upward imports that exist today, as 'from -> to' (src-relative, no `.ts`).
@@ -96,7 +85,7 @@ function resolveSpecifier(fromId: string, spec: string): string | null {
 function layerOf(id: string): Layer | null {
   const top = id.split('/')[0];
   if ((LAYERS as readonly string[]).includes(top) && id.includes('/')) return top as Layer;
-  return TRANSITIONAL_LAYERS[id] ?? null;
+  return null;
 }
 
 interface Graph {
@@ -164,8 +153,8 @@ describe('architecture', () => {
   const graph = buildGraph();
 
   it('finds the source modules and their imports', () => {
-    expect(graph.modules).toContain('main');
-    expect(graph.edges.get('main')?.size ?? 0).toBeGreaterThan(5);
+    expect(graph.modules).toContain('app/main');
+    expect(graph.edges.get('app/main')?.size ?? 0).toBeGreaterThan(5);
   });
 
   it('extracts every import form, type-only ones included', () => {
@@ -189,17 +178,8 @@ describe('architecture', () => {
     const unmapped = graph.modules.filter((id) => layerOf(id) === null);
     expect(
       unmapped,
-      `Modules with no layer. Move each into a layer folder (${LAYERS.map((l) => `${l}/`).join(', ')}) ` +
-        `or add it to TRANSITIONAL_LAYERS in architecture.test.ts:\n${bullet(unmapped)}`,
-    ).toEqual([]);
-  });
-
-  it('has no stale TRANSITIONAL_LAYERS entries', () => {
-    const present = new Set(graph.modules);
-    const stale = Object.keys(TRANSITIONAL_LAYERS).filter((id) => !present.has(id));
-    expect(
-      stale,
-      `TRANSITIONAL_LAYERS entries for files that no longer exist — remove them:\n${bullet(stale)}`,
+      `Modules outside a layer folder. Move each into one of ` +
+        `${LAYERS.map((l) => `${l}/`).join(', ')}:\n${bullet(unmapped)}`,
     ).toEqual([]);
   });
 

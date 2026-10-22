@@ -1,0 +1,30 @@
+/* Dashboard Layout */
+.dashboard-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dashboard-header h1 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.dashboard-header__version {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.dashboard-header__version--mismatch {
+  color: var(--color-accent);
+  cursor: help;
+}
+
+.dashboard-controls {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+

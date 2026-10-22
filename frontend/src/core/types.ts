@@ -68,7 +68,7 @@ export interface PipelineStatus {
   skip_frames: number;
   current_sequence: number;
   processing_fps?: number;
-  /** Full backend version (release.commit), see backend/src/version.py */
+  /** Full backend version (release.commit), see backend/src/core/version.py */
   version?: string;
 }
 

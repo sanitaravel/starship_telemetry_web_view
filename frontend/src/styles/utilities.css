@@ -1,0 +1,87 @@
+/* Visually hidden, but still focusable and operable with the keyboard */
+.time-series-graphs__export-segment input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.time-series-graphs__export-segment:has(input:checked) {
+  color: var(--color-text);
+  background-color: rgba(255, 128, 20, 0.12);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+.time-series-graphs__export-segment:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.time-series-graphs__export-swatch {
+  width: 22px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--color-border);
+}
+
+.time-series-graphs__export-swatch--dark {
+  background-color: #333333;
+}
+
+.time-series-graphs__export-swatch--white {
+  background-color: #FFFFFF;
+}
+
+.time-series-graphs__export-swatch--transparent {
+  background-color: #FFFFFF;
+  background-image:
+    linear-gradient(45deg, #BBBBBB 25%, transparent 25%, transparent 75%, #BBBBBB 75%),
+    linear-gradient(45deg, #BBBBBB 25%, transparent 25%, transparent 75%, #BBBBBB 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 4px 4px;
+}
+
+.time-series-graphs__export-download {
+  font-size: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-background);
+  font-weight: 600;
+}
+
+.time-series-graphs__export-download:hover {
+  background-color: #FF9A45;
+  border-color: #FF9A45;
+}
+
+.time-series-graphs__export-download:focus-visible,
+.time-series-graphs__save-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.time-series-graphs__zoom-hint {
+  font-size: 0.625rem;
+  color: var(--color-muted);
+  opacity: 0.7;
+  align-self: center;
+  white-space: nowrap;
+}
+
+.time-series-graphs__canvas-container {
+  position: relative;
+  height: 800px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.time-series-graphs__canvas-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+

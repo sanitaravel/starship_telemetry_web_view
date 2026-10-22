@@ -1,0 +1,411 @@
+/* Engine Visualizer */
+.dashboard-engines {
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.engine-visualizer {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.engine-visualizer__section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.engine-visualizer__title {
+  font-size: 0.625rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-accent);
+  margin-bottom: 0.375rem;
+}
+
+.engine-visualizer__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 260px;
+}
+
+.engine-visualizer__legend {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.engine-visualizer__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.engine-visualizer__legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  flex-shrink: 0;
+}
+
+.engine-visualizer__legend-label {
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+/* Serial shown when hovering an engine that has one */
+.engine-tooltip {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.engine-tooltip[hidden] {
+  display: none;
+}
+
+.engine-tooltip__engine {
+  color: var(--color-muted);
+}
+
+.engine-tooltip__serial {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* Gear in a section's top-right corner, opening its engine settings */
+.engine-settings-btn {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 3px;
+  color: var(--color-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.engine-settings-btn svg {
+  width: 100%;
+  height: 100%;
+}
+
+.engine-settings-btn:hover,
+.engine-settings-btn[aria-expanded="true"] {
+  color: var(--color-accent);
+  border-color: var(--color-border);
+}
+
+.engine-settings-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.engine-settings {
+  position: fixed;
+  z-index: 100;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 0.75rem;
+  color: var(--color-text);
+}
+
+.engine-settings[hidden] {
+  display: none;
+}
+
+/* Super Heavy: 33 engines, three to a line, groups one under another */
+.engine-settings--wide {
+  width: 340px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+}
+
+.engine-settings--wide .engine-settings__groups {
+  grid-template-columns: 1fr;
+}
+
+.engine-settings--wide .engine-settings__rows {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.375rem 0.5rem;
+}
+
+.engine-settings--wide .engine-settings__engine {
+  width: 1.75rem;
+}
+
+.engine-settings__title {
+  font-weight: 600;
+}
+
+.engine-settings__hint {
+  color: var(--color-muted);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+
+.engine-settings__groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+
+.engine-settings__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.engine-settings__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.engine-settings__group-title {
+  margin-bottom: 0.125rem;
+  padding: 0;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-accent);
+}
+
+.engine-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.engine-settings__engine {
+  width: 1.5rem;
+  flex-shrink: 0;
+  color: var(--color-muted);
+}
+
+/* Fixed "R" and the typed rest, framed as one field */
+.engine-settings__field {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: text;
+}
+
+.engine-settings__field:focus-within {
+  border-color: var(--color-accent);
+}
+
+.engine-settings__prefix {
+  padding-left: 0.375rem;
+  color: var(--color-muted);
+  user-select: none;
+}
+
+.engine-settings__input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.25rem 0.375rem 0.25rem 0.0625rem;
+  font: inherit;
+  text-transform: uppercase;
+  color: var(--color-text);
+  background: none;
+  border: none;
+}
+
+.engine-settings__input::placeholder {
+  color: var(--color-border);
+}
+
+.engine-settings__input:focus {
+  outline: none;
+}
+
+/* Mission and ship, above the engine fields */
+.engine-settings__mission {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0 0 0.625rem;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.engine-settings__mission-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.engine-settings__mission-label {
+  width: 3.25rem;
+  flex-shrink: 0;
+  color: var(--color-muted);
+}
+
+.engine-settings__combo {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.engine-settings__text {
+  width: 100%;
+  min-width: 0;
+  padding: 0.25rem 0.375rem;
+  font: inherit;
+  color: var(--color-text);
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.engine-settings__text::placeholder {
+  color: var(--color-border);
+}
+
+.engine-settings__text:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.engine-settings__suggestions {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 1;
+  /* As wide as its entries need, never narrower than the field */
+  width: max-content;
+  min-width: 100%;
+  max-width: 16rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+.engine-settings__suggestions[hidden] {
+  display: none;
+}
+
+.engine-settings__suggestion {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.engine-settings__suggestion:hover,
+.engine-settings__suggestion[aria-selected="true"] {
+  background-color: var(--color-surface);
+  color: var(--color-accent);
+}
+
+.engine-settings__suggestion-detail {
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.engine-settings__status {
+  color: var(--color-muted);
+  font-size: 0.6875rem;
+  overflow-wrap: anywhere;
+}
+
+.engine-settings__status[data-kind="error"] {
+  color: var(--color-accent);
+}
+
+.engine-settings__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.engine-settings__button {
+  padding: 0.3rem 0.625rem;
+  font: inherit;
+  color: var(--color-text);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.engine-settings__button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.engine-settings__button:disabled {
+  color: var(--color-muted);
+  cursor: default;
+}
+
+.engine-settings__button--primary {
+  color: var(--color-background);
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+
