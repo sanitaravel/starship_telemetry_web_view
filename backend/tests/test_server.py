@@ -14,7 +14,9 @@ from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from httpx import AsyncClient, ASGITransport
 
-from src.server import create_app, ConnectionManager, manager
+from src.server import create_app
+from src.api.connections import ConnectionManager
+from src.api.runtime import manager
 
 
 @pytest.fixture
@@ -294,7 +296,7 @@ class TestWebSocketDispatch:
     def test_stop_broadcasts_status(self, app):
         """stop replies to every client with a status message."""
         with patch(
-            "src.server.orchestrator.stop", new_callable=AsyncMock
+            "src.api.runtime.orchestrator.stop", new_callable=AsyncMock
         ) as stop, TestClient(app) as client, \
                 client.websocket_connect("/ws/telemetry") as ws, \
                 client.websocket_connect("/ws/telemetry") as other:
@@ -307,7 +309,7 @@ class TestWebSocketDispatch:
 
     def test_set_interval_broadcasts_status_with_new_skip(self, app):
         """set_interval updates skip_frames and broadcasts it to every client."""
-        from src.server import orchestrator
+        from src.api.runtime import orchestrator
 
         original = orchestrator.state.skip_frames
         try:
@@ -349,7 +351,7 @@ class TestWebSocketDispatch:
         """The session-disconnected log fires exactly once per session."""
         import logging
 
-        with src_caplog.at_level(logging.INFO, logger="src.server"), TestClient(app) as client:
+        with src_caplog.at_level(logging.INFO, logger="src.api"), TestClient(app) as client:
             with client.websocket_connect("/ws/telemetry") as ws:
                 ws.send_json({"action": "validate_url", "url": ""})
                 ws.receive_json()

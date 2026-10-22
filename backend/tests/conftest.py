@@ -34,7 +34,7 @@ settings.load_profile("default")
 def src_caplog(caplog, monkeypatch):
     """caplog that also sees records from the 'src' logger tree.
 
-    configure_logging() (run when src.server is imported) sets
+    configure_logging() (run when src.api.runtime is imported) sets
     propagate=False on the 'src' logger, so plain caplog misses its records
     whenever any test module imports the server first.
     """
