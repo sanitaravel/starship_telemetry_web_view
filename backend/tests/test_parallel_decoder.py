@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 
 from src.enums import PipelineStatus
-from src.frame_extractor import FrameExtractor, FrameExtractorConfig
-from src.parallel_decoder import ParallelFileDecoder
+from src.capture import FrameExtractor, FrameExtractorConfig
+from src.capture.parallel_decoder import ParallelFileDecoder
 
 
 N_FRAMES = 600
@@ -243,7 +243,7 @@ def test_plan_trades_decoders_for_chunk_length(skip, expected_workers):
 
 @pytest.mark.parametrize("cpus,expected", [(16, 8), (8, 4), (4, 2), (2, None), (1, None)])
 def test_plan_never_runs_more_decoders_than_physical_cores(cpus, expected, monkeypatch):
-    monkeypatch.setattr("src.frame_extractor.os.cpu_count", lambda: cpus)
+    monkeypatch.setattr("src.capture.planning.os.cpu_count", lambda: cpus)
     extractor = FrameExtractor()
     extractor._config = FrameExtractorConfig(source_url="clip.mp4", skip_frames=30)
 

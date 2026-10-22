@@ -16,7 +16,7 @@ from typing import Any, Callable, Awaitable
 import numpy as np
 
 from src.enums import PipelineStatus, SeparationState
-from src.frame_extractor import FrameExtractor, FrameExtractorConfig
+from src.capture import FrameExtractor, FrameExtractorConfig
 from src.gpu_detector import GPUCapabilities
 from src.logging_context import frame_seq_var
 from src.ocr.engine import EasyOCREngine
