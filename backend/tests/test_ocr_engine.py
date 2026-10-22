@@ -343,10 +343,3 @@ class TestOCRResultUnavailable:
         from src.ocr.results import OCRResult
 
         assert OCRResult.unavailable(time=None) == OCRResult.unavailable()
-
-    def test_engine_all_unavailable_delegates(self):
-        from src.ocr.results import OCRFieldResult, OCRResult
-
-        time_read = OCRFieldResult(status=OCRFieldStatus.AVAILABLE, raw_text="T-00:00:05")
-        assert EasyOCREngine._all_unavailable() == OCRResult.unavailable()
-        assert EasyOCREngine._all_unavailable(time_read) == OCRResult.unavailable(time=time_read)

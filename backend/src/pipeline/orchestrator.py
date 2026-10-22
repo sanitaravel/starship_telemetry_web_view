@@ -22,13 +22,14 @@ from src.core.logging_context import frame_seq_var
 from src.pipeline.broadcast import Broadcaster
 from src.pipeline.concurrency_controller import ConcurrencyController
 from src.pipeline.frame_processor import FrameProcessor
+from src.pipeline.lifecycle import cancel_in_flight, resolve_template
 from src.pipeline.ordering import ReorderCoordinator
 from src.pipeline.parallel_config import ParallelPipelineConfig
 from src.pipeline.state import PipelineState
 from src.pipeline.status_payload import build_status_payload
 from src.telemetry.record_assembler import RecordAssembler
 from src.telemetry.stage_assignment import StageAssigner
-from src.templates.template_registry import TemplateRegistry, TemplateNotFoundError
+from src.templates.template_registry import TemplateRegistry
 
 
 logger = logging.getLogger(__name__)
@@ -101,9 +102,6 @@ class PipelineOrchestrator:
         # In-flight frame task tracking for graceful shutdown
         self._in_flight_tasks: set[asyncio.Task] = set()
 
-        # FPS tracking (legacy, kept for compatibility)
-        self._last_frame_time: float = 0.0
-
         # Register callbacks on frame extractor
         self._frame_extractor.on_frame(self._on_frame)
         self._frame_extractor.on_status_change(self._on_status_change)
@@ -151,22 +149,17 @@ class PipelineOrchestrator:
             return
 
         # Resolve the active ROI template
-        template_result = self._template_registry.get(self._state.active_template_name)
-        if isinstance(template_result, TemplateNotFoundError):
-            # Fallback to default
-            template_result = self._template_registry.get_default()
-            if isinstance(template_result, TemplateNotFoundError):
-                logger.error(
-                    f"No ROI template available: {template_result.template_name}. "
-                    f"Available: {template_result.available_templates}"
-                )
-                await self._broadcast({
-                    "type": "error",
-                    "payload": {
-                        "message": "No ROI template loaded. Cannot start pipeline.",
-                    },
-                })
-                return
+        template_result = resolve_template(
+            self._template_registry, self._state.active_template_name
+        )
+        if template_result is None:
+            await self._broadcast({
+                "type": "error",
+                "payload": {
+                    "message": "No ROI template loaded. Cannot start pipeline.",
+                },
+            })
+            return
 
         self._frames.roi_config = template_result
 
@@ -231,28 +224,8 @@ class PipelineOrchestrator:
         # Step 1: Stop frame extractor (prevents new frames from arriving)
         self._frame_extractor.stop()
 
-        # Step 2: Cancel all in-flight frame processing tasks
-        tasks_to_cancel = set(self._in_flight_tasks)
-        if tasks_to_cancel:
-            logger.info(
-                "Cancelling %d in-flight frame tasks for graceful shutdown.",
-                len(tasks_to_cancel),
-            )
-            for task in tasks_to_cancel:
-                task.cancel()
-
-            # Step 3: Wait up to 5 seconds for tasks to terminate
-            done, pending = await asyncio.wait(
-                tasks_to_cancel, timeout=5.0
-            )
-
-            # Step 4: If tasks still pending after 5 seconds, abandon and log error
-            if pending:
-                logger.error(
-                    "Graceful shutdown: %d in-flight tasks did not terminate "
-                    "within 5 seconds. Abandoning remaining tasks.",
-                    len(pending),
-                )
+        # Steps 2-4: Cancel all in-flight frame processing tasks and wait for them
+        await cancel_in_flight(self._in_flight_tasks)
 
         # Clear the in-flight task tracking set
         self._in_flight_tasks.clear()

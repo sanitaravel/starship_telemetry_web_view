@@ -8,7 +8,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 from pydantic import ValidationError
 
-from src.server import create_app
+from src.api.app import create_app
 from src.storage import missions
 from src.storage.missions import MissionSettings, list_missions, load_mission, mission_id, save_mission
 

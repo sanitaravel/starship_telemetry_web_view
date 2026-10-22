@@ -7,22 +7,19 @@ automatic frame resizing to 1920×1080, and exponential backoff reconnection.
 
 import asyncio
 import logging
-import threading
 import time
 
 import cv2
 import numpy as np
 
 from src.capture.config import DEFAULT_SOURCE_FPS, FrameExtractorConfig, SourceUnavailable
-from src.capture.notifier import CaptureNotifier
+from src.capture.connection import CaptureConnection
 from src.capture.parallel_decoder import ParallelFileDecoder
 from src.capture.planning import parallel_plan, start_decoder
-from src.capture.reconnect import retry_with_backoff
 from src.capture.source import (
     advance,
     configure_capture,
     open_capture,
-    probe_frame_count,
     validate_source,
 )
 from src.core.enums import PipelineStatus
@@ -31,7 +28,7 @@ from src.core.enums import PipelineStatus
 logger = logging.getLogger(__name__)
 
 
-class FrameExtractor(CaptureNotifier):
+class FrameExtractor(CaptureConnection):
     """Captures frames from a video source using OpenCV VideoCapture.
 
     Provides async frame capture at a configurable interval, automatic resize
@@ -50,23 +47,11 @@ class FrameExtractor(CaptureNotifier):
             extractor.stop()
     """
 
-    # Reconnection backoff constants
-    _INITIAL_BACKOFF_S: float = 1.0
-    _MAX_BACKOFF_S: float = 30.0
-    _BACKOFF_MULTIPLIER: float = 2.0
-
     def __init__(self) -> None:
         super().__init__()
-        self._config: FrameExtractorConfig | None = None
-        self._capture: cv2.VideoCapture | None = None
-        # Held around every grab/read and around release: releasing a capture
-        # while another thread decodes from it aborts the process inside FFmpeg
-        # ("Assertion fctx->async_lock failed")
-        self._capture_lock = threading.Lock()
         self._capture_task: asyncio.Task | None = None  # type: ignore[type-arg]
         self._sequence_number: int = 0
         self._source_fps: float = DEFAULT_SOURCE_FPS
-        self._stop_event: asyncio.Event = asyncio.Event()
         # Parallel decoding of a seekable source. _frame_count is the source's
         # length once it has been found to seek accurately, 0 if it cannot,
         # None until checked (once per start()).
@@ -351,108 +336,8 @@ class FrameExtractor(CaptureNotifier):
         )
         return self._decoder
 
-    def _probe_seekable(self) -> int:
-        """Return the source's frame count if it seeks accurately, else 0.
-
-        Runs in the executor. Only FFmpeg-backed sources qualify, so the
-        parallel decoders decode exactly what the serial path would; a live
-        stream reports no frame count. The check uses a capture of its own,
-        leaving the main one where it is.
-        """
-        assert self._config is not None
-        try:
-            with self._capture_lock:
-                backend = self._capture.getBackendName() if self._capture is not None else ""
-        except Exception:
-            return 0
-        if backend != "FFMPEG":
-            return 0
-        return probe_frame_count(self._config.source_url)
-
-    def _seek_capture(self, frame_number: int) -> None:
-        """Move the main capture to ``frame_number`` (runs in the executor).
-
-        Used when switching back from parallel to serial decoding, which only
-        happens on a source that passed _probe_seekable.
-        """
-        with self._capture_lock:
-            if self._capture is not None:
-                self._capture.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-
     def _close_decoder(self) -> None:
         """Stop the parallel decoder, if one is running."""
         decoder, self._decoder = self._decoder, None
         if decoder is not None:
             decoder.close()
-
-    def _locked_read(self, capture: cv2.VideoCapture) -> tuple[bool, np.ndarray | None]:
-        """capture.read() under the capture lock (runs in the executor)."""
-        with self._capture_lock:
-            return capture.read()
-
-    async def _reconnect_with_backoff(self) -> bool:
-        """Attempt to reconnect to the video source with exponential backoff.
-
-        Tries reconnection with delays of 1s, 2s, 4s, 8s, ..., up to a
-        maximum of 30s per attempt. Continues until reconnection succeeds
-        or the stop event is set.
-
-        Returns:
-            True if reconnection succeeded, False if stop was requested
-            or max backoff reached without success after repeated attempts.
-        """
-        assert self._config is not None
-
-        await self._set_status(PipelineStatus.RECONNECTING)
-        self._release_capture()
-
-        return await retry_with_backoff(
-            self._reopen_capture,
-            self._stop_event,
-            self._INITIAL_BACKOFF_S,
-            self._MAX_BACKOFF_S,
-            self._BACKOFF_MULTIPLIER,
-        )
-
-    async def _reopen_capture(self) -> bool:
-        """One reconnection attempt: reopen the source and read a frame.
-
-        Returns:
-            True, after moving back to RUNNING, if a frame could be read.
-        """
-        assert self._config is not None
-        loop = asyncio.get_event_loop()
-        try:
-            self._capture = await loop.run_in_executor(
-                None, open_capture, self._config.source_url
-            )
-
-            if self._capture.isOpened():
-                ret, _ = await loop.run_in_executor(None, self._locked_read, self._capture)
-                if ret:
-                    logger.info("Reconnection successful.")
-                    await self._set_status(PipelineStatus.RUNNING)
-                    return True
-                else:
-                    self._release_capture()
-            else:
-                self._release_capture()
-
-        except Exception as e:
-            logger.warning(f"Reconnection attempt failed: {e}")
-            self._release_capture()
-        return False
-
-    def _release_capture(self) -> None:
-        """Release the OpenCV VideoCapture resource if held.
-
-        Waits for an in-flight grab or read to finish first (see _capture_lock).
-        """
-        with self._capture_lock:
-            if self._capture is not None:
-                try:
-                    self._capture.release()
-                except Exception as e:
-                    logger.warning(f"Error releasing video capture: {e}")
-                finally:
-                    self._capture = None
