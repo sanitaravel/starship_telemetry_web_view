@@ -22,7 +22,8 @@ import { createSwatchButton, toggleColorPopover } from '../color-picker';
 import { FlightColors } from '../flight-colors';
 import type { HistoricalTrajectory } from './history';
 import { countryLabels, placeLabels, type Box } from './labels';
-import type { ShipTrack, ShipTracker } from './tracker';
+import type { ShipTrack } from '../core/ship-track';
+import type { ShipTracker } from './tracker';
 
 const COLORS = {
   ocean: '#1c1c1c',

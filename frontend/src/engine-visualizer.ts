@@ -4,9 +4,9 @@ import { EngineSerials } from './engine-serials';
 import { createSettingsButton, toggleEngineSettings, type EngineGroup } from './engine-settings';
 import { STARSHIP_ENGINES, SUPERHEAVY_ENGINES, engineLabel, type EnginePosition } from './engine-layout';
 
-type EngineStatus = 'active' | 'inactive' | 'undetected';
+import { svgEl } from './ui/svg';
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
+type EngineStatus = 'active' | 'inactive' | 'undetected';
 
 /** A settings panel group of engines `first`..`last` of a vehicle, e.g. ss_e1..ss_e3. */
 function engineGroup(title: string, prefix: 'ss' | 'sh', first: number, last: number): EngineGroup {
@@ -215,12 +215,13 @@ export class EngineVisualizer {
    * Create the Super Heavy engine SVG diagram.
    */
   private createSuperHeavySvg(): SVGSVGElement {
-    const svg = document.createElementNS(SVG_NS, 'svg');
     const vbSize = SUPERHEAVY_NATIVE + SUPERHEAVY_PADDING * 2;
-    svg.setAttribute('viewBox', `${-SUPERHEAVY_PADDING} ${-SUPERHEAVY_PADDING} ${vbSize} ${vbSize}`);
-    svg.setAttribute('width', String(SUPERHEAVY_DISPLAY_SIZE));
-    svg.setAttribute('height', String(SUPERHEAVY_DISPLAY_SIZE));
-    svg.setAttribute('aria-label', 'Super Heavy engine status diagram');
+    const svg = svgEl('svg', {
+      viewBox: `${-SUPERHEAVY_PADDING} ${-SUPERHEAVY_PADDING} ${vbSize} ${vbSize}`,
+      width: String(SUPERHEAVY_DISPLAY_SIZE),
+      height: String(SUPERHEAVY_DISPLAY_SIZE),
+      'aria-label': 'Super Heavy engine status diagram',
+    });
     svg.classList.add('engine-visualizer__svg');
 
     for (const engine of SUPERHEAVY_ENGINES) {
@@ -236,13 +237,14 @@ export class EngineVisualizer {
    * Create the Starship engine SVG diagram.
    */
   private createStarshipSvg(): SVGSVGElement {
-    const svg = document.createElementNS(SVG_NS, 'svg');
     const vbW = STARSHIP_NATIVE_W + STARSHIP_PADDING * 2;
     const vbH = STARSHIP_NATIVE_H + STARSHIP_PADDING * 2;
-    svg.setAttribute('viewBox', `${-STARSHIP_PADDING} ${-STARSHIP_PADDING} ${vbW} ${vbH}`);
-    svg.setAttribute('width', String(STARSHIP_DISPLAY_WIDTH));
-    svg.setAttribute('height', String(STARSHIP_DISPLAY_HEIGHT));
-    svg.setAttribute('aria-label', 'Starship engine status diagram');
+    const svg = svgEl('svg', {
+      viewBox: `${-STARSHIP_PADDING} ${-STARSHIP_PADDING} ${vbW} ${vbH}`,
+      width: String(STARSHIP_DISPLAY_WIDTH),
+      height: String(STARSHIP_DISPLAY_HEIGHT),
+      'aria-label': 'Starship engine status diagram',
+    });
     svg.classList.add('engine-visualizer__svg');
 
     for (const engine of STARSHIP_ENGINES) {
@@ -299,27 +301,28 @@ export class EngineVisualizer {
     engine: EnginePosition,
     status: EngineStatus
   ): { circle: SVGGElement } {
-    const group = document.createElementNS(SVG_NS, 'g');
+    const group = svgEl('g');
 
-    const circle = document.createElementNS(SVG_NS, 'circle');
-    circle.setAttribute('cx', String(engine.cx));
-    circle.setAttribute('cy', String(engine.cy));
-    circle.setAttribute('r', String(engine.r));
-    circle.setAttribute('fill', getStatusFill(status));
-    circle.setAttribute('stroke', getStatusStroke(status));
-    circle.setAttribute('stroke-width', '0.5');
-
-    const text = document.createElementNS(SVG_NS, 'text');
-    text.setAttribute('x', String(engine.cx));
-    text.setAttribute('y', String(engine.cy));
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('dominant-baseline', 'central');
-    text.setAttribute('fill', '#FEFEFE');
-    text.setAttribute('font-family', "'JetBrains Mono', monospace");
-    text.setAttribute('font-weight', '500');
+    const circle = svgEl('circle', {
+      cx: String(engine.cx),
+      cy: String(engine.cy),
+      r: String(engine.r),
+      fill: getStatusFill(status),
+      stroke: getStatusStroke(status),
+      'stroke-width': '0.5',
+    });
 
     const label = engineLabel(engine.id);
-    text.setAttribute('font-size', fitFontSize(label, engine.r).toFixed(2));
+    const text = svgEl('text', {
+      x: String(engine.cx),
+      y: String(engine.cy),
+      'text-anchor': 'middle',
+      'dominant-baseline': 'central',
+      fill: '#FEFEFE',
+      'font-family': "'JetBrains Mono', monospace",
+      'font-weight': '500',
+      'font-size': fitFontSize(label, engine.r).toFixed(2),
+    });
     text.textContent = label;
 
     group.dataset.label = label;

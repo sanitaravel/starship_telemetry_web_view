@@ -1,11 +1,14 @@
 import { Chart, ChartConfiguration } from 'chart.js/auto';
-import type { StateManager, TimeSeriesPoint, TimeSeriesStore } from '../state';
+import type { StateManager } from '../state';
+import type { TimeSeriesPoint, TimeSeriesStore } from '../core/time-series';
+import { formatSecondsToMET } from '../core/met';
 import type { EngineEvent } from '../engine-events';
-import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightData, PreviousFlightInfo } from '../previous-flights';
+import type { PreviousFlightInfo } from '../types';
+import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightData } from '../api/previous-flights';
 import type { DatasetKey, LoadedComparison, SeriesKey, SeriesOption } from './types';
 import { COMPARE_COLORS, SERIES_OPTIONS } from './panels';
 import { NEAREST_PER_DATASET } from './interaction-mode';
-import { computeAcceleration, formatSecondsToMET, IncrementalXY } from './series-math';
+import { computeAcceleration, IncrementalXY } from './series-math';
 import {
   chartFilename,
   DEFAULT_EXPORT_OPTIONS,

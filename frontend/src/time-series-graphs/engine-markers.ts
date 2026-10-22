@@ -6,7 +6,7 @@
 import type { EngineEvent, EngineEventKind } from '../engine-events';
 import { engineLabel, ringNameOf, VEHICLE_NAMES, type Vehicle } from '../engine-layout';
 import type { SeriesKey } from './types';
-import { formatSecondsToMET } from './series-math';
+import { formatSecondsToMET } from '../core/met';
 
 /** A marker drawn by the engineEvents plugin. */
 export interface EngineMarker {

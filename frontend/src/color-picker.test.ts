@@ -86,4 +86,47 @@ describe('color popover', () => {
     toggleColorPopover(swatch, choice);
     expect(panel.hidden).toBe(true);
   });
+
+  it('returns focus to the swatch on Escape pressed on a control inside the panel', () => {
+    const { swatch, panel, preset } = setup();
+    const focused = preset('#e91e63');
+    expect(document.activeElement).toBe(focused);
+    const outer = vi.fn();
+    document.body.addEventListener('keydown', outer);
+    focused.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.body.removeEventListener('keydown', outer);
+    expect(panel.hidden).toBe(true);
+    expect(swatch.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(swatch);
+    expect(outer).not.toHaveBeenCalled();
+  });
+
+  it('closes on a press outside without moving focus', () => {
+    const { swatch, panel } = setup();
+    const before = document.activeElement;
+    expect(before).not.toBe(swatch);
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(panel.hidden).toBe(true);
+    expect(swatch.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(before);
+  });
+
+  it('stays open on a press on its swatch or inside the panel', () => {
+    const { swatch, panel, preset, input } = setup();
+    swatch.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(panel.hidden).toBe(false);
+    preset(PRESET_COLORS[1]).dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    input.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    panel.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(panel.hidden).toBe(false);
+    expect(swatch.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('closes on a press on another swatch: only its own anchor counts as inside', () => {
+    const { panel } = setup();
+    const other = createSwatchButton('test-swatch', 'Flight 12', '#2196f3');
+    document.body.appendChild(other);
+    other.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(panel.hidden).toBe(true);
+  });
 });

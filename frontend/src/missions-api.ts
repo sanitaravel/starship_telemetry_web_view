@@ -1,4 +1,4 @@
-import { fetchPreviousFlightList } from './previous-flights';
+import { fetchPreviousFlightList } from './api/previous-flights';
 
 /** What a mission file holds (see backend/src/missions.py). */
 export interface MissionSettings {

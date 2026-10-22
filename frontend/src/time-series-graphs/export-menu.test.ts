@@ -88,6 +88,50 @@ describe('ExportMenu', () => {
     expect(menu.isOpen).toBe(false);
   });
 
+  it('returns focus to the button on Escape and keeps it from outer handlers', () => {
+    const { menu, trigger, radio } = mount();
+    trigger.click();
+    const outer = vi.fn();
+    document.body.addEventListener('keydown', outer);
+    radio('white').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.body.removeEventListener('keydown', outer);
+    expect(menu.isOpen).toBe(false);
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+    expect(outer).not.toHaveBeenCalled();
+  });
+
+  it('closes on a press outside without moving focus', () => {
+    const { menu, trigger, font } = mount();
+    trigger.click();
+    expect(document.activeElement).toBe(font);
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(menu.isOpen).toBe(false);
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(font);
+  });
+
+  it('stays open on a press on its button or on a control inside the panel', () => {
+    const { menu, trigger, font, radio, download } = mount();
+    trigger.click();
+    for (const el of [trigger, font, radio('transparent'), download]) {
+      el.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      expect(menu.isOpen).toBe(true);
+    }
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('leaves focus alone on an outside press while closed', () => {
+    const { menu, trigger } = mount();
+    const other = document.createElement('button');
+    document.body.appendChild(other);
+    other.focus();
+    other.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(menu.isOpen).toBe(false);
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(other);
+  });
+
   it('remembers the choices for the next page load', () => {
     const first = mount();
     choose(first.font, '14');

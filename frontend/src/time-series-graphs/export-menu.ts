@@ -4,6 +4,7 @@ import {
   type ExportBackground,
   type ExportOptions,
 } from './export-png';
+import { bindDismiss } from '../ui/popover';
 
 const STORAGE_KEY = 'time-series-graphs.export-options';
 
@@ -148,17 +149,12 @@ export class ExportMenu {
     this.element.appendChild(this.trigger);
     this.element.appendChild(this.panel);
 
-    this.panel.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
+    bindDismiss(this.panel, {
+      onDismiss: (reason) => {
         this.setOpen(false);
-        this.trigger.focus();
-      }
-    });
-    document.addEventListener('pointerdown', (e) => {
-      if (!this.panel.hidden && !this.element.contains(e.target as Node)) {
-        this.setOpen(false);
-      }
+        if (reason === 'escape') this.trigger.focus();
+      },
+      ignore: () => [this.element],
     });
   }
 

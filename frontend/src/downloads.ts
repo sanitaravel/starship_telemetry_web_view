@@ -1,5 +1,5 @@
 import type { TelemetryRecord } from './types';
-import type { ShipTrack } from './ship-globe/tracker';
+import type { ShipTrack } from './core/ship-track';
 
 /**
  * Exports of what the dashboard has collected this session, in the formats

@@ -5,8 +5,8 @@ import {
   ShipTracker,
   SHIP_TRACKER_URL,
   withCacheBuster,
-  type ShipPosition,
 } from './tracker';
+import type { ShipPosition } from '../core/ship-track';
 
 function current(overrides: Record<string, unknown> = {}) {
   return {
