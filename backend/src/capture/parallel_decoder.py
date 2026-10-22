@@ -17,8 +17,9 @@ as the serial extractor would -- skip-1 grabs, then a read -- so the frames
 and frame numbers are the same as serial decoding gives. The consumer takes
 them back in order.
 
-Only for sources that seek accurately: see FrameExtractor._plan_parallel. A
-live stream arrives in real time, so it never needs this.
+Only for sources that seek accurately: see source.probe_frame_count and
+planning.parallel_plan. A live stream arrives in real time, so it never needs
+this.
 """
 
 import logging
