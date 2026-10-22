@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from httpx import AsyncClient, ASGITransport
-from hypothesis import given, strategies as st
+from hypothesis import given, settings, strategies as st
 
 from src import trajectories
 from src.server import create_app
@@ -58,6 +58,9 @@ class TestLoadTrajectory:
         assert trajectories.load_trajectory("../positions_ship39", tmp_path) is None
         assert trajectories.load_trajectory("ship39.csv", tmp_path) is None
 
+    # File I/O per example: a disk or antivirus stall can exceed the default
+    # 200 ms Hypothesis deadline (seen as DeadlineExceeded / FlakyFailure)
+    @settings(deadline=None)
     @given(altitudes=st.lists(st.floats(min_value=-1e6, max_value=1e6), max_size=30))
     def test_never_returns_below_ground_points(self, tmp_path_factory, altitudes: list[float]):
         directory = tmp_path_factory.mktemp("traj")

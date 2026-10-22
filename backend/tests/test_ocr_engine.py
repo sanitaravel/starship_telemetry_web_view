@@ -467,3 +467,50 @@ class TestPropertyParsing:
         assert dot_result is not None
         assert comma_result is not None
         assert abs(dot_result - comma_result) < 1e-9
+
+
+# --- OCRResult.unavailable ---
+
+
+class TestOCRResultUnavailable:
+    """OCRResult.unavailable() builds a result carrying no telemetry."""
+
+    @staticmethod
+    def _field_names() -> list[str]:
+        from src.ocr_engine import OCRResult
+
+        return list(OCRResult.__dataclass_fields__)
+
+    def test_every_field_unavailable(self):
+        from src.ocr_engine import OCRResult
+
+        result = OCRResult.unavailable()
+        for name in self._field_names():
+            field = getattr(result, name)
+            assert field.status == OCRFieldStatus.UNAVAILABLE, name
+            assert field.raw_text is None, name
+            assert field.parsed_value is None, name
+
+    def test_time_override_kept(self):
+        from src.ocr_engine import OCRFieldResult, OCRResult
+
+        time_read = OCRFieldResult(
+            status=OCRFieldStatus.AVAILABLE, raw_text="T-00:01:00", parsed_value="-00:01:00"
+        )
+        result = OCRResult.unavailable(time=time_read)
+        assert result.time is time_read
+        for name in self._field_names():
+            if name != "time":
+                assert getattr(result, name).status == OCRFieldStatus.UNAVAILABLE, name
+
+    def test_time_none_means_unavailable(self):
+        from src.ocr_engine import OCRResult
+
+        assert OCRResult.unavailable(time=None) == OCRResult.unavailable()
+
+    def test_engine_all_unavailable_delegates(self):
+        from src.ocr_engine import OCRFieldResult, OCRResult
+
+        time_read = OCRFieldResult(status=OCRFieldStatus.AVAILABLE, raw_text="T-00:00:05")
+        assert EasyOCREngine._all_unavailable() == OCRResult.unavailable()
+        assert EasyOCREngine._all_unavailable(time_read) == OCRResult.unavailable(time=time_read)
