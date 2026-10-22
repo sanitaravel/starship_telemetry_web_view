@@ -1,5 +1,4 @@
 import type { StateManager, AppState } from '../state/state-manager';
-import type { FramePayload } from '../core/types';
 
 /**
  * Frame Preview component.

@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 from hypothesis import given, settings, strategies as st
 
-from src.server import create_app
+from src.api.app import create_app
 from src.storage import trajectories
 
 HEADER = "polled_at,ship,gps_time,mission_time,latitude,longitude,altitude,speed\n"

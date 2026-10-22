@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import type { TelemetryRecord, PipelineStatus, ControlCommand, WebSocketMessage } from './types';
+import type { TelemetryRecord, PipelineStatus, ControlCommand } from './types';
 
 describe('TypeScript interfaces', () => {
   it('TelemetryRecord can be constructed with valid data', () => {

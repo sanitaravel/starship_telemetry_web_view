@@ -141,7 +141,7 @@ class EasyOCREngine:
                 and gate.parsed_value == "00:00:00"
             ):
                 # T-0 not yet seen — nothing is emitted from this frame
-                return self._all_unavailable()
+                return OCRResult.unavailable()
             with self._t_zero_lock:
                 self._t_zero_detected = True
             # This is the T-0 frame: keep the 00:00:00 just read and read the
@@ -172,7 +172,7 @@ class EasyOCREngine:
                     gate.status == OCRFieldStatus.AVAILABLE
                     and gate.parsed_value == "00:00:00"
                 ):
-                    return self._all_unavailable()
+                    return OCRResult.unavailable()
                 with self._t_zero_lock:
                     self._t_zero_detected = True
             field_results["time"] = gate
@@ -201,7 +201,7 @@ class EasyOCREngine:
             return self._build_result(field_results)
         time_result = field_results.get("time", unavailable)
         if time_result.status != OCRFieldStatus.AVAILABLE or not time_result.parsed_value:
-            return self._all_unavailable(time=time_result)
+            return OCRResult.unavailable(time=time_result)
         return self._build_result(
             {
                 **field_results,
@@ -223,11 +223,6 @@ class EasyOCREngine:
                 for name in OCRResult.__dataclass_fields__
             }
         )
-
-    @staticmethod
-    def _all_unavailable(time: OCRFieldResult | None = None) -> OCRResult:
-        """An OCRResult carrying no telemetry, optionally keeping the time read."""
-        return OCRResult.unavailable(time=time)
 
     def _process_field(
         self,

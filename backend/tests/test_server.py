@@ -14,7 +14,7 @@ from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from httpx import AsyncClient, ASGITransport
 
-from src.server import create_app
+from src.api.app import create_app
 from src.api.connections import ConnectionManager
 from src.api.runtime import manager
 

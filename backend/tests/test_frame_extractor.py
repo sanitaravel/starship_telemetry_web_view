@@ -534,3 +534,27 @@ class TestCaptureReleaseRace:
         # The release came after the running grab, and no grab followed it
         assert events == ["grab-start", "grab-end", "release"]
         assert (grabbed, ret) == (1, False)
+
+
+class TestCaptureBases:
+    """FrameExtractor is built from CaptureConnection (the capture handle) over CaptureNotifier."""
+
+    def test_mro_is_extractor_connection_notifier(self):
+        from src.capture.connection import CaptureConnection
+        from src.capture.notifier import CaptureNotifier
+
+        names = [cls.__name__ for cls in FrameExtractor.__mro__]
+        assert names[:4] == ["FrameExtractor", "CaptureConnection", "CaptureNotifier", "object"]
+        assert issubclass(CaptureConnection, CaptureNotifier)
+
+    def test_each_base_initialises_its_state_once(self):
+        extractor = FrameExtractor()
+        assert extractor.status == PipelineStatus.STOPPED
+        assert extractor._capture is None
+        assert extractor._config is None
+        assert extractor._capture_lock is not None
+        assert extractor._stop_event is not None
+        assert extractor._frame_counter == 0
+        assert extractor._capture_in_sync is True
+        assert extractor._frame_count is None
+        assert extractor._decoder is None
