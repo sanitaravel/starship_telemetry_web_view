@@ -6,7 +6,7 @@ import time
 import numpy as np
 import pytest
 
-from src.ocr_batcher import BatchedRecognizer
+from src.ocr.batcher import BatchedRecognizer
 
 
 class FakeReader:
@@ -126,7 +126,7 @@ def test_boxes_are_grouped_by_allowlist():
 
 def test_boxes_of_different_widths_share_one_pass():
     # Splitting on width costs the recogniser's fixed per-pass cost twice,
-    # which is dearer than the padding it saves (see ocr_batcher).
+    # which is dearer than the padding it saves (see ocr.batcher).
     reader = FakeReader()
     batcher = BatchedRecognizer(reader)
     img = np.zeros((200, 400), dtype=np.uint8)
@@ -211,7 +211,7 @@ class FakeGpuReader(FakeReader):
 
 
 def fake_gpu_path(monkeypatch):
-    """Substitute ocr_mixed's two halves, recording which thread ran each."""
+    """Substitute ocr.mixed's two halves, recording which thread ran each."""
     log = {"prepare_threads": [], "passes": []}
 
     def prepare(image, box):
@@ -223,8 +223,8 @@ def fake_gpu_path(monkeypatch):
         log["passes"].append((threading.current_thread().name, list(allowlists)))
         return [(f"{allowlist}:{crop}", 0.9) for crop, allowlist in zip(crops, allowlists)]
 
-    monkeypatch.setattr("src.ocr_batcher.prepare_crop", prepare)
-    monkeypatch.setattr("src.ocr_batcher.recognize_prepared", recognize)
+    monkeypatch.setattr("src.ocr.batcher.prepare_crop", prepare)
+    monkeypatch.setattr("src.ocr.batcher.recognize_prepared", recognize)
     return log
 
 
@@ -281,7 +281,7 @@ def test_gpu_preparation_and_pass_run_on_the_batcher_thread(monkeypatch):
 def test_gpu_degenerate_crop_keeps_its_none(monkeypatch):
     log = fake_gpu_path(monkeypatch)
     monkeypatch.setattr(
-        "src.ocr_batcher.prepare_crop",
+        "src.ocr.batcher.prepare_crop",
         lambda image, box: None if box[0] == box[1] else int(image[box[2], box[0]]),
     )
     batcher = BatchedRecognizer(FakeGpuReader())

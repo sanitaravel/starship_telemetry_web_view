@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from src.reorder_buffer import BufferedResult, BufferOverflowError, ReorderBuffer
+from src.pipeline.reorder_buffer import BufferedResult, BufferOverflowError, ReorderBuffer
 
 
 class TestBufferedResult:

@@ -5,7 +5,7 @@ import itertools
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
-from src.parallel_config import FPSMeter, ParallelPipelineConfig
+from src.pipeline.parallel_config import FPSMeter, ParallelPipelineConfig
 
 
 class TestParallelPipelineConfig:
@@ -274,9 +274,9 @@ class TestResolveOcrWorkers:
         assert ParallelPipelineConfig(concurrency_limit=10).resolve_ocr_workers(True) == 8
 
     def test_auto_on_cpu_is_half_the_logical_cpus(self, monkeypatch) -> None:
-        monkeypatch.setattr("src.parallel_config.os.cpu_count", lambda: 12)
+        monkeypatch.setattr("src.pipeline.parallel_config.os.cpu_count", lambda: 12)
         assert ParallelPipelineConfig().resolve_ocr_workers(False) == 6
-        monkeypatch.setattr("src.parallel_config.os.cpu_count", lambda: 1)
+        monkeypatch.setattr("src.pipeline.parallel_config.os.cpu_count", lambda: 1)
         assert ParallelPipelineConfig().resolve_ocr_workers(False) == 1
 
     def test_auto_on_gpu_with_auto_concurrency_uses_full_pool(self) -> None:

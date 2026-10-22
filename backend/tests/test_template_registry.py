@@ -11,8 +11,8 @@ from hypothesis.strategies import (
     text,
 )
 
-from src.models import ROIConfiguration, ROIRect, ROICircle, EngineSubgroup, EngineGroup
-from src.template_registry import (
+from src.core.models import ROIConfiguration, ROIRect, ROICircle, EngineSubgroup, EngineGroup
+from src.templates.template_registry import (
     DEFAULT_TEMPLATE_NAME,
     TemplateNotFoundError,
     TemplateRegistry,
@@ -127,7 +127,7 @@ class TestLoadDefaultTemplate:
         assert config.template_name == DEFAULT_TEMPLATE_NAME
 
     def test_load_default_template_missing_file(self, registry: TemplateRegistry, tmp_path):
-        from src.models import ParseError
+        from src.core.models import ParseError
 
         result = load_default_template(registry, svg_path=tmp_path / "missing.svg")
         assert isinstance(result, ParseError)

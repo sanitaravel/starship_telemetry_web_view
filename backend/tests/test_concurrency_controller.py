@@ -4,7 +4,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from src.concurrency_controller import ConcurrencyController
+from src.pipeline.concurrency_controller import ConcurrencyController
 
 
 class TestConcurrencyController:

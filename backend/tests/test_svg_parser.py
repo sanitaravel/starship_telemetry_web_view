@@ -3,8 +3,7 @@
 import pytest
 from pathlib import Path
 
-from src.svg_parser import parse_roi_template, serialize_roi_configuration
-from src.models import (
+from src.core.models import (
     EngineGroup,
     EngineSubgroup,
     ParseError,
@@ -12,6 +11,7 @@ from src.models import (
     ROIConfiguration,
     ROIRect,
 )
+from src.templates.svg_parser import parse_roi_template, serialize_roi_configuration
 
 
 # Path to the actual SVG template
@@ -342,7 +342,7 @@ from hypothesis.strategies import (
     text,
 )
 
-from src.svg_parser import (
+from src.templates.svg_parser import (
     REQUIRED_ENGINE_GROUPS,
     REQUIRED_TEXT_GROUPS,
     REQUIRED_TOP_LEVEL_RECTS,
