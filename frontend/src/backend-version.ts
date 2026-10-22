@@ -1,5 +1,5 @@
-import type { StateManager } from './state';
-import type { PipelineStatus } from './core/types';
+import type { StateManager } from './state/state-manager';
+import { fetchPipelineStatus } from './api/status';
 import { appVersion } from './core/app-version';
 import { createLogger } from './core/logger';
 
@@ -29,9 +29,8 @@ export class BackendVersion {
 
   private async load(): Promise<void> {
     try {
-      const response = await fetch('/api/status');
-      if (!response.ok) return;
-      const status: PipelineStatus = await response.json();
+      const status = await fetchPipelineStatus();
+      if (status === undefined) return;
       if (status.version) this.render(status.version);
     } catch (err) {
       logger.warn('Could not fetch backend status', { error: String(err) });

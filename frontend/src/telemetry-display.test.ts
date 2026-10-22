@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { TelemetryDisplay } from './telemetry-display';
-import { StateManager } from './state';
+import { StateManager } from './state/state-manager';
 import type { TelemetryRecord } from './core/types';
 
 function createTelemetryRecord(overrides: Partial<TelemetryRecord> = {}): TelemetryRecord {

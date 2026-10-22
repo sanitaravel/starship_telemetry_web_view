@@ -3,8 +3,8 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PipelineControls, ValidationStatus } from './pipeline-controls';
-import { StateManager } from './state';
-import type { TelemetryWebSocket } from './websocket';
+import { StateManager } from './state/state-manager';
+import type { TelemetryWebSocket } from './api/websocket';
 import type { PipelineStatus } from './core/types';
 
 /**

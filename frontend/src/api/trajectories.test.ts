@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchHistoricalTrajectories, toCoordinates, HISTORY_COLORS } from './history';
+import { fetchHistoricalTrajectories, toCoordinates, HISTORY_COLORS } from './trajectories';
 
 function point(latitude: number, longitude: number, altitude = 1000) {
   return { gps_time: 1, mission_time: 1, latitude, longitude, altitude };

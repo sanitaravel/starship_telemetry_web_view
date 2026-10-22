@@ -1,6 +1,6 @@
-import type { CurrentMission, SaveStatus } from './current-mission';
+import type { CurrentMission, SaveStatus } from './state/current-mission';
 import type { Vehicle } from './domain/engines/layout';
-import { missionId, type MissionChoice } from './missions-api';
+import { missionId, type MissionChoice } from './api/missions';
 
 /** Most suggestions listed under the mission field at once. */
 const MAX_SUGGESTIONS = 8;

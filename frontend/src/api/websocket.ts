@@ -1,6 +1,6 @@
 import ReconnectingWebSocket from 'reconnecting-websocket';
-import type { WebSocketMessage, ControlCommand } from './core/types';
-import { createLogger } from './core/logger';
+import type { WebSocketMessage, ControlCommand } from '../core/types';
+import { createLogger } from '../core/logger';
 
 const logger = createLogger('websocket');
 

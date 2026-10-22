@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createSwatchButton, toggleColorPopover, type ColorChoice } from './color-picker';
-import { LIVE_COLOR, PRESET_COLORS } from './flight-colors';
+import { LIVE_COLOR, PRESET_COLORS } from './state/flight-colors';
 
 function setup(overrides: Partial<ColorChoice> = {}) {
   const swatch = createSwatchButton('test-swatch', 'Flight 13', '#e91e63');

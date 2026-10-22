@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { missionId, missionsApi } from './missions-api';
+import { missionId, missionsApi } from './missions';
 
 afterEach(() => vi.unstubAllGlobals());
 

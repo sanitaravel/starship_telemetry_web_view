@@ -1,5 +1,5 @@
 import { Chart, ChartConfiguration } from 'chart.js/auto';
-import type { StateManager } from '../state';
+import type { StateManager } from '../state/state-manager';
 import type { TimeSeriesPoint, TimeSeriesStore } from '../core/time-series';
 import { formatSecondsToMET } from '../core/met';
 import type { EngineEvent } from '../domain/engines/events';
@@ -21,7 +21,7 @@ import {
 import { ExportMenu } from './export-menu';
 import { eventMarkers, eventsForSeries, seriesVehicle, type EngineMarker } from './engine-markers';
 import { createLogger } from '../core/logger';
-import { FlightColors } from '../flight-colors';
+import { FlightColors } from '../state/flight-colors';
 import { createSwatchButton, toggleColorPopover } from '../color-picker';
 
 const logger = createLogger('time-series-graphs');

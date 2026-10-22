@@ -1,4 +1,4 @@
-import type { StateManager, AppState } from './state';
+import type { StateManager, AppState } from './state/state-manager';
 import type { FramePayload } from './core/types';
 
 /**
