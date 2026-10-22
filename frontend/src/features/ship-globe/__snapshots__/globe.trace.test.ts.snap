@@ -1,0 +1,628 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 0. mount, setHistory and initial draw 1`] = `
+{
+  "callCount": 7151,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1200" height="1200" style="width: 600px; height: 600px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.0×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "4a9fd27b104940ff176bc7212525ab42e2051107e982795b7cae1d94807eefc2",
+}
+`;
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 1. pointer drag 1`] = `
+{
+  "callCount": 6789,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1200" height="1200" style="width: 600px; height: 600px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.0×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "a7f0baa877e06bc3d536eeef0da56f8be46f2b83ac81c1cdf131011f4734a4cd",
+}
+`;
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 2. center on ship 1`] = `
+{
+  "callCount": 7070,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1200" height="1200" style="width: 600px; height: 600px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.0×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "fdd7f0c3cd25839b53996547667e7980f8ce70f6c3c567ac79786a7e1e162193",
+}
+`;
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 3. wheel zoom in 1`] = `
+{
+  "callCount": 7166,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1200" height="1200" style="width: 600px; height: 600px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.4×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "be7a6187a7f972cb96d01fe3cfbb35c01d774bc45dc886c23c68d5e97bfb7b22",
+}
+`;
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 4. wheel zoom out 1`] = `
+{
+  "callCount": 7123,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1200" height="1200" style="width: 600px; height: 600px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.2×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "92dcf201c75cbb2a5d6b18d4dc25a82aa2a8e470c2cec9120ac0278330b80784",
+}
+`;
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 5. zoom in button 1`] = `
+{
+  "callCount": 7240,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1200" height="1200" style="width: 600px; height: 600px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.8×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "4bfb062dcf3b7e662b29971537b7d4da69200d97dee5fe8ef0fef81ead4746b2",
+}
+`;
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 6. zoom out button 1`] = `
+{
+  "callCount": 7123,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1200" height="1200" style="width: 600px; height: 600px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.2×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "92dcf201c75cbb2a5d6b18d4dc25a82aa2a8e470c2cec9120ac0278330b80784",
+}
+`;
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 7. reset zoom button 1`] = `
+{
+  "callCount": 7070,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1200" height="1200" style="width: 600px; height: 600px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.0×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "fdd7f0c3cd25839b53996547667e7980f8ce70f6c3c567ac79786a7e1e162193",
+}
+`;
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 8. window resize 1`] = `
+{
+  "callCount": 7093,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1520" height="1280" style="width: 760px; height: 640px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.0×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "9c9cf33cd76605f08d6eb567333a7c66282082616d076808ab8545a2f63b233f",
+}
+`;
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 9. toggle ship36 path off 1`] = `
+{
+  "callCount": 7005,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1520" height="1280" style="width: 760px; height: 640px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.0×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "37c5024239d04ff29b3038a1587db570f0f0330bd04d8589c366c366706362f1",
+}
+`;
+
+exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of the scenario > 10. new track sample 1`] = `
+{
+  "callCount": 7064,
+  "frames": 1,
+  "innerHTML": "
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">Ship Position</h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
+      </div>
+      <div class="ship-globe__history">
+        <span class="ship-globe__history-label">Previous ships:</span>
+        <div class="ship-globe__history-toggles">
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship36" data-trajectory="ship36" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(79, 195, 247);" title="Change colour of Ship 36" aria-label="Change colour of Ship 36" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship36">Ship 36</label>
+        </div>
+        <div class="ship-globe__history-item">
+          <input type="checkbox" class="ship-globe__history-checkbox" id="ship-globe-history-ship35" data-trajectory="ship35" checked=""><button type="button" class="color-swatch-btn ship-globe__history-swatch" style="background-color: rgb(186, 104, 200);" title="Change colour of Ship 35" aria-label="Change colour of Ship 35" aria-haspopup="dialog" aria-expanded="false"></button>
+          <label for="ship-globe-history-ship35">Ship 35</label>
+        </div></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start <span class="ship-globe__gradient-bar"></span> end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1520" height="1280" style="width: 760px; height: 640px;"></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">1.0×</button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">Drag to rotate · Scroll to zoom</p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:08</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">34.5 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,354 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">32.200° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">73.900° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">5</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:34 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "2c334b87b7888a735c4d304c597f6137ea75d55f43e4d0918fe70d312f41c718",
+}
+`;

@@ -9,7 +9,7 @@ import { enginesInRing, enginesOf } from './engines/layout';
 import { EngineEventDetector } from './engines/detector';
 import type { EngineStatusMap } from './engines/events';
 import { detectFlightEngineEvents, estimateSeparationMet } from './flights';
-import { eventsForSeries } from '../time-series-graphs/engine-markers';
+import { eventsForSeries } from '../features/graphs/plugins/engine-markers';
 
 const ids = (engines: readonly { id: string }[]) => engines.map((e) => e.id);
 const SH_ALL = ids(enginesOf('superheavy'));
@@ -139,7 +139,8 @@ describe('detectFlightEngineEvents replays the change list like the live path', 
       }),
       { numRuns: 100 },
     );
-  });
+    // 100 runs take ~0.5 s alone, but this took 5.26 s in a loaded parallel run, past the 5 s default.
+  }, 30_000);
 });
 
 /**

@@ -3,10 +3,10 @@
  * and the tooltip text that explains them. Pure logic, no DOM or Chart.js.
  */
 
-import type { EngineEvent, EngineEventKind } from '../domain/engines/events';
-import { engineLabel, ringNameOf, VEHICLE_NAMES, type Vehicle } from '../domain/engines/layout';
-import type { SeriesKey } from './types';
-import { formatSecondsToMET } from '../core/met';
+import type { EngineEvent, EngineEventKind } from '../../../domain/engines/events';
+import { engineLabel, ringNameOf, VEHICLE_NAMES, type Vehicle } from '../../../domain/engines/layout';
+import type { SeriesKey } from '../types';
+import { formatSecondsToMET } from '../../../core/met';
 
 /** A marker drawn by the engineEvents plugin. */
 export interface EngineMarker {
