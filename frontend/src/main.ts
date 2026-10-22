@@ -1,13 +1,15 @@
 import './styles.css';
-import { createTelemetryWebSocket, getWebSocketUrl } from './websocket';
-import { StateManager } from './state';
+import { createTelemetryWebSocket, getWebSocketUrl } from './api/websocket';
+import { StateManager } from './state/state-manager';
 import { PipelineControls } from './pipeline-controls';
 import { TelemetryDisplay } from './telemetry-display';
 import { EngineVisualizer } from './engine-visualizer';
 import { TimeSeriesGraphs } from './time-series-graphs';
 import { FramePreview } from './frame-preview';
 import { TelemetryDownloads } from './telemetry-downloads';
-import { ShipGlobe, ShipTracker, fetchHistoricalTrajectories } from './ship-globe';
+import { ShipGlobe } from './ship-globe';
+import { ShipTracker } from './state/ship-tracker';
+import { fetchHistoricalTrajectories } from './api/trajectories';
 import { appVersion } from './core/app-version';
 import { BackendVersion } from './backend-version';
 

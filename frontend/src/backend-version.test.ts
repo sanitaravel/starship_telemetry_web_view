@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BackendVersion } from './backend-version';
-import type { AppState } from './state';
+import type { AppState } from './state/state-manager';
 
 // The page's own version, as injected at build time
 vi.mock('./core/app-version', () => ({ appVersion: () => '0.1.0.64' }));
@@ -44,6 +44,20 @@ describe('BackendVersion', () => {
     expect(element.textContent).toBe('backend v0.1.0');
     expect(element.classList.contains('dashboard-header__version--mismatch')).toBe(true);
     expect(element.title).toMatch(/old one may still be running/);
+  });
+
+  it('logs a 200 response whose body is not a status object', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => null })));
+      const element = document.createElement('span');
+      new BackendVersion(element, { subscribe: vi.fn() } as never);
+      await flush();
+      expect(element.textContent).toBe('backend unknown');
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('Could not fetch backend status'));
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('updates from status messages', async () => {

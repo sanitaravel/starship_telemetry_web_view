@@ -3,9 +3,9 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CurrentMission } from './current-mission';
-import type { Vehicle } from './domain/engines/layout';
+import type { Vehicle } from '../domain/engines/layout';
 import { EngineSerials } from './engine-serials';
-import { FakeMissionsApi } from './fake-missions-api';
+import { FakeMissionsApi } from '../api/fake-missions';
 
 let api: FakeMissionsApi;
 let serials: Record<Vehicle, EngineSerials>;

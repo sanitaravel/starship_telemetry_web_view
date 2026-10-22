@@ -1,11 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import fc from 'fast-check';
-import {
-  parseTrackerPayload,
-  ShipTracker,
-  SHIP_TRACKER_URL,
-  withCacheBuster,
-} from './tracker';
+import { ShipTracker } from './ship-tracker';
+import { SHIP_TRACKER_URL } from '../api/ship-tracker-feed';
 import type { ShipPosition } from '../core/ship-track';
 
 function current(overrides: Record<string, unknown> = {}) {
@@ -24,68 +19,6 @@ function current(overrides: Record<string, unknown> = {}) {
 function position(gpsTime: number, altitude = 100_000): ShipPosition {
   return { gpsTime, missionTime: 0, altitude, speed: 0, latitude: 0, longitude: 0 };
 }
-
-describe('parseTrackerPayload', () => {
-  it('reads the current sample of each shipN entry and ignores metadata and trajectory', () => {
-    const result = parseTrackerPayload({
-      ship40: { current: current(), trajectory: [{ altitude: 1 }] },
-      metadata: { generation_time: 1 },
-    });
-    expect([...result.keys()]).toEqual(['ship40']);
-    expect(result.get('ship40')).toEqual({
-      gpsTime: 1469206400.5,
-      missionTime: 1200,
-      altitude: 150_000,
-      speed: 7_000,
-      latitude: 20.1,
-      longitude: -80.5,
-    });
-  });
-
-  it('drops samples with negative altitude', () => {
-    const result = parseTrackerPayload({
-      ship40: { current: current({ altitude: -24.6 }) },
-      ship41: { current: current({ altitude: 0 }) },
-    });
-    expect([...result.keys()]).toEqual(['ship41']);
-  });
-
-  it('skips non-ship keys and malformed entries', () => {
-    const result = parseTrackerPayload({
-      booster15: { current: current() },
-      shipX: { current: current() },
-      ship1: null,
-      ship2: { current: current({ latitude: 'n/a' }) },
-      ship3: {},
-    });
-    expect(result.size).toBe(0);
-  });
-
-  it('returns an empty map for non-object payloads', () => {
-    expect(parseTrackerPayload(null).size).toBe(0);
-    expect(parseTrackerPayload('oops').size).toBe(0);
-  });
-
-  it('never keeps a sample with altitude below 0 (property)', () => {
-    fc.assert(
-      fc.property(
-        fc.dictionary(
-          fc.integer({ min: 0, max: 999 }).map((n) => `ship${n}`),
-          fc.double({ min: -1e7, max: 1e7, noNaN: true }),
-        ),
-        (altitudes) => {
-          const payload = Object.fromEntries(
-            Object.entries(altitudes).map(([k, alt]) => [k, { current: current({ altitude: alt }) }]),
-          );
-          const result = parseTrackerPayload(payload);
-          for (const [key, alt] of Object.entries(altitudes)) {
-            expect(result.has(key)).toBe(alt >= 0);
-          }
-        },
-      ),
-    );
-  });
-});
 
 describe('ShipTracker', () => {
   it('accumulates new samples and ignores repeats', () => {
@@ -152,11 +85,6 @@ describe('ShipTracker', () => {
     now.mockRestore();
   });
 
-  it('adds the timestamp as an extra parameter when the URL already has a query', () => {
-    expect(withCacheBuster('https://example.test/feed.json?v=2', 42)).toBe('https://example.test/feed.json?v=2&42');
-    expect(withCacheBuster('https://example.test/feed.json', 42)).toBe('https://example.test/feed.json?42');
-  });
-
   it('survives fetch failures and HTTP errors', async () => {
     const fetchFn = vi
       .fn()
@@ -166,5 +94,59 @@ describe('ShipTracker', () => {
     await expect(tracker.poll()).resolves.toBeUndefined();
     await expect(tracker.poll()).resolves.toBeUndefined();
     expect(tracker.getTracks()).toEqual([]);
+  });
+
+  it('logs a failed request under the ShipTracker logger', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const tracker = new ShipTracker('u', 1000, vi.fn().mockRejectedValue(new Error('offline')));
+      await tracker.poll();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/\[ShipTracker\] Tracker feed request failed .*Error: offline/),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('does not notify listeners or store anything after an HTTP error', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const tracker = new ShipTracker('u', 1000, vi.fn(async () => new Response('', { status: 500 })));
+      const listener = vi.fn();
+      tracker.subscribe(listener);
+      listener.mockClear();
+      await tracker.poll();
+      expect(listener).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('[ShipTracker] Tracker feed returned HTTP 500'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('polls on start and then every interval until stopped; start is idempotent', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchFn = vi.fn(async () => new Response('{}'));
+      const tracker = new ShipTracker('u', 1000, fetchFn);
+      tracker.start();
+      tracker.start();
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(fetchFn).toHaveBeenCalledTimes(4);
+      tracker.stop();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(fetchFn).toHaveBeenCalledTimes(4);
+      tracker.start();
+      expect(fetchFn).toHaveBeenCalledTimes(5);
+      tracker.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

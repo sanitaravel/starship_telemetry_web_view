@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { StateManager } from './state';
+import { StateManager } from './state/state-manager';
 import { TelemetryDownloads } from './telemetry-downloads';
 import type { TelemetryRecord } from './core/types';
 

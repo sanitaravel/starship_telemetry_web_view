@@ -1,4 +1,4 @@
-import { isNearLiveColor, PRESET_COLORS } from './flight-colors';
+import { isNearLiveColor, PRESET_COLORS } from './state/flight-colors';
 import { bindDismiss } from './ui/popover';
 
 /** What the popover edits: one flight's colour and how to change it. */

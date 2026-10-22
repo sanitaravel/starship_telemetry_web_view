@@ -1,4 +1,4 @@
-import { missionId, type MissionChoice, type MissionSettings, type MissionsApi, type SavedMission } from './missions-api';
+import { missionId, type MissionChoice, type MissionSettings, type MissionsApi, type SavedMission } from './missions';
 
 /**
  * In-memory stand-in for the backend's mission files, for tests. Records

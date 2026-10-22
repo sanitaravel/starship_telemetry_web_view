@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseWebSocketMessage, serializeCommand } from './websocket';
-import type { ControlCommand } from './core/types';
+import type { ControlCommand } from '../core/types';
 
 describe('parseWebSocketMessage', () => {
   it('parses a valid telemetry message', () => {

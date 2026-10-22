@@ -3,10 +3,10 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import { EngineVisualizer } from './engine-visualizer';
-import { CurrentMission } from './current-mission';
-import { EngineSerials } from './engine-serials';
-import { FakeMissionsApi } from './fake-missions-api';
-import { StateManager } from './state';
+import { CurrentMission } from './state/current-mission';
+import { EngineSerials } from './state/engine-serials';
+import { FakeMissionsApi } from './api/fake-missions';
+import { StateManager } from './state/state-manager';
 
 let container: HTMLElement;
 let visualizer: EngineVisualizer;

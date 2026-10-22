@@ -1,5 +1,5 @@
 import { downloadText, telemetryFilename, toFlightRecords } from './domain/downloads';
-import type { AppState, StateManager } from './state';
+import type { AppState, StateManager } from './state/state-manager';
 
 /**
  * Download buttons for the OCR telemetry received this session: as a flight

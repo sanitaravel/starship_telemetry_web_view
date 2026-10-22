@@ -19,11 +19,11 @@ import {
 } from './geo';
 import { downloadText, trackFilename, trackToCsv } from '../domain/downloads';
 import { createSwatchButton, toggleColorPopover } from '../color-picker';
-import { FlightColors } from '../flight-colors';
-import type { HistoricalTrajectory } from './history';
+import { FlightColors } from '../state/flight-colors';
+import type { HistoricalTrajectory } from '../api/trajectories';
 import { countryLabels, placeLabels, type Box } from './labels';
 import type { ShipTrack } from '../core/ship-track';
-import type { ShipTracker } from './tracker';
+import type { ShipTracker } from '../state/ship-tracker';
 
 const COLORS = {
   ocean: '#1c1c1c',

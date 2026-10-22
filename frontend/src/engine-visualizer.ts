@@ -1,6 +1,6 @@
-import type { StateManager, AppState } from './state';
-import { CurrentMission } from './current-mission';
-import { EngineSerials } from './engine-serials';
+import type { StateManager, AppState } from './state/state-manager';
+import { CurrentMission } from './state/current-mission';
+import { EngineSerials } from './state/engine-serials';
 import { createSettingsButton, toggleEngineSettings, type EngineGroup } from './engine-settings';
 import {
   STARSHIP_ENGINES,

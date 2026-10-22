@@ -1,4 +1,4 @@
-import type { Vehicle } from './domain/engines/layout';
+import type { Vehicle } from '../domain/engines/layout';
 import type { EngineSerials } from './engine-serials';
 import {
   missionFile,
@@ -8,7 +8,7 @@ import {
   type MissionSettings,
   type MissionsApi,
   type SavedMission,
-} from './missions-api';
+} from '../api/missions';
 
 /** The fields a vehicle's name and engine serials are saved under in a mission file. */
 const FIELDS = {

@@ -9,12 +9,12 @@ import type { EngineGroup } from './engine-settings';
 // so the panel created here (and later detached by other files clearing the
 // body) is never the one engine-visualizer.test.ts gets.
 let settings: typeof import('./engine-settings');
-let serialsModule: typeof import('./engine-serials');
+let serialsModule: typeof import('./state/engine-serials');
 
 beforeAll(async () => {
   vi.resetModules();
   settings = await import('./engine-settings');
-  serialsModule = await import('./engine-serials');
+  serialsModule = await import('./state/engine-serials');
 });
 
 afterAll(() => {
