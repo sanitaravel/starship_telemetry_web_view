@@ -4,9 +4,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import type { EngineStatusChange, PreviousFlightColumns } from '../types';
-import { enginesInRing, enginesOf } from '../engine-layout';
-import { EngineEventDetector, type EngineStatusMap } from '../engine-events';
+import type { EngineStatusChange, PreviousFlightColumns } from '../core/types';
+import { enginesInRing, enginesOf } from './engines/layout';
+import { EngineEventDetector } from './engines/detector';
+import type { EngineStatusMap } from './engines/events';
 import { detectFlightEngineEvents, estimateSeparationMet } from './flights';
 import { eventsForSeries } from '../time-series-graphs/engine-markers';
 

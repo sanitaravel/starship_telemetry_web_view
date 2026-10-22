@@ -1,4 +1,5 @@
-import type { CurrentMission, Vehicle } from './current-mission';
+import type { CurrentMission } from './current-mission';
+import type { Vehicle } from './domain/engines/layout';
 import { MAX_SERIAL_LENGTH, normaliseSerial, type EngineSerials } from './engine-serials';
 import { MissionFields } from './mission-fields';
 import { bindDismiss } from './ui/popover';

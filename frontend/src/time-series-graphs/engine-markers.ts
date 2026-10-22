@@ -3,8 +3,8 @@
  * and the tooltip text that explains them. Pure logic, no DOM or Chart.js.
  */
 
-import type { EngineEvent, EngineEventKind } from '../engine-events';
-import { engineLabel, ringNameOf, VEHICLE_NAMES, type Vehicle } from '../engine-layout';
+import type { EngineEvent, EngineEventKind } from '../domain/engines/events';
+import { engineLabel, ringNameOf, VEHICLE_NAMES, type Vehicle } from '../domain/engines/layout';
 import type { SeriesKey } from './types';
 import { formatSecondsToMET } from '../core/met';
 

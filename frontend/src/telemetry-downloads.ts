@@ -1,4 +1,4 @@
-import { downloadText, telemetryFilename, toFlightRecords } from './downloads';
+import { downloadText, telemetryFilename, toFlightRecords } from './domain/downloads';
 import type { AppState, StateManager } from './state';
 
 /**

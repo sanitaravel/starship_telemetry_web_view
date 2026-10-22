@@ -1,8 +1,14 @@
 import type { StateManager, AppState } from './state';
-import { CurrentMission, type Vehicle } from './current-mission';
+import { CurrentMission } from './current-mission';
 import { EngineSerials } from './engine-serials';
 import { createSettingsButton, toggleEngineSettings, type EngineGroup } from './engine-settings';
-import { STARSHIP_ENGINES, SUPERHEAVY_ENGINES, engineLabel, type EnginePosition } from './engine-layout';
+import {
+  STARSHIP_ENGINES,
+  SUPERHEAVY_ENGINES,
+  engineLabel,
+  type EnginePosition,
+  type Vehicle,
+} from './domain/engines/layout';
 
 import { svgEl } from './ui/svg';
 

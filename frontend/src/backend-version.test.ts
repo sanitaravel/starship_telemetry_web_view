@@ -6,7 +6,7 @@ import { BackendVersion } from './backend-version';
 import type { AppState } from './state';
 
 // The page's own version, as injected at build time
-vi.mock('./app-version', () => ({ appVersion: () => '0.1.0.64' }));
+vi.mock('./core/app-version', () => ({ appVersion: () => '0.1.0.64' }));
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 

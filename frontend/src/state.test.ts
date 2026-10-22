@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { StateManager, appendToTimeSeries, createInitialState } from './state';
-import type { TelemetryRecord, PipelineStatus, ErrorPayload, WebSocketMessage } from './types';
+import type { TelemetryRecord, PipelineStatus, ErrorPayload, WebSocketMessage } from './core/types';
 
 function createTestTelemetryRecord(overrides: Partial<TelemetryRecord> = {}): TelemetryRecord {
   return {

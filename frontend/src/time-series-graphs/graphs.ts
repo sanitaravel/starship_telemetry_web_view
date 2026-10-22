@@ -2,13 +2,13 @@ import { Chart, ChartConfiguration } from 'chart.js/auto';
 import type { StateManager } from '../state';
 import type { TimeSeriesPoint, TimeSeriesStore } from '../core/time-series';
 import { formatSecondsToMET } from '../core/met';
-import type { EngineEvent } from '../engine-events';
-import type { PreviousFlightInfo } from '../types';
+import type { EngineEvent } from '../domain/engines/events';
+import type { PreviousFlightInfo } from '../core/types';
 import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightData } from '../api/previous-flights';
 import type { DatasetKey, LoadedComparison, SeriesKey, SeriesOption } from './types';
 import { COMPARE_COLORS, SERIES_OPTIONS } from './panels';
 import { NEAREST_PER_DATASET } from './interaction-mode';
-import { computeAcceleration, IncrementalXY } from './series-math';
+import { computeAcceleration, IncrementalXY } from '../domain/series-math';
 import {
   chartFilename,
   DEFAULT_EXPORT_OPTIONS,
@@ -20,7 +20,7 @@ import {
 } from './export-png';
 import { ExportMenu } from './export-menu';
 import { eventMarkers, eventsForSeries, seriesVehicle, type EngineMarker } from './engine-markers';
-import { createLogger } from '../logger';
+import { createLogger } from '../core/logger';
 import { FlightColors } from '../flight-colors';
 import { createSwatchButton, toggleColorPopover } from '../color-picker';
 

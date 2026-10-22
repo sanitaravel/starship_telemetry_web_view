@@ -1,4 +1,4 @@
-import { createLogger } from '../logger';
+import { createLogger } from '../core/logger';
 import type { ShipPosition, ShipTrack } from '../core/ship-track';
 
 const log = createLogger('ShipTracker');

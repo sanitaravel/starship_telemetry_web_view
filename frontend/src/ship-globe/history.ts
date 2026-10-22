@@ -1,4 +1,4 @@
-import { createLogger } from '../logger';
+import { createLogger } from '../core/logger';
 
 const log = createLogger('ShipHistory');
 

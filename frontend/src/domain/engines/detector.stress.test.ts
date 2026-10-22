@@ -4,10 +4,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import type { TelemetryRecord } from './types';
-import { enginesInRing, enginesOf } from './engine-layout';
-import { EngineEventDetector, detectEngineEvents, type EngineEvent, type EngineStatusMap } from './engine-events';
-import { eventsForSeries } from './time-series-graphs/engine-markers';
+import type { TelemetryRecord } from '../../core/types';
+import { enginesInRing, enginesOf } from './layout';
+import { EngineEventDetector, detectEngineEvents } from './detector';
+import type { EngineEvent, EngineStatusMap } from './events';
+import { eventsForSeries } from '../../time-series-graphs/engine-markers';
 
 const ids = (engines: readonly { id: string }[]) => engines.map((e) => e.id);
 const SH_ALL = ids(enginesOf('superheavy'));

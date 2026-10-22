@@ -1,6 +1,6 @@
 import type { TimeSeriesStore } from '../core/time-series';
-import type { PreviousFlightColumns, PreviousFlightInfo } from '../types';
-import type { EngineEvent } from '../engine-events';
+import type { PreviousFlightColumns, PreviousFlightInfo } from '../core/types';
+import type { EngineEvent } from '../domain/engines/events';
 import {
   detectFlightEngineEvents,
   estimateMetSeconds,

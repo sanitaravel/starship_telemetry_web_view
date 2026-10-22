@@ -1,5 +1,5 @@
 import type { StateManager, AppState } from './state';
-import type { TelemetryRecord } from './types';
+import type { TelemetryRecord } from './core/types';
 
 /**
  * Determines if a telemetry field value should display a placeholder.

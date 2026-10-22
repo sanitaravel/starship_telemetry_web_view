@@ -1,10 +1,11 @@
-import type { TelemetryRecord, PipelineStatus, ErrorPayload, ValidationResult, FramePayload, WebSocketMessage } from './types';
-import { FPSMeter } from './fps-meter';
-import { createLogger } from './logger';
-import { MetClock } from './met-clock';
+import type { TelemetryRecord, PipelineStatus, ErrorPayload, ValidationResult, FramePayload, WebSocketMessage } from './core/types';
+import { FPSMeter } from './core/fps-meter';
+import { createLogger } from './core/logger';
+import { MetClock } from './core/met-clock';
 import type { TimeSeriesPoint, TimeSeriesStore } from './core/time-series';
 import { parseMETToSeconds } from './core/met';
-import { EngineEventDetector, type EngineEvent } from './engine-events';
+import { EngineEventDetector } from './domain/engines/detector';
+import type { EngineEvent } from './domain/engines/events';
 
 const logger = createLogger('state');
 
