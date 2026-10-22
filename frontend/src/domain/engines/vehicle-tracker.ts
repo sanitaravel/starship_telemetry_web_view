@@ -1,10 +1,5 @@
 /**
- * Engine failure detection from per-frame engine statuses.
- *
- * Pure logic, no DOM: feed records in sequence order to an
- * EngineEventDetector and it reports engines that shut down unexpectedly
- * (engine_out), died shortly after a relight (died_after_relight) or did not
- * light with the rest of their ring (failed_to_light).
+ * Per-vehicle engine event tracking, used by EngineEventDetector.
  *
  * Each vehicle is tracked independently:
  * - A vehicle's panel is visible in a record iff at least one of its engines
@@ -24,125 +19,10 @@
  *   event.
  */
 
-import type { TelemetryRecord } from './types';
-import {
-  engineById,
-  enginesInRing,
-  enginesOf,
-  type EngineRing,
-  type Vehicle,
-} from './engine-layout';
-import { parseMETToSeconds } from './core/met';
-
-export type { Vehicle };
-
-export type EngineEventKind = 'engine_out' | 'died_after_relight' | 'failed_to_light';
-
-export interface EngineEvent {
-  kind: EngineEventKind;
-  vehicle: Vehicle;
-  /** Engines involved, in layout order. */
-  engineIds: string[];
-  /** Rings (SVG subgroup ids) of those engines, in layout order, no duplicates. */
-  rings: string[];
-  /** MET of the event in seconds (for failed_to_light, the burn start). */
-  metSeconds: number;
-  /** Set when the change happened inside a panel gap: [last visible before, first visible after]. */
-  metRange?: [number, number];
-  /** Engines running after the event. */
-  runningAfter: number;
-  /** Engines that should be running at that moment, for the "n/m running" text. */
-  expected: number;
-}
-
-export type EngineStatus = 'active' | 'inactive' | 'undetected';
-export type EngineStatusMap = Record<string, EngineStatus>;
-
-/** Detection thresholds. Times are seconds of MET. */
-export interface EngineEventConfig {
-  /** Consecutive visible readings needed to confirm a state change. */
-  CONFIRM_FRAMES: number;
-  /** Minimum time those readings must span. */
-  CONFIRM_MIN_S: number;
-  /** Shutdowns closer than this to the previous one join the same step (minimum window). */
-  STEP_WINDOW_S: number;
-  /**
-   * The step window is at least this many times the recent spacing of
-   * visible records, so sparse sampling does not split a staggered MECO.
-   */
-  STEP_WINDOW_SAMPLES: number;
-  /** Visible-record spacings kept per vehicle for the running median. */
-  SPACING_HISTORY: number;
-  /**
-   * Frames with no engine active right before or after a panel gap are the
-   * panel fading out or in, not data, while their run is at most this long.
-   */
-  FADE_MAX_S: number;
-  /** An engine_out this soon after a (non-first) burn starts is died_after_relight. */
-  RELIGHT_GRACE_S: number;
-  /** Engines that have not lit this long after a burn starts failed to light. */
-  IGNITION_WINDOW_S: number;
-  /**
-   * A first burn starting no later than this is the liftoff burn, which is
-   * never checked for failed_to_light (startup is staggered on the pad).
-   */
-  LIFTOFF_MAX_MET_S: number;
-  /** A ship burn starting after this MET is the landing burn. */
-  SHIP_LANDING_MIN_MET_S: number;
-  /** A ship burn starting below this altitude (km) is the landing burn. */
-  SHIP_LANDING_MAX_ALTITUDE_KM: number;
-  /** Running counts a shutdown step may leave without being an event. */
-  PLANNED_COUNTS: Record<Vehicle, readonly number[]>;
-  /** Extra planned counts during the ship's landing burn. */
-  SHIP_LANDING_PLANNED_COUNTS: readonly number[];
-}
-
-export const ENGINE_EVENT_CONFIG: Readonly<EngineEventConfig> = {
-  CONFIRM_FRAMES: 2,
-  CONFIRM_MIN_S: 0.5,
-  STEP_WINDOW_S: 3,
-  STEP_WINDOW_SAMPLES: 2.5,
-  SPACING_HISTORY: 9,
-  FADE_MAX_S: 1,
-  RELIGHT_GRACE_S: 5,
-  IGNITION_WINDOW_S: 3,
-  LIFTOFF_MAX_MET_S: 30,
-  SHIP_LANDING_MIN_MET_S: 3000,
-  SHIP_LANDING_MAX_ALTITUDE_KM: 30,
-  PLANNED_COUNTS: { superheavy: [13, 5, 3, 0], starship: [0] },
-  SHIP_LANDING_PLANNED_COUNTS: [2, 1],
-};
-
-/**
- * Whether a ship burn is its landing burn: it starts late in the flight or
- * low enough (altitude in km, when known).
- */
-export function isShipLandingBurn(
-  startMetSeconds: number,
-  shipAltitudeKm: number | undefined,
-  config: EngineEventConfig = ENGINE_EVENT_CONFIG,
-): boolean {
-  if (startMetSeconds > config.SHIP_LANDING_MIN_MET_S) return true;
-  return shipAltitudeKm !== undefined && shipAltitudeKm < config.SHIP_LANDING_MAX_ALTITUDE_KM;
-}
-
-const ALTITUDE_TO_KM: Record<string, number> = { KM: 1, MI: 1.609344, FT: 0.0003048 };
-
-/**
- * The ship's altitude in km from a record: after separation, the reading on
- * the side assigned to Starship. Undefined before separation or when unread.
- */
-export function shipAltitudeKm(record: TelemetryRecord): number | undefined {
-  if (record.separation_state !== 'post_separation') return undefined;
-  for (const side of ['left', 'right'] as const) {
-    if (record[`stage_assignment_${side}`] !== 'starship') continue;
-    const reading = record[`altitude_${side}`];
-    if (reading.status !== 'available' || reading.value === null) continue;
-    const factor = ALTITUDE_TO_KM[(reading.unit ?? 'KM').toUpperCase()];
-    if (factor !== undefined) return reading.value * factor;
-  }
-  return undefined;
-}
+import { engineById, enginesInRing, enginesOf, type EngineRing, type Vehicle } from './layout';
+import type { EngineEvent, EngineEventKind, EngineStatusMap } from './events';
+import type { EngineEventConfig } from './config';
+import { isShipLandingBurn } from './landing';
 
 /** A not yet confirmed change of one engine. */
 interface Candidate {
@@ -195,7 +75,8 @@ interface Step {
   range?: [number, number];
 }
 
-class VehicleTracker {
+/** One vehicle's debounced engine states, burns and shutdown steps. Internal to the detector. */
+export class VehicleTracker {
   private readonly ids: string[];
   private readonly order: Map<string, number>;
   /** Debounced state, true = on. Absent until first confirmed. */
@@ -542,113 +423,4 @@ class VehicleTracker {
     if (fields.metRange) event.metRange = [...fields.metRange];
     return event;
   }
-}
-
-/**
- * Incremental engine event detector. Push records in sequence order; each
- * push returns the events it finalized (a shutdown step is only finalized
- * once its step window has passed, and frames with no engine active are held
- * up to FADE_MAX_S in case a panel gap follows, so events come a little after
- * the fact).
- */
-export class EngineEventDetector {
-  private trackers!: Record<Vehicle, VehicleTracker>;
-  private all: EngineEvent[] = [];
-  private lastT: number | null = null;
-  private readonly config: EngineEventConfig;
-
-  constructor(config: Partial<EngineEventConfig> = {}) {
-    this.config = { ...ENGINE_EVENT_CONFIG, ...config };
-    this.reset();
-  }
-
-  /**
-   * Push one telemetry record. metSeconds defaults to the record's
-   * whole-second MET; records without MET are ignored.
-   */
-  push(record: TelemetryRecord, metSeconds?: number): EngineEvent[] {
-    let t = metSeconds;
-    if (t === undefined) {
-      if (!record.mission_elapsed_time) return [];
-      t = parseMETToSeconds(record.mission_elapsed_time);
-    }
-    return this.pushStatuses(
-      t,
-      record.starship_engines,
-      record.superheavy_engines,
-      record.separation_state,
-      shipAltitudeKm(record),
-    );
-  }
-
-  /** Push several records; returns the events they finalized. */
-  pushAll(records: Iterable<TelemetryRecord>, metSecondsOf?: (record: TelemetryRecord) => number | undefined): EngineEvent[] {
-    const events: EngineEvent[] = [];
-    for (const record of records) events.push(...this.push(record, metSecondsOf?.(record)));
-    return events;
-  }
-
-  /**
-   * Lower-level entry point: one frame's engine statuses at a MET in
-   * seconds. Missing maps or engines read as 'undetected'. separationState is
-   * informational (the ship altitude, in km, is only meaningful after
-   * separation, so pass undefined otherwise).
-   */
-  pushStatuses(
-    metSeconds: number,
-    starship: EngineStatusMap | null | undefined,
-    superheavy: EngineStatusMap | null | undefined,
-    _separationState?: TelemetryRecord['separation_state'],
-    shipAltitude?: number,
-  ): EngineEvent[] {
-    if (!Number.isFinite(metSeconds)) return [];
-    this.lastT = metSeconds;
-    const events = [
-      ...this.trackers.superheavy.push(metSeconds, superheavy ?? {}),
-      ...this.trackers.starship.push(metSeconds, starship ?? {}, shipAltitude),
-    ];
-    this.all.push(...events);
-    return events;
-  }
-
-  /**
-   * Finalize what the end of the data allows: open shutdown steps, and
-   * ignition checks whose window has passed. Call once no more records follow.
-   */
-  flush(): EngineEvent[] {
-    const events = [
-      ...this.trackers.superheavy.flush(this.lastT),
-      ...this.trackers.starship.flush(this.lastT),
-    ];
-    this.all.push(...events);
-    return events;
-  }
-
-  /** Every event finalized so far, in finalization order. */
-  events(): EngineEvent[] {
-    return this.all;
-  }
-
-  reset(): void {
-    this.trackers = {
-      superheavy: new VehicleTracker('superheavy', this.config),
-      starship: new VehicleTracker('starship', this.config),
-    };
-    this.all = [];
-    this.lastT = null;
-  }
-}
-
-/**
- * Detect the engine events of a complete record stream (flushed at the end).
- */
-export function detectEngineEvents(
-  records: Iterable<TelemetryRecord>,
-  metSecondsOf?: (record: TelemetryRecord) => number | undefined,
-  config?: Partial<EngineEventConfig>,
-): EngineEvent[] {
-  const detector = new EngineEventDetector(config);
-  detector.pushAll(records, metSecondsOf);
-  detector.flush();
-  return detector.events();
 }

@@ -1,7 +1,7 @@
 import type { StateManager } from './state';
-import type { PipelineStatus } from './types';
-import { appVersion } from './app-version';
-import { createLogger } from './logger';
+import type { PipelineStatus } from './core/types';
+import { appVersion } from './core/app-version';
+import { createLogger } from './core/logger';
 
 const logger = createLogger('backend-version');
 

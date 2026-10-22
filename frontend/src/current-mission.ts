@@ -1,3 +1,4 @@
+import type { Vehicle } from './domain/engines/layout';
 import type { EngineSerials } from './engine-serials';
 import {
   missionFile,
@@ -8,9 +9,6 @@ import {
   type MissionsApi,
   type SavedMission,
 } from './missions-api';
-
-/** The two vehicles of a flight, each with its own engine settings panel. */
-export type Vehicle = 'starship' | 'superheavy';
 
 /** The fields a vehicle's name and engine serials are saved under in a mission file. */
 const FIELDS = {

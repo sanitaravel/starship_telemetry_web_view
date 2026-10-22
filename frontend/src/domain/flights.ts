@@ -1,8 +1,9 @@
 import type { TimeSeriesPoint, TimeSeriesStore } from '../core/time-series';
 import { parseMETToSeconds } from '../core/met';
-import type { PreviousFlightColumns } from '../types';
-import { MetClock } from '../met-clock';
-import { EngineEventDetector, type EngineEvent, type EngineStatusMap } from '../engine-events';
+import type { PreviousFlightColumns } from '../core/types';
+import { MetClock } from '../core/met-clock';
+import { EngineEventDetector } from './engines/detector';
+import type { EngineEvent, EngineStatusMap } from './engines/events';
 
 /** Rows before this MET are ignored by estimateSeparationMet (pad and clamp noise). */
 export const SEPARATION_MIN_MET_S = 30;

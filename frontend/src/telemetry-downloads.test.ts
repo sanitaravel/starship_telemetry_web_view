@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { StateManager } from './state';
 import { TelemetryDownloads } from './telemetry-downloads';
-import type { TelemetryRecord } from './types';
+import type { TelemetryRecord } from './core/types';
 
 function record(sequence: number): TelemetryRecord {
   return {

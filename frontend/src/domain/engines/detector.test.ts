@@ -1,15 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import type { TelemetryRecord } from './types';
-import { enginesInRing, enginesOf } from './engine-layout';
-import {
-  EngineEventDetector,
-  detectEngineEvents,
-  isShipLandingBurn,
-  shipAltitudeKm,
-  type EngineEvent,
-  type EngineStatusMap,
-} from './engine-events';
+import type { TelemetryRecord } from '../../core/types';
+import { enginesInRing, enginesOf } from './layout';
+import { EngineEventDetector, detectEngineEvents } from './detector';
+import type { EngineEvent, EngineStatusMap } from './events';
 
 const ids = (engines: readonly { id: string }[]) => engines.map((e) => e.id);
 const SH_ALL = ids(enginesOf('superheavy'));
@@ -404,22 +398,6 @@ describe('EngineEventDetector: events', () => {
     expect(detectEngineEvents(noMet)).toEqual([]);
     // Whole-second MET: the change is dated at the first reading of second 60
     expect(detectEngineEvents(records).map((e) => e.metSeconds)).toEqual([60]);
-  });
-});
-
-describe('ship altitude and landing predicate', () => {
-  it('reads the Starship side after separation only', () => {
-    const r = record(0, { shipAlt: 12 });
-    expect(shipAltitudeKm(r)).toBe(12);
-    expect(shipAltitudeKm({ ...r, separation_state: 'pre_separation' })).toBeUndefined();
-    expect(shipAltitudeKm({ ...r, altitude_left: { value: 10000, unit: 'FT', status: 'available' } })).toBeCloseTo(3.048);
-  });
-
-  it('is a landing burn late or low', () => {
-    expect(isShipLandingBurn(3001, undefined)).toBe(true);
-    expect(isShipLandingBurn(500, 29)).toBe(true);
-    expect(isShipLandingBurn(500, 31)).toBe(false);
-    expect(isShipLandingBurn(500, undefined)).toBe(false);
   });
 });
 

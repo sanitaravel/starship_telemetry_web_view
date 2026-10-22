@@ -10,9 +10,9 @@ import {
   ringNameOf,
   ringOf,
   type EnginePosition,
-} from './engine-layout';
+} from './layout';
 
-const DIAGRAMS = fileURLToPath(new URL('../../diagrams/', import.meta.url));
+const DIAGRAMS = fileURLToPath(new URL('../../../../diagrams/', import.meta.url));
 
 interface SvgEngine {
   id: string;

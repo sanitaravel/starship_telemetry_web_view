@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PipelineControls, ValidationStatus } from './pipeline-controls';
 import { StateManager } from './state';
 import type { TelemetryWebSocket } from './websocket';
-import type { PipelineStatus } from './types';
+import type { PipelineStatus } from './core/types';
 
 /**
  * Create a mock TelemetryWebSocket with just enough interface for PipelineControls.

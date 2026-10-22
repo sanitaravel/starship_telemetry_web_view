@@ -17,7 +17,7 @@ import {
   rotationToCenter,
   type Rotation,
 } from './geo';
-import { downloadText, trackFilename, trackToCsv } from '../downloads';
+import { downloadText, trackFilename, trackToCsv } from '../domain/downloads';
 import { createSwatchButton, toggleColorPopover } from '../color-picker';
 import { FlightColors } from '../flight-colors';
 import type { HistoricalTrajectory } from './history';

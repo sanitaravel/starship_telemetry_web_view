@@ -8,7 +8,7 @@ import { TimeSeriesGraphs } from './time-series-graphs';
 import { FramePreview } from './frame-preview';
 import { TelemetryDownloads } from './telemetry-downloads';
 import { ShipGlobe, ShipTracker, fetchHistoricalTrajectories } from './ship-globe';
-import { appVersion } from './app-version';
+import { appVersion } from './core/app-version';
 import { BackendVersion } from './backend-version';
 
 const app = document.getElementById('app');

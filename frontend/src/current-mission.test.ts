@@ -2,7 +2,8 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { CurrentMission, type Vehicle } from './current-mission';
+import { CurrentMission } from './current-mission';
+import type { Vehicle } from './domain/engines/layout';
 import { EngineSerials } from './engine-serials';
 import { FakeMissionsApi } from './fake-missions-api';
 

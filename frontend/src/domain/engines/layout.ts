@@ -2,7 +2,7 @@
  * Engine layout of both vehicles, shared by the engine visualizer and the
  * engine event detector. Positions and ring groups mirror the subgroups of
  * diagrams/superheavy_engine_diagram.svg and diagrams/starship_engine_diagram.svg
- * (engine-layout.test.ts checks them against the SVGs).
+ * (layout.test.ts checks them against the SVGs).
  */
 
 export type Vehicle = 'superheavy' | 'starship';
