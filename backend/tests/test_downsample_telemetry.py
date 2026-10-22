@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from src.version import REPO_ROOT
+from src.core.version import REPO_ROOT
 
 
 def _load_script():

@@ -14,11 +14,11 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from src.enums import OCRFieldStatus
-from src.gpu_detector import AccelerationBackend, GPUCapabilities
-from src.models import ROIRect
+from src.core.enums import OCRFieldStatus
+from src.core.models import ROIRect
 from src.ocr.engine import EasyOCREngine
 from src.ocr.regions import crop_frame_to_roi, text_columns
+from src.vision.gpu_detector import AccelerationBackend, GPUCapabilities
 
 
 # --- Fixtures ---

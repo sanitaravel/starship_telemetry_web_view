@@ -31,7 +31,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from src.capture import FrameExtractor, FrameExtractorConfig, SourceUnavailable
-from src.enums import PipelineStatus
+from src.core.enums import PipelineStatus
 
 # Where the extractor constructs its OpenCV captures and parallel decoders
 VIDEO_CAPTURE = "src.capture.source.cv2.VideoCapture"

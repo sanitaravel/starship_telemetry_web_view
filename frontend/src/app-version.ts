@@ -3,7 +3,7 @@
  * the commit count as a fourth, build number (e.g. 0.1.0.64).
  *
  * vite.config.ts computes it at build time and injects it as __APP_VERSION__;
- * backend/src/version.py applies the same rule.
+ * backend/src/core/version.py applies the same rule.
  */
 
 const SEMVER = /^\d+\.\d+\.\d+$/;

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from src.enums import OCRFieldStatus
+from src.core.enums import OCRFieldStatus
 
 
 @dataclass

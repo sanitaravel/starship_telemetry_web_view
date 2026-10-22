@@ -14,9 +14,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from src.core.paths import REPO_ROOT
+
 logger = logging.getLogger(__name__)
 
-PREVIOUS_FLIGHTS_DIR = Path(__file__).parent.parent.parent / "results_previous"
+PREVIOUS_FLIGHTS_DIR = REPO_ROOT / "results_previous"
 
 
 def list_flights(directory: Path = PREVIOUS_FLIGHTS_DIR) -> list[dict[str, str]]:

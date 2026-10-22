@@ -13,10 +13,10 @@ import cv2
 import numpy as np
 import pytest
 
-from src.enums import OCRFieldStatus
-from src.gpu_detector import AccelerationBackend, GPUCapabilities
-from src.models import ROIRect
+from src.core.enums import OCRFieldStatus
+from src.core.models import ROIRect
 from src.ocr.engine import EasyOCREngine, configure_torch_threads
+from src.vision.gpu_detector import AccelerationBackend, GPUCapabilities
 
 
 CPU = GPUCapabilities(

@@ -139,9 +139,9 @@ async def run_pipeline(
     url: str, seconds: float, skip_frames: int, out_dir: Path
 ) -> RunCapture:
     """Run the pipeline against ``url`` for ``seconds`` and capture its output."""
-    from src.gpu_detector import detect_gpu
     from src.pipeline import PipelineOrchestrator
-    from src.template_registry import TemplateRegistry, load_default_template
+    from src.templates.template_registry import TemplateRegistry, load_default_template
+    from src.vision.gpu_detector import detect_gpu
 
     frames_dir = out_dir / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)

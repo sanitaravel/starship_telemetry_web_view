@@ -1,4 +1,4 @@
-"""Tests for the application version (src/version.py) and the bump script."""
+"""Tests for the application version (src/core/version.py) and the bump script."""
 
 import importlib.util
 import json
@@ -7,7 +7,7 @@ import tomllib
 
 import pytest
 
-from src.version import (
+from src.core.version import (
     REPO_ROOT,
     compose_version,
     get_version,

@@ -13,7 +13,7 @@ leave its reorder buffer.
 import re
 from dataclasses import dataclass
 
-from src.enums import OCRFieldStatus, SeparationState
+from src.core.enums import OCRFieldStatus, SeparationState
 from src.ocr.results import OCRFieldResult, OCRResult
 
 SUPER_HEAVY = "super_heavy"

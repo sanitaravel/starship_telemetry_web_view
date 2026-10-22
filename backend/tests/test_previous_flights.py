@@ -9,8 +9,8 @@ from httpx import AsyncClient, ASGITransport
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from src import previous_flights
 from src.server import create_app
+from src.storage import previous_flights
 
 
 def record(

@@ -15,10 +15,9 @@ from typing import Any, Callable, Awaitable
 
 import numpy as np
 
-from src.enums import PipelineStatus, SeparationState
 from src.capture import FrameExtractor, FrameExtractorConfig
-from src.gpu_detector import GPUCapabilities
-from src.logging_context import frame_seq_var
+from src.core.enums import PipelineStatus, SeparationState
+from src.core.logging_context import frame_seq_var
 from src.ocr.engine import EasyOCREngine
 from src.ocr.results import OCRResult
 from src.pipeline.broadcast import Broadcaster
@@ -29,9 +28,10 @@ from src.pipeline.parallel_config import ParallelPipelineConfig
 from src.pipeline.stages import unpack_stage_results
 from src.pipeline.state import PipelineState
 from src.pipeline.status_payload import build_status_payload
-from src.record_assembler import RecordAssembler
-from src.stage_assignment import StageAssigner
-from src.template_registry import TemplateRegistry, TemplateNotFoundError
+from src.telemetry.record_assembler import RecordAssembler
+from src.telemetry.stage_assignment import StageAssigner
+from src.templates.template_registry import TemplateRegistry, TemplateNotFoundError
+from src.vision.gpu_detector import GPUCapabilities
 
 
 logger = logging.getLogger(__name__)

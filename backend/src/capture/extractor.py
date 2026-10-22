@@ -26,7 +26,7 @@ from src.capture.source import (
     probe_frame_count,
     validate_source,
 )
-from src.enums import PipelineStatus
+from src.core.enums import PipelineStatus
 
 
 logger = logging.getLogger(__name__)

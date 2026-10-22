@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from src import trajectories
+from src.storage import trajectories
 
 router = APIRouter()
 

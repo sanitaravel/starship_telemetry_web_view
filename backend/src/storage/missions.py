@@ -20,9 +20,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.core.paths import REPO_ROOT
+
 logger = logging.getLogger(__name__)
 
-MISSIONS_DIR = Path(__file__).parent.parent.parent / "missions"
+MISSIONS_DIR = REPO_ROOT / "missions"
 
 STARSHIP_ENGINES = tuple(f"ss_e{n}" for n in range(1, 7))
 SUPERHEAVY_ENGINES = tuple(f"sh_e{n}" for n in range(1, 34))

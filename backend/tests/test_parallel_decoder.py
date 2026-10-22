@@ -13,9 +13,9 @@ import cv2
 import numpy as np
 import pytest
 
-from src.enums import PipelineStatus
 from src.capture import FrameExtractor, FrameExtractorConfig
 from src.capture.parallel_decoder import ParallelFileDecoder
+from src.core.enums import PipelineStatus
 
 
 N_FRAMES = 600

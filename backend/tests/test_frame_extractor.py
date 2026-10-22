@@ -11,9 +11,9 @@ import cv2
 import numpy as np
 import pytest
 
-from src.enums import PipelineStatus
 from src.capture import FrameExtractor, FrameExtractorConfig, SourceUnavailable
 from src.capture.config import DEFAULT_SOURCE_FPS
+from src.core.enums import PipelineStatus
 
 
 @pytest.fixture

@@ -49,8 +49,8 @@ class TestGetPipelineStatus:
         assert "version" in data
 
     async def test_status_reports_backend_version(self, client: AsyncClient):
-        """The status carries the running backend's version (see src/version.py)."""
-        from src.version import get_version
+        """The status carries the running backend's version (see src/core/version.py)."""
+        from src.core.version import get_version
 
         data = (await client.get("/api/status")).json()
         assert data["version"] == get_version()

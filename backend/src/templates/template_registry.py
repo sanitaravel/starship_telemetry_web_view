@@ -8,8 +8,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Union
 
-from src.models import ROIConfiguration, ParseError
-from src.svg_parser import parse_roi_template
+from src.core.models import ROIConfiguration, ParseError
+from src.core.paths import REPO_ROOT
+from src.templates.svg_parser import parse_roi_template
 
 
 DEFAULT_TEMPLATE_NAME = "starship_rois"
@@ -74,9 +75,8 @@ def load_default_template(
         None on success, or ParseError if the SVG file cannot be read or parsed.
     """
     if svg_path is None:
-        # Default path relative to project root (backend/../diagrams/starship_rois.svg)
-        project_root = Path(__file__).parent.parent.parent
-        svg_path = project_root / "diagrams" / "starship_rois.svg"
+        # Default path relative to the repo root (diagrams/starship_rois.svg)
+        svg_path = REPO_ROOT / "diagrams" / "starship_rois.svg"
     else:
         svg_path = Path(svg_path)
 
