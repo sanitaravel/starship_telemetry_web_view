@@ -7,7 +7,7 @@ and serializes ROIConfiguration objects back to SVG format for round-trip suppor
 import xml.etree.ElementTree as ET
 from typing import Union
 
-from src.models import (
+from src.core.models import (
     EngineGroup,
     EngineSubgroup,
     ParseError,

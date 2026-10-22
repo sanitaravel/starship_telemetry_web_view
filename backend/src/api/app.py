@@ -12,15 +12,14 @@ Provides:
 - /static: Mounted frontend static files
 """
 
-from pathlib import Path
-
 from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from src.api import websocket
 from src.api.routes import flights, missions, pipeline, trajectories
-from src.version import get_version
+from src.core.paths import REPO_ROOT
+from src.core.version import get_version
 
 
 def create_app() -> FastAPI:
@@ -40,8 +39,7 @@ def create_app() -> FastAPI:
     app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     # Mount frontend static files if the directory exists
-    # (this file is backend/src/api/app.py, so parents[3] is the repo root)
-    frontend_dist = Path(__file__).parents[3] / "frontend" / "dist"
+    frontend_dist = REPO_ROOT / "frontend" / "dist"
     if frontend_dist.exists():
         app.mount("/static", StaticFiles(directory=str(frontend_dist)), name="static")
 

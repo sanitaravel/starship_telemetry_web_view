@@ -12,7 +12,8 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+from src.core.paths import REPO_ROOT
+
 VERSION_FILE = REPO_ROOT / "VERSION"
 
 SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")

@@ -14,9 +14,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from src.core.paths import REPO_ROOT
+
 logger = logging.getLogger(__name__)
 
-TRAJECTORIES_DIR = Path(__file__).parent.parent.parent / "trajectories"
+TRAJECTORIES_DIR = REPO_ROOT / "trajectories"
 
 _FILE_PATTERN = re.compile(r"^(?:positions_)?(ship(\d+))$")
 _NAME_PATTERN = re.compile(r"^ship\d+$")

@@ -14,8 +14,8 @@ from typing import Any, Callable
 import cv2
 import numpy as np
 
-from src.engine_analyzer import EngineAnalysisResult
 from src.ocr.results import OCRResult
+from src.vision.engine_analyzer import EngineAnalysisResult
 
 
 logger = logging.getLogger(__name__)

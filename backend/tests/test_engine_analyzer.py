@@ -16,16 +16,16 @@ import numpy as np
 from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 
-from src.engine_analyzer import (
+from src.core.enums import EngineStatus
+from src.core.gpu import GPUCapabilities, AccelerationBackend
+from src.core.models import EngineGroup, EngineSubgroup, ROICircle, ROIRect
+from src.vision.engine_analyzer import (
     EngineAnalyzerConfig,
     EngineAnalysisResult,
     _classify_engine_color,
     _looks_like_engine_icon,
     analyze_engines,
 )
-from src.enums import EngineStatus
-from src.gpu_detector import GPUCapabilities, AccelerationBackend
-from src.models import EngineGroup, EngineSubgroup, ROICircle, ROIRect
 
 
 # ─── Strategies ───────────────────────────────────────────────────────────────

@@ -11,9 +11,9 @@ import easyocr
 import numpy as np
 import torch
 
-from src.enums import OCRFieldStatus
-from src.gpu_detector import GPUCapabilities
-from src.models import ROIRect
+from src.core.enums import OCRFieldStatus
+from src.core.gpu import GPUCapabilities
+from src.core.models import ROIRect
 from src.ocr.batcher import BatchedRecognizer
 from src.ocr.cache import CACHEABLE_FIELDS, FieldCache, roi_signature
 from src.ocr.parsing import (

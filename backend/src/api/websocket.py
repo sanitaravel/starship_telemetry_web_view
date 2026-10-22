@@ -9,7 +9,7 @@ from typing import Any, Awaitable, Callable
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.api.runtime import manager, orchestrator
-from src.logging_context import correlation_id_var
+from src.core.logging_context import correlation_id_var
 
 logger = logging.getLogger(__name__)
 

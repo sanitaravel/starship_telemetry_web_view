@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from src.telemetry_record import (
+from src.core.telemetry_record import (
     DetectionAccuracy,
     TelemetryFieldValue,
     TelemetryRecord,

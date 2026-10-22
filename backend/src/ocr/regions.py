@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 
-from src.models import ROIRect
+from src.core.models import ROIRect
 
 
 # Unit and value ROIs are much wider than their text, and EasyOCR misreads

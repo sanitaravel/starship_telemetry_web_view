@@ -5,7 +5,7 @@ from typing import Awaitable, Callable
 
 import numpy as np
 
-from src.enums import PipelineStatus
+from src.core.enums import PipelineStatus
 
 
 logger = logging.getLogger(__name__)

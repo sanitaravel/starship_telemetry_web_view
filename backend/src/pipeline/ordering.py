@@ -11,13 +11,13 @@ import logging
 import time
 from typing import Any, Callable
 
-from src.enums import SeparationState
+from src.core.enums import SeparationState
 from src.ocr.results import OCRResult
 from src.pipeline.broadcast import Broadcaster
 from src.pipeline.parallel_config import FPSMeter, ParallelPipelineConfig
 from src.pipeline.reorder_buffer import BufferedResult, BufferOverflowError, ReorderBuffer
 from src.pipeline.state import PipelineState
-from src.stage_assignment import SUPER_HEAVY, StageAssigner, StageAssignmentResult
+from src.telemetry.stage_assignment import SUPER_HEAVY, StageAssigner, StageAssignmentResult
 
 
 logger = logging.getLogger(__name__)

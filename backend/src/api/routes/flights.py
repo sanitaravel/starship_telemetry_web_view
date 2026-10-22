@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, Response
 
-from src import previous_flights
+from src.storage import previous_flights
 
 router = APIRouter()
 

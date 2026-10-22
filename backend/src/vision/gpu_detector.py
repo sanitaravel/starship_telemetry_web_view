@@ -3,29 +3,11 @@
 Detects whether a CUDA-capable GPU is present via PyTorch and returns
 a GPUCapabilities descriptor used to configure EasyOCR acceleration.
 Falls back gracefully to CPU mode on any detection failure.
+
+torch is imported inside detect_gpu(), so importing this module stays cheap.
 """
 
-from dataclasses import dataclass
-from enum import Enum
-
-import torch
-
-
-class AccelerationBackend(Enum):
-    """Supported compute backends for inference."""
-
-    CPU = "cpu"
-    CUDA_GPU = "cuda_gpu"
-
-
-@dataclass(frozen=True)
-class GPUCapabilities:
-    """Describes the detected GPU/compute capabilities of the host."""
-
-    backend: AccelerationBackend
-    device_name: str | None  # e.g., "NVIDIA RTX 4090"
-    cuda_version: str | None  # e.g., "12.2"
-    gpu_available: bool  # True if CUDA GPU detected
+from src.core.gpu import AccelerationBackend, GPUCapabilities
 
 
 _CPU_FALLBACK = GPUCapabilities(
@@ -44,6 +26,8 @@ def detect_gpu() -> GPUCapabilities:
     version mismatch, RuntimeError from torch), returns a CPU fallback
     configuration so the system can continue without GPU acceleration.
     """
+    import torch
+
     try:
         gpu_available = torch.cuda.is_available()
     except Exception:

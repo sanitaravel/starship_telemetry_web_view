@@ -6,12 +6,12 @@ increasing sequence number and a timestamp derived from the frame's position
 in the video stream.
 """
 
-from src.engine_analyzer import EngineAnalysisResult
-from src.enums import EngineStatus, OCRFieldStatus
-from src.models import EngineGroup
+from src.core.enums import EngineStatus, OCRFieldStatus
+from src.core.models import EngineGroup
+from src.core.telemetry_record import DetectionAccuracy, TelemetryFieldValue, TelemetryRecord
 from src.ocr.results import OCRFieldResult, OCRResult
-from src.stage_assignment import StageAssignmentResult
-from src.telemetry_record import DetectionAccuracy, TelemetryFieldValue, TelemetryRecord
+from src.telemetry.stage_assignment import StageAssignmentResult
+from src.vision.engine_analyzer import EngineAnalysisResult
 
 
 # Engine count constants

@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from src import missions
+from src.storage import missions
 
 router = APIRouter()
 

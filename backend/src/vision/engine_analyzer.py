@@ -12,9 +12,9 @@ import cv2
 import numpy as np
 from dataclasses import dataclass
 
-from src.enums import EngineStatus
-from src.gpu_detector import GPUCapabilities
-from src.models import EngineGroup, ROIRect
+from src.core.enums import EngineStatus
+from src.core.gpu import GPUCapabilities
+from src.core.models import EngineGroup, ROIRect
 
 
 @dataclass(frozen=True)

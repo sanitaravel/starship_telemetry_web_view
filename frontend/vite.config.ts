@@ -20,7 +20,7 @@ function gitCommitCount(): number | null {
   }
 }
 
-// Same rule as backend/src/version.py: VERSION file + commit count
+// Same rule as backend/src/core/version.py: VERSION file + commit count
 const appVersion = composeVersion(
   readFileSync(new URL('../VERSION', import.meta.url), 'utf-8'),
   gitCommitCount(),

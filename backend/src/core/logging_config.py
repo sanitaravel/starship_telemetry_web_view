@@ -9,7 +9,7 @@ import logging
 import os
 import sys
 
-from src.logging_context import correlation_id_var, frame_seq_var
+from src.core.logging_context import correlation_id_var, frame_seq_var
 
 _VALID_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 

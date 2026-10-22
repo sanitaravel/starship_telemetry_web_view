@@ -7,10 +7,11 @@ Created once, when this module is first imported (via ``src.server`` /
 import logging
 
 from src.api.connections import ConnectionManager
-from src.gpu_detector import GPUCapabilities, detect_gpu
-from src.logging_config import configure_logging
+from src.core.gpu import GPUCapabilities
+from src.core.logging_config import configure_logging
 from src.pipeline import PipelineOrchestrator
-from src.template_registry import TemplateRegistry, load_default_template
+from src.templates.template_registry import TemplateRegistry, load_default_template
+from src.vision.gpu_detector import detect_gpu
 
 # Initialize structured logging before any HTTP/WebSocket processing
 configure_logging()
