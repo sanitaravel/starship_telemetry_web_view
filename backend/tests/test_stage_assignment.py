@@ -12,7 +12,7 @@ from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 
 from src.enums import OCRFieldStatus, SeparationState
-from src.ocr_engine import OCRFieldResult, OCRResult
+from src.ocr.results import OCRFieldResult, OCRResult
 from src.stage_assignment import StageAssigner, StageAssignmentResult, label_vehicle
 
 

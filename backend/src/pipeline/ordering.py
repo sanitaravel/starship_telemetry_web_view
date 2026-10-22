@@ -12,7 +12,7 @@ import time
 from typing import Any, Callable
 
 from src.enums import SeparationState
-from src.ocr_engine import OCRResult
+from src.ocr.results import OCRResult
 from src.pipeline.broadcast import Broadcaster
 from src.pipeline.parallel_config import FPSMeter, ParallelPipelineConfig
 from src.pipeline.reorder_buffer import BufferedResult, BufferOverflowError, ReorderBuffer

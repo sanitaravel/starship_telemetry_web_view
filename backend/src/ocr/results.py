@@ -1,0 +1,46 @@
+"""OCR result types: one field's read and a whole frame's worth of them."""
+
+from dataclasses import dataclass
+
+from src.enums import OCRFieldStatus
+
+
+@dataclass
+class OCRFieldResult:
+    """Result of OCR extraction for a single text field."""
+
+    status: OCRFieldStatus
+    raw_text: str | None = None
+    parsed_value: float | str | None = None
+
+
+@dataclass
+class OCRResult:
+    """Aggregated OCR results for all text regions in a frame."""
+
+    time: OCRFieldResult
+    speed_l: OCRFieldResult
+    speed_l_unit: OCRFieldResult
+    speed_r: OCRFieldResult
+    speed_r_unit: OCRFieldResult
+    altitude_l: OCRFieldResult
+    altitude_l_unit: OCRFieldResult
+    altitude_r: OCRFieldResult
+    altitude_r_unit: OCRFieldResult
+    stage_l: OCRFieldResult
+    stage_r: OCRFieldResult
+    stage_sep_text: OCRFieldResult
+
+    @classmethod
+    def unavailable(cls, time: OCRFieldResult | None = None) -> "OCRResult":
+        """An OCRResult carrying no telemetry: every field UNAVAILABLE.
+
+        Args:
+            time: Optional time field to keep in place of UNAVAILABLE
+                (e.g. the read that gated the rest of the frame out).
+        """
+        missing = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+        fields = {name: missing for name in cls.__dataclass_fields__}
+        if time is not None:
+            fields["time"] = time
+        return cls(**fields)

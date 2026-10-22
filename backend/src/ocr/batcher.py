@@ -9,7 +9,7 @@ widening the OCR pool moved GPU utilisation without moving throughput.
 
 BatchedRecognizer takes the ROIs of every frame currently in flight and, on
 GPU, runs the model once over all of them, each crop under its own allowlist
-(see ocr_mixed). The fixed cost is then shared by all the frames in the batch
+(see ocr.mixed). The fixed cost is then shared by all the frames in the batch
 and all their fields, instead of paid per frame and per allowlist.
 
 Crops are padded to the widest one in their pass, so it is tempting to keep a
@@ -34,7 +34,7 @@ from typing import Any
 
 import numpy as np
 
-from src.ocr_mixed import prepare_crop, recognize_prepared
+from src.ocr.mixed import prepare_crop, recognize_prepared
 
 
 logger = logging.getLogger(__name__)
@@ -183,7 +183,7 @@ class BatchedRecognizer:
         """Recognise every box in the batch.
 
         On GPU the whole batch is one pass of the model, each box under its own
-        allowlist (see ocr_mixed). On CPU EasyOCR recognises box by box anyway,
+        allowlist (see ocr.mixed). On CPU EasyOCR recognises box by box anyway,
         so the boxes go to ``recognize`` grouped by allowlist, as before.
         """
         members = [(request, slot) for request in batch for slot in range(len(request.items))]

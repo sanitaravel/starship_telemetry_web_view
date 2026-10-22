@@ -15,7 +15,7 @@ import pytest
 from src.engine_analyzer import EngineAnalysisResult
 from src.enums import EngineStatus, OCRFieldStatus
 from src.gpu_detector import AccelerationBackend, GPUCapabilities
-from src.ocr_engine import OCRFieldResult, OCRResult
+from src.ocr.results import OCRFieldResult, OCRResult
 from src.pipeline import PipelineOrchestrator
 from src.pipeline.reorder_buffer import ReorderBuffer
 from src.template_registry import TemplateRegistry, load_default_template

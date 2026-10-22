@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass
 
 from src.enums import OCRFieldStatus, SeparationState
-from src.ocr_engine import OCRFieldResult, OCRResult
+from src.ocr.results import OCRFieldResult, OCRResult
 
 SUPER_HEAVY = "super_heavy"
 STARSHIP = "starship"

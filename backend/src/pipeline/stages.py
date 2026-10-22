@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 
 from src.engine_analyzer import EngineAnalysisResult
-from src.ocr_engine import OCRResult
+from src.ocr.results import OCRResult
 
 
 logger = logging.getLogger(__name__)

@@ -5,7 +5,7 @@ import pytest
 from src.engine_analyzer import EngineAnalysisResult
 from src.enums import EngineStatus, OCRFieldStatus, SeparationState
 from src.models import EngineGroup, EngineSubgroup, ROICircle, ROIRect
-from src.ocr_engine import OCRFieldResult, OCRResult
+from src.ocr.results import OCRFieldResult, OCRResult
 from src.record_assembler import (
     RecordAssembler,
     _compute_detection_accuracy,

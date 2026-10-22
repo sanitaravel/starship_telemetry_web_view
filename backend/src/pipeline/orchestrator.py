@@ -19,7 +19,8 @@ from src.enums import PipelineStatus, SeparationState
 from src.frame_extractor import FrameExtractor, FrameExtractorConfig
 from src.gpu_detector import GPUCapabilities
 from src.logging_context import frame_seq_var
-from src.ocr_engine import EasyOCREngine, OCRResult
+from src.ocr.engine import EasyOCREngine
+from src.ocr.results import OCRResult
 from src.pipeline.broadcast import Broadcaster
 from src.pipeline.concurrency_controller import ConcurrencyController
 from src.pipeline.frame_processor import FrameProcessor
