@@ -35,6 +35,15 @@ class EngineAnalysisResult:
     detection_accuracy: float  # detected / total expected
     engine_group_bounding_boxes: list[ROIRect]  # for OCR occlusion check
 
+    @classmethod
+    def empty(cls) -> "EngineAnalysisResult":
+        """A result with no engine statuses, zero accuracy and no boxes."""
+        return cls(
+            engine_statuses={},
+            detection_accuracy=0.0,
+            engine_group_bounding_boxes=[],
+        )
+
 
 def _crop_to_bounding_box(
     frame: np.ndarray, bbox: ROIRect
