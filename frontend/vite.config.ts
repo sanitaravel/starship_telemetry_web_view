@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
-import { composeVersion } from './src/app-version';
+import { composeVersion } from './src/core/app-version.ts';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 

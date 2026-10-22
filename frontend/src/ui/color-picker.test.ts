@@ -1,0 +1,156 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
+import type { ColorChoice } from './color-picker';
+import { LIVE_COLOR, PRESET_COLORS } from '../state/flight-colors';
+
+// The colour popover is a module-level singleton and workers are shared
+// (isolate: false): graphs and globe tests open it through their own imports
+// and later clear the body, which would leave this file a detached panel.
+// Load a private copy of the module and drop it (and its panel) afterwards.
+let createSwatchButton: typeof import('./color-picker').createSwatchButton;
+let toggleColorPopover: typeof import('./color-picker').toggleColorPopover;
+
+/** The panel this file's module copy created, removed once the file is done. */
+let ownPanel: HTMLElement | undefined;
+
+beforeAll(async () => {
+  document.dispatchEvent(new Event('pointerdown')); // closes another copy's popover left open
+  vi.resetModules();
+  ({ createSwatchButton, toggleColorPopover } = await import('./color-picker'));
+});
+
+afterAll(() => {
+  document.dispatchEvent(new Event('pointerdown'));
+  ownPanel?.remove();
+  vi.resetModules();
+});
+
+function setup(overrides: Partial<ColorChoice> = {}) {
+  const swatch = createSwatchButton('test-swatch', 'Flight 13', '#e91e63');
+  document.body.appendChild(swatch);
+  const choice: ColorChoice = {
+    title: 'Flight 13',
+    color: '#e91e63',
+    isCustom: false,
+    onPick: vi.fn(),
+    onReset: vi.fn(),
+    ...overrides,
+  };
+  toggleColorPopover(swatch, choice);
+  // The open one: another module copy's panel may still sit in the body, closed
+  const panel = [...document.querySelectorAll<HTMLElement>('.color-popover')].find((p) => !p.hidden)!;
+  ownPanel = panel;
+  const q = <T extends Element>(sel: string) => panel.querySelector(sel) as unknown as T;
+  return {
+    swatch,
+    choice,
+    panel,
+    preset: (hex: string) => q<HTMLButtonElement>(`[data-color="${hex}"]`),
+    input: q<HTMLInputElement>('.color-popover__input'),
+    warning: q<HTMLElement>('.color-popover__warning'),
+    reset: q<HTMLButtonElement>('.color-popover__reset'),
+  };
+}
+
+afterEach(() => {
+  document.dispatchEvent(new Event('pointerdown'));
+  document.querySelectorAll('.test-swatch').forEach((el) => el.remove());
+});
+
+describe('color popover', () => {
+  it('opens for the swatch with the current colour selected', () => {
+    const { swatch, panel, preset, input, reset } = setup();
+    expect(panel.hidden).toBe(false);
+    expect(swatch.getAttribute('aria-expanded')).toBe('true');
+    expect(panel.querySelector('.color-popover__title')!.textContent).toBe('Flight 13');
+    expect(preset('#e91e63').getAttribute('aria-pressed')).toBe('true');
+    expect(input.value).toBe('#e91e63');
+    expect(reset.disabled).toBe(true);
+  });
+
+  it('applies a preset and keeps the popover open', () => {
+    const { choice, panel, preset, reset } = setup();
+    preset(PRESET_COLORS[0]).click();
+    expect(choice.onPick).toHaveBeenCalledWith(PRESET_COLORS[0]);
+    expect(preset(PRESET_COLORS[0]).getAttribute('aria-pressed')).toBe('true');
+    expect(reset.disabled).toBe(false);
+    expect(panel.hidden).toBe(false);
+  });
+
+  it('applies a custom colour and warns when it is close to the live orange', () => {
+    const { choice, input, warning } = setup();
+    expect(warning.hidden).toBe(true);
+    input.value = LIVE_COLOR.toLowerCase();
+    input.dispatchEvent(new Event('input'));
+    expect(choice.onPick).toHaveBeenCalledWith(LIVE_COLOR.toLowerCase());
+    expect(warning.hidden).toBe(false);
+  });
+
+  it('resets a custom colour and closes', () => {
+    const { choice, panel, reset, swatch } = setup({ isCustom: true });
+    reset.click();
+    expect(choice.onReset).toHaveBeenCalled();
+    expect(panel.hidden).toBe(true);
+    expect(swatch.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('closes on Escape, on a click outside, and on a second swatch click', () => {
+    let { swatch, panel, choice } = setup();
+    panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(panel.hidden).toBe(true);
+    expect(document.activeElement).toBe(swatch);
+
+    toggleColorPopover(swatch, choice);
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(panel.hidden).toBe(true);
+
+    ({ swatch, panel, choice } = setup());
+    toggleColorPopover(swatch, choice);
+    expect(panel.hidden).toBe(true);
+  });
+
+  it('returns focus to the swatch on Escape pressed on a control inside the panel', () => {
+    const { swatch, panel, preset } = setup();
+    const focused = preset('#e91e63');
+    expect(document.activeElement).toBe(focused);
+    const outer = vi.fn();
+    document.body.addEventListener('keydown', outer);
+    focused.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.body.removeEventListener('keydown', outer);
+    expect(panel.hidden).toBe(true);
+    expect(swatch.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(swatch);
+    expect(outer).not.toHaveBeenCalled();
+  });
+
+  it('closes on a press outside without moving focus', () => {
+    const { swatch, panel } = setup();
+    const before = document.activeElement;
+    expect(before).not.toBe(swatch);
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(panel.hidden).toBe(true);
+    expect(swatch.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(before);
+  });
+
+  it('stays open on a press on its swatch or inside the panel', () => {
+    const { swatch, panel, preset, input } = setup();
+    swatch.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(panel.hidden).toBe(false);
+    preset(PRESET_COLORS[1]).dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    input.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    panel.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(panel.hidden).toBe(false);
+    expect(swatch.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('closes on a press on another swatch: only its own anchor counts as inside', () => {
+    const { panel } = setup();
+    const other = createSwatchButton('test-swatch', 'Flight 12', '#2196f3');
+    document.body.appendChild(other);
+    other.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(panel.hidden).toBe(true);
+  });
+});
