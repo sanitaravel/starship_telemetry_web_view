@@ -37,3 +37,66 @@ export function bindDismiss(panel: HTMLElement, { onDismiss, ignore }: DismissOp
     document.removeEventListener('pointerdown', onPointerdown);
   };
 }
+
+export interface AnchorOptions {
+  /** Which edge the panel lines up with: its left with the anchor's left, or its right with the anchor's right. */
+  align: 'left' | 'right';
+  /** Called on resize or scroll while shown once the anchor has left the document. */
+  onAnchorRemoved: () => void;
+}
+
+export interface AnchoredPanel {
+  /** Places the panel next to the current anchor, if there is one. */
+  reposition: () => void;
+  /** Removes the resize and scroll listeners. */
+  dispose: () => void;
+}
+
+/** Space kept between a panel and the viewport's edges. */
+const VIEWPORT_MARGIN = 8;
+/** Space between a panel and its anchor. */
+const ANCHOR_GAP = 6;
+
+/**
+ * Keeps a fixed-position `panel` next to the element `getAnchor()` returns:
+ * below it, or above it when there is no room below, aligned to one of its
+ * edges and kept inside the viewport. Fixed positioning would leave the panel
+ * behind on scroll or resize, so while it is shown it follows the anchor on
+ * both (scroll on any element, captured). `getAnchor` is read on every call,
+ * so it may change while open.
+ */
+export function anchorPanel(
+  panel: HTMLElement,
+  getAnchor: () => HTMLElement | null,
+  { align, onAnchorRemoved }: AnchorOptions,
+): AnchoredPanel {
+  const place = (anchor: HTMLElement) => {
+    const margin = VIEWPORT_MARGIN;
+    const rect = anchor.getBoundingClientRect();
+    const { offsetWidth: width, offsetHeight: height } = panel;
+    const edge = align === 'left' ? rect.left : rect.right - width;
+    const left = Math.min(Math.max(margin, edge), window.innerWidth - width - margin);
+    const below = rect.bottom + ANCHOR_GAP;
+    const top = below + height > window.innerHeight - margin ? rect.top - height - ANCHOR_GAP : below;
+    panel.style.left = `${Math.max(margin, left)}px`;
+    panel.style.top = `${Math.max(margin, top)}px`;
+  };
+  const follow = () => {
+    const anchor = getAnchor();
+    if (panel.hidden || !anchor) return;
+    if (anchor.isConnected) place(anchor);
+    else onAnchorRemoved();
+  };
+  window.addEventListener('resize', follow);
+  window.addEventListener('scroll', follow, true);
+  return {
+    reposition: () => {
+      const anchor = getAnchor();
+      if (anchor) place(anchor);
+    },
+    dispose: () => {
+      window.removeEventListener('resize', follow);
+      window.removeEventListener('scroll', follow, true);
+    },
+  };
+}

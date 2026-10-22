@@ -1,17 +1,17 @@
 import './styles.css';
 import { createTelemetryWebSocket, getWebSocketUrl } from './api/websocket';
 import { StateManager } from './state/state-manager';
-import { PipelineControls } from './pipeline-controls';
-import { TelemetryDisplay } from './telemetry-display';
-import { EngineVisualizer } from './engine-visualizer';
+import { PipelineControls } from './features/pipeline-controls';
+import { TelemetryDisplay } from './features/telemetry-display';
+import { EngineVisualizer } from './features/engines/visualizer';
 import { TimeSeriesGraphs } from './time-series-graphs';
-import { FramePreview } from './frame-preview';
-import { TelemetryDownloads } from './telemetry-downloads';
+import { FramePreview } from './features/frame-preview';
+import { TelemetryDownloads } from './features/telemetry-downloads';
 import { ShipGlobe } from './ship-globe';
 import { ShipTracker } from './state/ship-tracker';
 import { fetchHistoricalTrajectories } from './api/trajectories';
 import { appVersion } from './core/app-version';
-import { BackendVersion } from './backend-version';
+import { BackendVersion } from './features/header/backend-version';
 
 const app = document.getElementById('app');
 if (app) {

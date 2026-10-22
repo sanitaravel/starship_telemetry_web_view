@@ -1,9 +1,31 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createSwatchButton, toggleColorPopover, type ColorChoice } from './color-picker';
-import { LIVE_COLOR, PRESET_COLORS } from './state/flight-colors';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
+import type { ColorChoice } from './color-picker';
+import { LIVE_COLOR, PRESET_COLORS } from '../state/flight-colors';
+
+// The colour popover is a module-level singleton and workers are shared
+// (isolate: false): graphs and globe tests open it through their own imports
+// and later clear the body, which would leave this file a detached panel.
+// Load a private copy of the module and drop it (and its panel) afterwards.
+let createSwatchButton: typeof import('./color-picker').createSwatchButton;
+let toggleColorPopover: typeof import('./color-picker').toggleColorPopover;
+
+/** The panel this file's module copy created, removed once the file is done. */
+let ownPanel: HTMLElement | undefined;
+
+beforeAll(async () => {
+  document.dispatchEvent(new Event('pointerdown')); // closes another copy's popover left open
+  vi.resetModules();
+  ({ createSwatchButton, toggleColorPopover } = await import('./color-picker'));
+});
+
+afterAll(() => {
+  document.dispatchEvent(new Event('pointerdown'));
+  ownPanel?.remove();
+  vi.resetModules();
+});
 
 function setup(overrides: Partial<ColorChoice> = {}) {
   const swatch = createSwatchButton('test-swatch', 'Flight 13', '#e91e63');
@@ -17,7 +39,9 @@ function setup(overrides: Partial<ColorChoice> = {}) {
     ...overrides,
   };
   toggleColorPopover(swatch, choice);
-  const panel = document.querySelector<HTMLElement>('.color-popover')!;
+  // The open one: another module copy's panel may still sit in the body, closed
+  const panel = [...document.querySelectorAll<HTMLElement>('.color-popover')].find((p) => !p.hidden)!;
+  ownPanel = panel;
   const q = <T extends Element>(sel: string) => panel.querySelector(sel) as unknown as T;
   return {
     swatch,

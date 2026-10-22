@@ -18,7 +18,7 @@ import {
   type Rotation,
 } from './geo';
 import { downloadText, trackFilename, trackToCsv } from '../domain/downloads';
-import { createSwatchButton, toggleColorPopover } from '../color-picker';
+import { createSwatchButton, toggleColorPopover } from '../ui/color-picker';
 import { FlightColors } from '../state/flight-colors';
 import type { HistoricalTrajectory } from '../api/trajectories';
 import { countryLabels, placeLabels, type Box } from './labels';

@@ -22,7 +22,7 @@ import { ExportMenu } from './export-menu';
 import { eventMarkers, eventsForSeries, seriesVehicle, type EngineMarker } from './engine-markers';
 import { createLogger } from '../core/logger';
 import { FlightColors } from '../state/flight-colors';
-import { createSwatchButton, toggleColorPopover } from '../color-picker';
+import { createSwatchButton, toggleColorPopover } from '../ui/color-picker';
 
 const logger = createLogger('time-series-graphs');
 

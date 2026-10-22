@@ -32,17 +32,7 @@ const RANK: Record<Layer, number> = Object.fromEntries(LAYERS.map((l, i) => [l, 
  * should be empty once the refactor is done.
  */
 const TRANSITIONAL_LAYERS: Readonly<Record<string, Layer>> = {
-  // ui
-  'color-picker': 'ui',
   // features
-  'pipeline-controls': 'features',
-  'telemetry-display': 'features',
-  'frame-preview': 'features',
-  'telemetry-downloads': 'features',
-  'backend-version': 'features',
-  'engine-visualizer': 'features',
-  'engine-settings': 'features',
-  'mission-fields': 'features',
   'ship-globe/globe': 'features',
   'ship-globe/geo': 'features',
   'ship-globe/labels': 'features',
