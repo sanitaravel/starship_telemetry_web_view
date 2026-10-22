@@ -1,78 +1,8 @@
-import type { TimeSeriesPoint, TimeSeriesStore } from './state';
-import { MetClock } from './met-clock';
-import { parseMETToSeconds } from './time-series-graphs/series-math';
-import { EngineEventDetector, type EngineEvent, type EngineStatusMap } from './engine-events';
-
-/**
- * A change of engine statuses at row `i` of the columns: the full map of
- * each vehicle (ss Starship, sh Super Heavy) whose statuses differ from the
- * previous entry for that vehicle. Rows in between keep the last map.
- */
-export interface EngineStatusChange {
-  i: number;
-  ss?: EngineStatusMap;
-  sh?: EngineStatusMap;
-}
-
-/**
- * Columnar previous-flight payload from `/api/previous-flights/{name}`.
- * Every array has one entry per recorded frame; ss_* is Starship, sh_* Super
- * Heavy, met is the recorded MET string and t the frame clock in seconds.
- */
-export interface PreviousFlightColumns {
-  met: string[];
-  t: number[];
-  ss_speed: (number | null)[];
-  sh_speed: (number | null)[];
-  ss_alt: (number | null)[];
-  sh_alt: (number | null)[];
-  /** Engine status changes; absent from older backends, empty when the file has no statuses. */
-  engines?: EngineStatusChange[];
-}
-
-/** A loaded previous flight: chart series and the engine events detected in it. */
-export interface PreviousFlightData {
-  store: TimeSeriesStore;
-  engineEvents: EngineEvent[];
-  /** Estimated MET of stage separation in seconds, or null if unknown (see estimateSeparationMet). */
-  separationMetSeconds: number | null;
-}
-
-/**
- * Metadata about a previous flight available from the API.
- */
-export interface PreviousFlightInfo {
-  name: string;
-  filename: string;
-}
-
-/**
- * Fetch the list of available previous flights from the backend.
- */
-export async function fetchPreviousFlightList(): Promise<PreviousFlightInfo[]> {
-  const response = await fetch('/api/previous-flights');
-  if (!response.ok) {
-    return [];
-  }
-  return response.json();
-}
-
-/**
- * Fetch a specific previous flight: its TimeSeriesStore and engine events.
- */
-export async function fetchPreviousFlightData(filename: string): Promise<PreviousFlightData | null> {
-  const response = await fetch(`/api/previous-flights/${encodeURIComponent(filename)}`);
-  if (!response.ok) {
-    return null;
-  }
-  const columns: PreviousFlightColumns = await response.json();
-  const metSeconds = estimateMetSeconds(columns);
-  return {
-    store: transformToTimeSeries(columns, metSeconds),
-    engineEvents: detectFlightEngineEvents(columns, metSeconds),
-    separationMetSeconds: estimateSeparationMet(columns, metSeconds),
-  };
-}
+import type { TimeSeriesPoint, TimeSeriesStore } from '../core/time-series';
+import { parseMETToSeconds } from '../core/met';
+import type { PreviousFlightColumns } from '../types';
+import { MetClock } from '../met-clock';
+import { EngineEventDetector, type EngineEvent, type EngineStatusMap } from '../engine-events';
 
 /** Rows before this MET are ignored by estimateSeparationMet (pad and clamp noise). */
 export const SEPARATION_MIN_MET_S = 30;
@@ -112,7 +42,7 @@ export function estimateSeparationMet(
  * recorded MET over a flight, so it only supplies the sub-second offset:
  * MetClock anchors it to the MET clock.
  */
-function estimateMetSeconds(columns: PreviousFlightColumns): number[] {
+export function estimateMetSeconds(columns: PreviousFlightColumns): number[] {
   const metClock = new MetClock();
   return columns.met.map((met, i) => metClock.estimate(parseMETToSeconds(met), columns.t[i] * 1000));
 }

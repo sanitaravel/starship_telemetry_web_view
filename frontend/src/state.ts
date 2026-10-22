@@ -2,35 +2,11 @@ import type { TelemetryRecord, PipelineStatus, ErrorPayload, ValidationResult, F
 import { FPSMeter } from './fps-meter';
 import { createLogger } from './logger';
 import { MetClock } from './met-clock';
-import { parseMETToSeconds } from './time-series-graphs/series-math';
+import type { TimeSeriesPoint, TimeSeriesStore } from './core/time-series';
+import { parseMETToSeconds } from './core/met';
 import { EngineEventDetector, type EngineEvent } from './engine-events';
 
 const logger = createLogger('state');
-
-/**
- * A single data point in the time-series store.
- */
-export interface TimeSeriesPoint {
-  missionElapsedTime: string;
-  /**
-   * MET in seconds from T-0 with a sub-second offset (see MetClock). When
-   * absent, consumers fall back to the whole-second missionElapsedTime.
-   */
-  metSeconds?: number;
-  timestamp: number;
-  value: number;
-  unit: string;
-}
-
-/**
- * Time-series data store for speed/altitude graphs per vehicle.
- */
-export interface TimeSeriesStore {
-  speedSuperHeavy: TimeSeriesPoint[];
-  speedStarship: TimeSeriesPoint[];
-  altitudeSuperHeavy: TimeSeriesPoint[];
-  altitudeStarship: TimeSeriesPoint[];
-}
 
 /**
  * Complete application state.

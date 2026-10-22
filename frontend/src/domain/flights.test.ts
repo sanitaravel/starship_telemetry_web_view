@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { detectFlightEngineEvents, estimateSeparationMet, transformToTimeSeries, type PreviousFlightColumns } from './previous-flights';
+import type { PreviousFlightColumns } from '../types';
+import { detectFlightEngineEvents, estimateSeparationMet, transformToTimeSeries } from './flights';
 
 /** Build a columnar flight whose Super Heavy and Starship share the same speeds. */
 function columns(rows: [seconds: number, realTimeSeconds: number, speed: number | null][]): PreviousFlightColumns {

@@ -73,6 +73,41 @@ export interface PipelineStatus {
 }
 
 /**
+ * A change of engine statuses at row `i` of the columns: the full map of
+ * each vehicle (ss Starship, sh Super Heavy) whose statuses differ from the
+ * previous entry for that vehicle. Rows in between keep the last map.
+ */
+export interface EngineStatusChange {
+  i: number;
+  ss?: Record<string, 'active' | 'inactive' | 'undetected'>;
+  sh?: Record<string, 'active' | 'inactive' | 'undetected'>;
+}
+
+/**
+ * Columnar previous-flight payload from `/api/previous-flights/{name}`.
+ * Every array has one entry per recorded frame; ss_* is Starship, sh_* Super
+ * Heavy, met is the recorded MET string and t the frame clock in seconds.
+ */
+export interface PreviousFlightColumns {
+  met: string[];
+  t: number[];
+  ss_speed: (number | null)[];
+  sh_speed: (number | null)[];
+  ss_alt: (number | null)[];
+  sh_alt: (number | null)[];
+  /** Engine status changes; absent from older backends, empty when the file has no statuses. */
+  engines?: EngineStatusChange[];
+}
+
+/**
+ * Metadata about a previous flight available from the API.
+ */
+export interface PreviousFlightInfo {
+  name: string;
+  filename: string;
+}
+
+/**
  * Commands sent from the frontend to control the pipeline.
  */
 export type ControlCommand =

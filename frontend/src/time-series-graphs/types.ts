@@ -1,4 +1,4 @@
-import type { TimeSeriesStore } from '../state';
+import type { TimeSeriesStore } from '../core/time-series';
 import type { EngineEvent } from '../engine-events';
 
 export type DatasetKey = 'speedSuperHeavy' | 'speedStarship' | 'altitudeSuperHeavy' | 'altitudeStarship';

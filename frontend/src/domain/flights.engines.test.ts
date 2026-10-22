@@ -4,15 +4,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import { enginesInRing, enginesOf } from './engine-layout';
-import { EngineEventDetector, type EngineStatusMap } from './engine-events';
-import {
-  detectFlightEngineEvents,
-  estimateSeparationMet,
-  type EngineStatusChange,
-  type PreviousFlightColumns,
-} from './previous-flights';
-import { eventsForSeries } from './time-series-graphs/engine-markers';
+import type { EngineStatusChange, PreviousFlightColumns } from '../types';
+import { enginesInRing, enginesOf } from '../engine-layout';
+import { EngineEventDetector, type EngineStatusMap } from '../engine-events';
+import { detectFlightEngineEvents, estimateSeparationMet } from './flights';
+import { eventsForSeries } from '../time-series-graphs/engine-markers';
 
 const ids = (engines: readonly { id: string }[]) => engines.map((e) => e.id);
 const SH_ALL = ids(enginesOf('superheavy'));

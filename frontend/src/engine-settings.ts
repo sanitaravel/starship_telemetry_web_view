@@ -1,6 +1,8 @@
 import type { CurrentMission, Vehicle } from './current-mission';
 import { MAX_SERIAL_LENGTH, normaliseSerial, type EngineSerials } from './engine-serials';
 import { MissionFields } from './mission-fields';
+import { bindDismiss } from './ui/popover';
+import { svgEl } from './ui/svg';
 
 /** Raptor engine serials all start with this letter (e.g. "R576"). */
 export const SERIAL_PREFIX = 'R';
@@ -47,8 +49,6 @@ export interface EngineSettingsOptions {
   wide?: boolean;
 }
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
 /** Gear icon (24×24 outline), drawn in the button's text colour. */
 const GEAR_PATH =
   'M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z' +
@@ -70,16 +70,15 @@ export function createSettingsButton(vehicleName: string): HTMLButtonElement {
   button.setAttribute('aria-haspopup', 'dialog');
   button.setAttribute('aria-expanded', 'false');
 
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('aria-hidden', 'true');
-  const path = document.createElementNS(SVG_NS, 'path');
-  path.setAttribute('d', GEAR_PATH);
-  path.setAttribute('fill', 'none');
-  path.setAttribute('stroke', 'currentColor');
-  path.setAttribute('stroke-width', '1.8');
-  path.setAttribute('stroke-linecap', 'round');
-  path.setAttribute('stroke-linejoin', 'round');
+  const svg = svgEl('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' });
+  const path = svgEl('path', {
+    d: GEAR_PATH,
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '1.8',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+  });
   svg.appendChild(path);
   button.appendChild(svg);
   return button;
@@ -140,19 +139,15 @@ class EngineSettingsPopover {
     this.panel.append(this.heading, hint, this.missionSlot, this.body, this.statusSlot, actions);
     document.body.appendChild(this.panel);
 
+    bindDismiss(this.panel, {
+      onDismiss: (reason) => this.close(reason === 'escape'),
+      ignore: () => [this.anchor],
+    });
     this.panel.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        this.close();
-      } else if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+      if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
         e.preventDefault();
         this.close();
       }
-    });
-    document.addEventListener('pointerdown', (e) => {
-      if (this.panel.hidden) return;
-      const target = e.target as Node;
-      if (!this.panel.contains(target) && !this.anchor?.contains(target)) this.close(false);
     });
     // Fixed positioning would leave the panel behind on scroll or resize.
     const follow = () => {

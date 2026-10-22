@@ -48,7 +48,6 @@ const TRANSITIONAL_LAYERS: Readonly<Record<string, Layer>> = {
   websocket: 'api',
   'missions-api': 'api',
   'fake-missions-api': 'api',
-  'previous-flights': 'api',
   'ship-globe/history': 'api',
   'ship-globe/tracker': 'api',
   // state
@@ -89,20 +88,13 @@ const TRANSITIONAL_LAYERS: Readonly<Record<string, Layer>> = {
  * Upward imports that exist today, as 'from -> to' (src-relative, no `.ts`).
  * Fix one, then delete its line; a stale entry fails the test.
  */
-const ALLOWED_UPWARD_EDGES: readonly string[] = [
-  'downloads -> ship-globe/tracker',
-  'previous-flights -> state',
-  'time-series-graphs/series-math -> state',
-];
+const ALLOWED_UPWARD_EDGES: readonly string[] = [];
 
 /**
  * Import cycles that exist today, as 'a -> b -> ... -> a', rotated to start
  * at the lexicographically smallest member. Delete an entry once broken.
  */
-const ALLOWED_CYCLES: readonly string[] = [
-  'engine-events -> time-series-graphs/series-math -> state -> engine-events',
-  'state -> time-series-graphs/series-math -> state',
-];
+const ALLOWED_CYCLES: readonly string[] = [];
 
 // ---------------------------------------------------------------------------
 

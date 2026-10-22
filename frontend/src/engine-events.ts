@@ -32,7 +32,7 @@ import {
   type EngineRing,
   type Vehicle,
 } from './engine-layout';
-import { parseMETToSeconds } from './time-series-graphs/series-math';
+import { parseMETToSeconds } from './core/met';
 
 export type { Vehicle };
 

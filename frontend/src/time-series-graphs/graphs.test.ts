@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { TimeSeriesStore } from '../state';
+import type { TimeSeriesStore } from '../core/time-series';
 
 vi.mock('chart.js/auto', () => {
   class Chart {
@@ -25,7 +25,7 @@ vi.mock('chart.js/auto', () => {
   return { Chart };
 });
 
-vi.mock('../previous-flights', () => ({
+vi.mock('../api/previous-flights', () => ({
   fetchPreviousFlightList: vi.fn(),
   fetchPreviousFlightData: vi.fn(),
 }));
@@ -37,7 +37,7 @@ vi.mock('./export-png', async (importOriginal) => ({
 
 import { Chart } from 'chart.js/auto';
 import { TimeSeriesGraphs } from './graphs';
-import { fetchPreviousFlightList, fetchPreviousFlightData, type PreviousFlightData } from '../previous-flights';
+import { fetchPreviousFlightList, fetchPreviousFlightData, type PreviousFlightData } from '../api/previous-flights';
 import { EXPORT_THEMES, saveCanvasAsPng } from './export-png';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

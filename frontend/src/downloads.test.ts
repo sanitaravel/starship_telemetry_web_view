@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { telemetryFilename, toFlightRecords, trackFilename, trackToCsv } from './downloads';
 import type { TelemetryRecord } from './types';
-import type { ShipTrack } from './ship-globe/tracker';
+import type { ShipTrack } from './core/ship-track';
 
 function record(overrides: Partial<TelemetryRecord> = {}): TelemetryRecord {
   return {

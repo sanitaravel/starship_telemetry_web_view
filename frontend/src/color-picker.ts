@@ -1,4 +1,5 @@
 import { isNearLiveColor, PRESET_COLORS } from './flight-colors';
+import { bindDismiss } from './ui/popover';
 
 /** What the popover edits: one flight's colour and how to change it. */
 export interface ColorChoice {
@@ -89,16 +90,9 @@ class ColorPopover {
     this.panel.append(this.heading, grid, custom, this.warning, this.resetButton);
     document.body.appendChild(this.panel);
 
-    this.panel.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        this.close();
-      }
-    });
-    document.addEventListener('pointerdown', (e) => {
-      if (this.panel.hidden) return;
-      const target = e.target as Node;
-      if (!this.panel.contains(target) && !this.anchor?.contains(target)) this.close(false);
+    bindDismiss(this.panel, {
+      onDismiss: (reason) => this.close(reason === 'escape'),
+      ignore: () => [this.anchor],
     });
     // Fixed positioning would leave the popover behind on scroll or resize.
     const follow = () => {
