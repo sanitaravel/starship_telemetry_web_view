@@ -1,6 +1,6 @@
 import { fetchPreviousFlightList } from './previous-flights';
 
-/** What a mission file holds (see backend/src/missions.py). */
+/** What a mission file holds (see backend/src/storage/missions.py). */
 export interface MissionSettings {
   mission: string;
   ship: string;
@@ -29,7 +29,7 @@ export interface MissionChoice {
 
 /**
  * Id of a mission: "IFT 14" -> "ift-14". Mirrors mission_id in
- * backend/src/missions.py, which is also how results_previous/ names flights.
+ * backend/src/storage/missions.py, which is also how results_previous/ names flights.
  */
 export function missionId(name: string): string {
   return name

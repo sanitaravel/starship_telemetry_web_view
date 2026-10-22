@@ -2,7 +2,7 @@
 /**
  * Whole-dashboard smoke test: mounts the real app the way the browser does
  * (by importing the entry module) and snapshots the resulting DOM. Moving
- * files between layers must leave this snapshot unchanged; if main.ts moves,
+ * files between layers must leave this snapshot unchanged; if app/main.ts moves,
  * update APP_ENTRY below and nothing else.
  *
  * Stubbed: WebSocket (never connects), fetch (canned empty responses, see
@@ -17,7 +17,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
-const APP_ENTRY = './main';
+const APP_ENTRY = './app/main';
 
 const FIXED_NOW = new Date('2026-01-01T12:00:00.000Z');
 

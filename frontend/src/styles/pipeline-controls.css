@@ -1,0 +1,140 @@
+/* Pipeline Controls */
+.pipeline-controls__url-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.pipeline-controls__url-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.pipeline-controls__validate-btn {
+  white-space: nowrap;
+  background-color: var(--color-accent);
+  color: var(--color-background);
+  border-color: var(--color-accent);
+  font-weight: 500;
+}
+
+.pipeline-controls__validate-btn:hover {
+  opacity: 0.9;
+  border-color: var(--color-accent);
+}
+
+.pipeline-controls__interval-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.pipeline-controls__interval-label {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.pipeline-controls__interval-input {
+  width: 5rem;
+  text-align: center;
+}
+
+.pipeline-controls__interval-unit {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.pipeline-controls__status-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.75rem;
+  min-height: 2rem;
+}
+
+.pipeline-controls__validation-status {
+  font-size: 0.8125rem;
+}
+
+.pipeline-controls__validation-status--checking {
+  color: var(--color-muted);
+}
+
+.pipeline-controls__validation-status--active {
+  color: #4caf50;
+}
+
+.pipeline-controls__validation-status--unreachable {
+  color: #f44336;
+}
+
+/* Action Button */
+.pipeline-controls__action-btn--start {
+  background-color: #4caf50;
+  border-color: #4caf50;
+  color: #fff;
+  font-weight: 500;
+}
+
+.pipeline-controls__action-btn--start:hover {
+  opacity: 0.9;
+  border-color: #4caf50;
+}
+
+.pipeline-controls__action-btn--stop {
+  background-color: #f44336;
+  border-color: #f44336;
+  color: #fff;
+  font-weight: 500;
+}
+
+.pipeline-controls__action-btn--stop:hover {
+  opacity: 0.9;
+  border-color: #f44336;
+}
+
+/* Pipeline Status Badge */
+.pipeline-controls__status-badge {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.pipeline-controls__status-badge--stopped {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+
+.pipeline-controls__status-badge--running {
+  background-color: rgba(76, 175, 80, 0.15);
+  border: 1px solid #4caf50;
+  color: #4caf50;
+}
+
+.pipeline-controls__status-badge--disconnected {
+  background-color: rgba(244, 67, 54, 0.15);
+  border: 1px solid #f44336;
+  color: #f44336;
+}
+
+.pipeline-controls__status-badge--reconnecting {
+  background-color: rgba(255, 128, 20, 0.15);
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+}
+
+.pipeline-controls__fps {
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+
