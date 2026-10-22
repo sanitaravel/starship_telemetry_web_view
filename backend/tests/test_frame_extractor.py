@@ -11,13 +11,10 @@ import cv2
 import numpy as np
 import pytest
 
-from src.enums import PipelineStatus
-from src.frame_extractor import (
-    DEFAULT_SOURCE_FPS,
-    ConnectionError,
-    FrameExtractor,
-    FrameExtractorConfig,
-)
+from src.capture import FrameExtractor, FrameExtractorConfig, SourceUnavailable
+from src.capture.config import DEFAULT_SOURCE_FPS
+from src.capture.source import advance, parse_source_fps
+from src.core.enums import PipelineStatus
 
 
 @pytest.fixture
@@ -33,28 +30,28 @@ def config() -> FrameExtractorConfig:
 
 
 class TestParseSourceFps:
-    """Tests for FrameExtractor._parse_source_fps FPS coercion/fallback."""
+    """Tests for source.parse_source_fps FPS coercion/fallback."""
 
     def test_valid_fps_is_used(self) -> None:
-        assert FrameExtractor._parse_source_fps(29.97) == pytest.approx(29.97)
+        assert parse_source_fps(29.97) == pytest.approx(29.97)
 
     def test_integer_fps_is_used(self) -> None:
-        assert FrameExtractor._parse_source_fps(30) == 30.0
+        assert parse_source_fps(30) == 30.0
 
     def test_zero_falls_back_to_default(self) -> None:
-        assert FrameExtractor._parse_source_fps(0.0) == DEFAULT_SOURCE_FPS
+        assert parse_source_fps(0.0) == DEFAULT_SOURCE_FPS
 
     def test_negative_falls_back_to_default(self) -> None:
-        assert FrameExtractor._parse_source_fps(-1.0) == DEFAULT_SOURCE_FPS
+        assert parse_source_fps(-1.0) == DEFAULT_SOURCE_FPS
 
     def test_nan_falls_back_to_default(self) -> None:
-        assert FrameExtractor._parse_source_fps(float("nan")) == DEFAULT_SOURCE_FPS
+        assert parse_source_fps(float("nan")) == DEFAULT_SOURCE_FPS
 
     def test_inf_falls_back_to_default(self) -> None:
-        assert FrameExtractor._parse_source_fps(float("inf")) == DEFAULT_SOURCE_FPS
+        assert parse_source_fps(float("inf")) == DEFAULT_SOURCE_FPS
 
     def test_non_numeric_falls_back_to_default(self) -> None:
-        assert FrameExtractor._parse_source_fps(object()) == DEFAULT_SOURCE_FPS
+        assert parse_source_fps(object()) == DEFAULT_SOURCE_FPS
 
 
 class TestFrameExtractorConfig:
@@ -82,11 +79,11 @@ class TestFrameExtractorConfig:
         assert config.target_height == 720
 
 
-class TestConnectionError:
-    """Tests for ConnectionError dataclass."""
+class TestSourceUnavailable:
+    """Tests for SourceUnavailable dataclass."""
 
     def test_fields(self) -> None:
-        err = ConnectionError(message="Not reachable", url="http://bad.url")
+        err = SourceUnavailable(message="Not reachable", url="http://bad.url")
         assert err.message == "Not reachable"
         assert err.url == "http://bad.url"
 
@@ -96,14 +93,14 @@ class TestValidate:
 
     async def test_empty_url_returns_error(self, extractor: FrameExtractor) -> None:
         result = await extractor.validate("")
-        assert isinstance(result, ConnectionError)
+        assert isinstance(result, SourceUnavailable)
         assert "empty" in result.message.lower()
 
     async def test_whitespace_url_returns_error(self, extractor: FrameExtractor) -> None:
         result = await extractor.validate("   ")
-        assert isinstance(result, ConnectionError)
+        assert isinstance(result, SourceUnavailable)
 
-    @patch("src.frame_extractor.cv2.VideoCapture")
+    @patch("src.capture.source.cv2.VideoCapture")
     async def test_unreachable_url_returns_error(
         self, mock_cap_cls: MagicMock, extractor: FrameExtractor
     ) -> None:
@@ -113,10 +110,10 @@ class TestValidate:
         mock_cap_cls.return_value = mock_cap
 
         result = await extractor.validate("http://unreachable.example.com/stream")
-        assert isinstance(result, ConnectionError)
+        assert isinstance(result, SourceUnavailable)
         assert "unable to open" in result.message.lower() or "unreachable" in result.message.lower()
 
-    @patch("src.frame_extractor.cv2.VideoCapture")
+    @patch("src.capture.source.cv2.VideoCapture")
     async def test_opened_but_no_frames_returns_error(
         self, mock_cap_cls: MagicMock, extractor: FrameExtractor
     ) -> None:
@@ -127,10 +124,10 @@ class TestValidate:
         mock_cap_cls.return_value = mock_cap
 
         result = await extractor.validate("http://example.com/no-frames")
-        assert isinstance(result, ConnectionError)
+        assert isinstance(result, SourceUnavailable)
         assert "no frames" in result.message.lower() or "not be active" in result.message.lower()
 
-    @patch("src.frame_extractor.cv2.VideoCapture")
+    @patch("src.capture.source.cv2.VideoCapture")
     async def test_valid_source_returns_none(
         self, mock_cap_cls: MagicMock, extractor: FrameExtractor
     ) -> None:
@@ -249,7 +246,7 @@ class TestStartStop:
 class TestCaptureLoop:
     """Tests for the async capture loop behavior."""
 
-    @patch("src.frame_extractor.cv2.VideoCapture")
+    @patch("src.capture.source.cv2.VideoCapture")
     async def test_capture_loop_produces_frames(
         self, mock_cap_cls: MagicMock, extractor: FrameExtractor
     ) -> None:
@@ -308,7 +305,7 @@ class TestCaptureLoop:
         source_fps_values = [call[0][3] for call in frame_callback.call_args_list]
         assert all(fps > 0 for fps in source_fps_values)
 
-    @patch("src.frame_extractor.cv2.VideoCapture")
+    @patch("src.capture.source.cv2.VideoCapture")
     async def test_capture_loop_transitions_to_running(
         self, mock_cap_cls: MagicMock, extractor: FrameExtractor
     ) -> None:
@@ -337,7 +334,7 @@ class TestCaptureLoop:
         assert first_call_status == PipelineStatus.RUNNING
 
 
-    @patch("src.frame_extractor.cv2.VideoCapture")
+    @patch("src.capture.source.cv2.VideoCapture")
     async def test_skipped_frames_are_grabbed_not_decoded(
         self, mock_cap_cls: MagicMock, extractor: FrameExtractor
     ) -> None:
@@ -370,7 +367,7 @@ class TestCaptureLoop:
         assert mock_cap.read.call_count == 3
         assert mock_cap.grab.call_count == 6
 
-    @patch("src.frame_extractor.cv2.VideoCapture")
+    @patch("src.capture.source.cv2.VideoCapture")
     async def test_failed_grab_triggers_reconnect(
         self, mock_cap_cls: MagicMock, extractor: FrameExtractor
     ) -> None:
@@ -401,7 +398,7 @@ class TestReconnectionBackoff:
         assert FrameExtractor._MAX_BACKOFF_S == 30.0
         assert FrameExtractor._BACKOFF_MULTIPLIER == 2.0
 
-    @patch("src.frame_extractor.cv2.VideoCapture")
+    @patch("src.capture.source.cv2.VideoCapture")
     async def test_reconnect_succeeds(
         self, mock_cap_cls: MagicMock, extractor: FrameExtractor
     ) -> None:
@@ -420,12 +417,12 @@ class TestReconnectionBackoff:
         extractor._stop_event.clear()
 
         # Patch asyncio.wait_for to speed up backoff wait
-        with patch("src.frame_extractor.asyncio.wait_for", side_effect=asyncio.TimeoutError):
+        with patch("src.capture.reconnect.asyncio.wait_for", side_effect=asyncio.TimeoutError):
             result = await extractor._reconnect_with_backoff()
 
         assert result is True
 
-    @patch("src.frame_extractor.cv2.VideoCapture")
+    @patch("src.capture.source.cv2.VideoCapture")
     async def test_reconnect_fails_when_stopped(
         self, mock_cap_cls: MagicMock, extractor: FrameExtractor
     ) -> None:
@@ -527,10 +524,12 @@ class TestCaptureReleaseRace:
         extractor._stop_event.clear()
 
         loop = asyncio.get_running_loop()
-        advance = loop.run_in_executor(None, extractor._advance, capture, 5)
+        advancing = loop.run_in_executor(
+            None, advance, capture, 5, extractor._capture_lock, extractor._stop_event
+        )
         await loop.run_in_executor(None, grab_started.wait)
         extractor.stop()
-        grabbed, ret, _ = await advance
+        grabbed, ret, _ = await advancing
 
         # The release came after the running grab, and no grab followed it
         assert events == ["grab-start", "grab-end", "release"]

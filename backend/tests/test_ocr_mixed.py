@@ -1,4 +1,4 @@
-"""Tests for one-pass recognition with a per-crop allowlist (src.ocr_mixed).
+"""Tests for one-pass recognition with a per-crop allowlist (src.ocr.mixed).
 
 These use a small deterministic stand-in for the recogniser network and
 EasyOCR's own converter and preprocessing, so they need neither the model
@@ -15,7 +15,7 @@ import easyocr.easyocr as easyocr_module
 from easyocr.recognition import get_text
 from easyocr.utils import CTCLabelConverter, get_image_list
 
-from src.ocr_mixed import ignore_indices, prepare_crop, recognize_prepared
+from src.ocr.mixed import ignore_indices, prepare_crop, recognize_prepared
 
 
 CHARACTERS = "0123456789:.abcKMH/"

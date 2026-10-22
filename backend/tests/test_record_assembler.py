@@ -2,18 +2,18 @@
 
 import pytest
 
-from src.engine_analyzer import EngineAnalysisResult
-from src.enums import EngineStatus, OCRFieldStatus, SeparationState
-from src.models import EngineGroup, EngineSubgroup, ROICircle, ROIRect
-from src.ocr_engine import OCRFieldResult, OCRResult
-from src.record_assembler import (
+from src.core.enums import EngineStatus, OCRFieldStatus, SeparationState
+from src.core.models import EngineGroup, EngineSubgroup, ROICircle, ROIRect
+from src.ocr.results import OCRFieldResult, OCRResult
+from src.telemetry.record_assembler import (
     RecordAssembler,
     _compute_detection_accuracy,
     _extract_field_text,
     _ocr_field_to_telemetry_field,
     _split_engine_statuses,
 )
-from src.stage_assignment import StageAssignmentResult
+from src.telemetry.stage_assignment import StageAssignmentResult
+from src.vision.engine_analyzer import EngineAnalysisResult
 
 
 # Frame-based timing constants used across assemble() calls in these tests.
@@ -576,7 +576,7 @@ class TestRecordAssemblyCompleteness:
         record = assembler.assemble(engine_result, ocr_result, stage_result, groups, _TEST_FRAME_NUMBER, _TEST_SOURCE_FPS)
 
         # Verify record is a TelemetryRecord
-        from src.telemetry_record import TelemetryRecord
+        from src.core.telemetry_record import TelemetryRecord
         assert isinstance(record, TelemetryRecord)
 
         # mission_elapsed_time is present as a field (may be None if OCR unavailable)

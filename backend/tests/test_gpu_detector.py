@@ -1,12 +1,16 @@
-"""Tests for the GPU Detector module."""
+"""Tests for the GPU Detector module.
 
+detect_gpu() imports torch when called, so the patches target the torch
+module itself rather than a name in src.vision.gpu_detector.
+"""
+
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import patch
 
-from src.gpu_detector import (
-    AccelerationBackend,
-    GPUCapabilities,
-    detect_gpu,
-)
+from src.core.gpu import AccelerationBackend, GPUCapabilities
+from src.vision.gpu_detector import detect_gpu
 
 
 class TestImports:
@@ -27,6 +31,22 @@ class TestImports:
         assert caps.backend == AccelerationBackend.CPU
 
 
+def test_importing_the_detector_does_not_load_torch():
+    """torch is loaded by detect_gpu(), not on import (nor via the telemetry stages)."""
+    code = (
+        "import sys, src.vision.gpu_detector, src.telemetry.record_assembler; "
+        "print('torch' in sys.modules)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=Path(__file__).resolve().parent.parent,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "False"
+
+
 class TestDetectGpu:
     """Verify detect_gpu() returns valid GPUCapabilities in all scenarios."""
 
@@ -37,7 +57,7 @@ class TestDetectGpu:
         assert isinstance(result.gpu_available, bool)
 
     def test_detect_gpu_cpu_fallback_when_no_cuda(self):
-        with patch("src.gpu_detector.torch.cuda.is_available", return_value=False):
+        with patch("torch.cuda.is_available", return_value=False):
             result = detect_gpu()
         assert result.gpu_available is False
         assert result.backend == AccelerationBackend.CPU
@@ -46,12 +66,12 @@ class TestDetectGpu:
 
     def test_detect_gpu_returns_cuda_when_available(self):
         with (
-            patch("src.gpu_detector.torch.cuda.is_available", return_value=True),
+            patch("torch.cuda.is_available", return_value=True),
             patch(
-                "src.gpu_detector.torch.cuda.get_device_name",
+                "torch.cuda.get_device_name",
                 return_value="NVIDIA RTX 4090",
             ),
-            patch("src.gpu_detector.torch.version", cuda="12.2"),
+            patch("torch.version", cuda="12.2"),
         ):
             result = detect_gpu()
         assert result.gpu_available is True
@@ -61,7 +81,7 @@ class TestDetectGpu:
 
     def test_detect_gpu_falls_back_on_is_available_exception(self):
         with patch(
-            "src.gpu_detector.torch.cuda.is_available",
+            "torch.cuda.is_available",
             side_effect=RuntimeError("CUDA driver mismatch"),
         ):
             result = detect_gpu()
@@ -70,9 +90,9 @@ class TestDetectGpu:
 
     def test_detect_gpu_falls_back_on_get_device_name_exception(self):
         with (
-            patch("src.gpu_detector.torch.cuda.is_available", return_value=True),
+            patch("torch.cuda.is_available", return_value=True),
             patch(
-                "src.gpu_detector.torch.cuda.get_device_name",
+                "torch.cuda.get_device_name",
                 side_effect=RuntimeError("Device query failed"),
             ),
         ):

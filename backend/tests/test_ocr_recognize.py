@@ -1,6 +1,6 @@
 """Tests for the recognition-only OCR path of EasyOCREngine (fixed ROI boxes).
 
-The engine hands its ROIs to the batcher (src.ocr_batcher), which is what gets
+The engine hands its ROIs to the batcher (src.ocr.batcher), which is what gets
 substituted here: it receives boxes in frame coordinates and answers in the
 order it was given them, so these tests exercise the engine's cropping,
 grouping, caching and parsing without a model. The batcher's own batching is
@@ -13,10 +13,10 @@ import cv2
 import numpy as np
 import pytest
 
-from src.enums import OCRFieldStatus
-from src.gpu_detector import AccelerationBackend, GPUCapabilities
-from src.models import ROIRect
-from src.ocr_engine import EasyOCREngine, configure_torch_threads
+from src.core.enums import OCRFieldStatus
+from src.core.gpu import AccelerationBackend, GPUCapabilities
+from src.core.models import ROIRect
+from src.ocr.engine import EasyOCREngine, configure_torch_threads
 
 
 CPU = GPUCapabilities(
@@ -79,7 +79,7 @@ class FakeBatcher:
 
 def build_engine(batcher: FakeBatcher | None = None, **kwargs) -> EasyOCREngine:
     """An engine on the recognition path with its batcher substituted."""
-    with patch("src.ocr_engine.easyocr.Reader"):
+    with patch("src.ocr.engine.easyocr.Reader"):
         engine = EasyOCREngine(CPU, use_detection=False, **kwargs)
     engine._batcher = batcher or FakeBatcher()
     return engine
@@ -193,7 +193,7 @@ def test_value_box_narrowed_to_its_text():
     assert batcher.boxes == [[137, 173, 900, 940]]
 
 
-@patch("src.ocr_engine.easyocr.Reader")
+@patch("src.ocr.engine.easyocr.Reader")
 def test_detection_mode_uses_readtext(reader_cls: MagicMock, frame):
     reader = reader_cls.return_value
     reader.readtext.return_value = [([[0, 0]], "00:00:00", 0.9)]
@@ -205,7 +205,7 @@ def test_detection_mode_uses_readtext(reader_cls: MagicMock, frame):
     reader.recognize.assert_not_called()
 
 
-@patch("src.ocr_engine.easyocr.Reader")
+@patch("src.ocr.engine.easyocr.Reader")
 def test_detection_mode_from_environment(reader_cls: MagicMock, monkeypatch):
     monkeypatch.setenv("OCR_USE_DETECTION", "1")
     assert EasyOCREngine(CPU)._use_detection is True
@@ -223,7 +223,7 @@ def test_reset_clears_t_zero(frame):
 
 def test_torch_threads_capped_by_default_and_overridable(monkeypatch):
     calls = []
-    monkeypatch.setattr("src.ocr_engine.torch.set_num_threads", calls.append)
+    monkeypatch.setattr("src.ocr.engine.torch.set_num_threads", calls.append)
     monkeypatch.delenv("OCR_TORCH_THREADS", raising=False)
     configure_torch_threads()
     monkeypatch.setenv("OCR_TORCH_THREADS", "3")
@@ -233,12 +233,12 @@ def test_torch_threads_capped_by_default_and_overridable(monkeypatch):
     assert calls == [1, 3, 1]
 
 
-@patch("src.ocr_engine.easyocr.Reader")
+@patch("src.ocr.engine.easyocr.Reader")
 def test_torch_threads_capped_on_gpu_too(reader_cls: MagicMock, monkeypatch):
     # On GPU torch's OpenMP pool only spins between ops, taking CPU from the
     # video decoders (see configure_torch_threads)
     calls = []
-    monkeypatch.setattr("src.ocr_engine.torch.set_num_threads", calls.append)
+    monkeypatch.setattr("src.ocr.engine.torch.set_num_threads", calls.append)
     monkeypatch.delenv("OCR_TORCH_THREADS", raising=False)
     gpu = GPUCapabilities(
         backend=AccelerationBackend.CUDA_GPU, device_name="test", cuda_version="12.1",
@@ -302,7 +302,7 @@ def test_signature_tolerates_compression_noise():
 
 
 def test_cached_field_is_refreshed_periodically(frame, monkeypatch):
-    monkeypatch.setattr("src.ocr_engine._CACHE_REFRESH_FRAMES", 3)
+    monkeypatch.setattr("src.ocr.cache.CACHE_REFRESH_FRAMES", 3)
     batcher = FakeBatcher()
     engine = build_engine(batcher)
 
