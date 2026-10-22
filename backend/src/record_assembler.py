@@ -9,7 +9,7 @@ in the video stream.
 from src.engine_analyzer import EngineAnalysisResult
 from src.enums import EngineStatus, OCRFieldStatus
 from src.models import EngineGroup
-from src.ocr_engine import OCRFieldResult, OCRResult
+from src.ocr.results import OCRFieldResult, OCRResult
 from src.stage_assignment import StageAssignmentResult
 from src.telemetry_record import DetectionAccuracy, TelemetryFieldValue, TelemetryRecord
 

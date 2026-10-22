@@ -57,12 +57,12 @@ class ParallelPipelineConfig:
         """Return the OCR pool size, picking one from the hardware when auto.
 
         On GPU the workers no longer compete for the device: they hand their
-        ROIs to the batcher (see ocr_batcher), which runs one recogniser pass
+        ROIs to the batcher (see ocr.batcher), which runs one recogniser pass
         for all of them. The pool therefore wants one worker per frame in
         flight, so that every in-flight frame has its ROIs waiting in the same
         batch rather than arriving a batch late.
         On CPU each worker runs single-threaded torch (see
-        ocr_engine.configure_torch_threads), so one worker per physical core
+        ocr.engine.configure_torch_threads), so one worker per physical core
         (approximated as half the logical CPUs) keeps the cores busy without
         oversubscribing them.
         """

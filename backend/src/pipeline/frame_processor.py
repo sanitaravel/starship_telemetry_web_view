@@ -17,7 +17,8 @@ from src.enums import SeparationState
 from src.gpu_detector import GPUCapabilities
 from src.logging_context import frame_seq_var
 from src.models import ROIConfiguration
-from src.ocr_engine import EasyOCREngine, OCRResult
+from src.ocr.engine import EasyOCREngine
+from src.ocr.results import OCRResult
 from src.pipeline.ordering import ReorderCoordinator
 from src.pipeline.parallel_config import ParallelPipelineConfig
 from src.pipeline.stages import encode_preview, run_timed, unpack_stage_results
