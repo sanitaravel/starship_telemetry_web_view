@@ -1,6 +1,7 @@
 import { Chart, ChartConfiguration } from 'chart.js/auto';
 import type { StateManager, TimeSeriesPoint, TimeSeriesStore } from '../state';
-import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightInfo } from '../previous-flights';
+import type { EngineEvent } from '../engine-events';
+import { fetchPreviousFlightList, fetchPreviousFlightData, PreviousFlightData, PreviousFlightInfo } from '../previous-flights';
 import type { DatasetKey, LoadedComparison, SeriesKey, SeriesOption } from './types';
 import { COMPARE_COLORS, SERIES_OPTIONS } from './panels';
 import { NEAREST_PER_DATASET } from './interaction-mode';
@@ -15,6 +16,7 @@ import {
   type ExportOptions,
 } from './export-png';
 import { ExportMenu } from './export-menu';
+import { eventMarkers, eventsForSeries, seriesVehicle, type EngineMarker } from './engine-markers';
 import { createLogger } from '../logger';
 import { FlightColors } from '../flight-colors';
 import { createSwatchButton, toggleColorPopover } from '../color-picker';
@@ -61,6 +63,15 @@ export class TimeSeriesGraphs {
   private frameRequested = false;
   /** The live series' chart data, extended in place as points arrive. */
   private liveXY = new IncrementalXY();
+  /** Live engine events (grows in place) and the engineEventsVersion last drawn. */
+  private latestEngineEvents: EngineEvent[] = [];
+  private renderedEventsVersion = 0;
+  /** Live stage separation MET, null until known. */
+  private latestSeparationMet: number | null = null;
+  /** Engine event markers last drawn, also used by the PNG export. */
+  private markers: EngineMarker[] = [];
+  /** Config the on-screen chart was built from; its markers are updated in place. */
+  private liveConfig: ChartConfiguration<'line'> | null = null;
 
   // Previous flight comparison state
   private previousFlights: PreviousFlightInfo[] = [];
@@ -69,7 +80,7 @@ export class TimeSeriesGraphs {
   /** In-flight comparison fetches, keyed by filename. */
   private pendingLoads: Map<string, Promise<void>> = new Map();
   /** Fetched comparison flights, kept so re-selecting one needs no refetch. */
-  private flightCache: Map<string, TimeSeriesStore> = new Map();
+  private flightCache: Map<string, PreviousFlightData> = new Map();
   /** Chart data per comparison flight and series; flights never change. */
   private overlayXY: Map<string, Map<SeriesKey, XY[]>> = new Map();
   /** User-picked overlay colours, keyed by flight filename. */
@@ -85,12 +96,21 @@ export class TimeSeriesGraphs {
     this.loadPreviousFlightList();
     this.colors.subscribe(() => this.onColorsChange());
     this.stateManager.subscribe((state) => {
-      // Most messages (frames, status) leave the series untouched
-      if (state.timeSeries === this.latestTimeSeries && state.timeSeriesVersion === this.renderedVersion) {
+      // Most messages (frames, status) leave the series and events untouched
+      if (
+        state.timeSeries === this.latestTimeSeries &&
+        state.timeSeriesVersion === this.renderedVersion &&
+        state.engineEvents === this.latestEngineEvents &&
+        state.engineEventsVersion === this.renderedEventsVersion &&
+        state.separationMetSeconds === this.latestSeparationMet
+      ) {
         return;
       }
       this.latestTimeSeries = state.timeSeries;
       this.renderedVersion = state.timeSeriesVersion;
+      this.latestEngineEvents = state.engineEvents;
+      this.renderedEventsVersion = state.engineEventsVersion;
+      this.latestSeparationMet = state.separationMetSeconds;
       this.scheduleUpdate();
     });
   }
@@ -283,6 +303,9 @@ export class TimeSeriesGraphs {
               },
             },
           },
+          engineEvents: {
+            markers: this.markers,
+          },
           zoom: {
             pan: {
               enabled: true,
@@ -311,7 +334,8 @@ export class TimeSeriesGraphs {
     const canvas = this.container.querySelector('#chart-main') as HTMLCanvasElement | null;
     if (!canvas) return;
 
-    this.chart = new Chart(canvas, this.createChartConfig()) as Chart<'line'>;
+    this.liveConfig = this.createChartConfig();
+    this.chart = new Chart(canvas, this.liveConfig) as Chart<'line'>;
   }
 
   private rebuildChart(): void {
@@ -428,8 +452,37 @@ export class TimeSeriesGraphs {
       });
     }
 
+    this.setMarkers(this.buildMarkers(option));
     this.chart.data = { datasets };
     this.chart.update('none');
+  }
+
+  /**
+   * Engine event markers for a series: the live flight's in red/amber, each
+   * comparison flight's in its overlay colour (see eventsForSeries).
+   */
+  private buildMarkers(option: SeriesOption): EngineMarker[] {
+    const vehicle = seriesVehicle(option.derive?.from ?? option.key);
+    const markers = eventMarkers(
+      eventsForSeries(this.latestEngineEvents ?? [], vehicle, this.latestSeparationMet ?? null),
+    );
+    for (const comp of this.loadedComparisons) {
+      markers.push(
+        ...eventMarkers(
+          eventsForSeries(comp.engineEvents, vehicle, comp.separationMetSeconds),
+          this.flightColor(comp.filename),
+          comp.name,
+        ),
+      );
+    }
+    return markers;
+  }
+
+  /** Hand markers to the engineEvents plugin of the on-screen chart. */
+  private setMarkers(markers: EngineMarker[]): void {
+    this.markers = markers;
+    const plugins = this.liveConfig?.options?.plugins;
+    if (plugins) plugins.engineEvents = { markers };
   }
 
   /** The user's colour for a previous flight, else its palette colour by list position. */
@@ -559,10 +612,16 @@ export class TimeSeriesGraphs {
   }
 
   /** Add a comparison flight to the chart data unless it is already there. */
-  private addComparison(filename: string, data: TimeSeriesStore): void {
+  private addComparison(filename: string, flight: PreviousFlightData): void {
     if (this.loadedComparisons.some((c) => c.filename === filename)) return;
     const info = this.previousFlights.find((f) => f.filename === filename);
-    this.loadedComparisons.push({ filename, name: info?.name ?? filename, data });
+    this.loadedComparisons.push({
+      filename,
+      name: info?.name ?? filename,
+      data: flight.store,
+      engineEvents: flight.engineEvents,
+      separationMetSeconds: flight.separationMetSeconds,
+    });
   }
 
   /**

@@ -37,7 +37,7 @@ vi.mock('./export-png', async (importOriginal) => ({
 
 import { Chart } from 'chart.js/auto';
 import { TimeSeriesGraphs } from './graphs';
-import { fetchPreviousFlightList, fetchPreviousFlightData } from '../previous-flights';
+import { fetchPreviousFlightList, fetchPreviousFlightData, type PreviousFlightData } from '../previous-flights';
 import { EXPORT_THEMES, saveCanvasAsPng } from './export-png';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,6 +49,8 @@ const EMPTY: TimeSeriesStore = {
   altitudeSuperHeavy: [],
   altitudeStarship: [],
 };
+
+const EMPTY_FLIGHT: PreviousFlightData = { store: EMPTY, engineEvents: [], separationMetSeconds: null };
 
 /** A promise whose resolution is controlled by the test. */
 function deferred<T>() {
@@ -99,22 +101,22 @@ describe('TimeSeriesGraphs comparison loading overlay', () => {
 
   it('shows while a comparison loads and hides once it has loaded', async () => {
     const container = await setup();
-    const load = deferred<TimeSeriesStore | null>();
+    const load = deferred<PreviousFlightData | null>();
     vi.mocked(fetchPreviousFlightData).mockReturnValue(load.promise);
 
     toggle(container, 'flight-a.json');
     await flush();
     expect(overlay(container).hidden).toBe(false);
 
-    load.resolve(EMPTY);
+    load.resolve(EMPTY_FLIGHT);
     await flush();
     expect(overlay(container).hidden).toBe(true);
   });
 
   it('stays visible until every selected comparison has loaded', async () => {
     const container = await setup();
-    const loadA = deferred<TimeSeriesStore | null>();
-    const loadB = deferred<TimeSeriesStore | null>();
+    const loadA = deferred<PreviousFlightData | null>();
+    const loadB = deferred<PreviousFlightData | null>();
     vi.mocked(fetchPreviousFlightData).mockImplementation((f) =>
       f === 'flight-a.json' ? loadA.promise : loadB.promise,
     );
@@ -122,18 +124,18 @@ describe('TimeSeriesGraphs comparison loading overlay', () => {
     toggle(container, 'flight-a.json');
     toggle(container, 'flight-b.json');
 
-    loadA.resolve(EMPTY);
+    loadA.resolve(EMPTY_FLIGHT);
     await flush();
     expect(overlay(container).hidden).toBe(false);
 
-    loadB.resolve(EMPTY);
+    loadB.resolve(EMPTY_FLIGHT);
     await flush();
     expect(overlay(container).hidden).toBe(true);
   });
 
   it('hides after a failed load', async () => {
     const container = await setup();
-    const load = deferred<TimeSeriesStore | null>();
+    const load = deferred<PreviousFlightData | null>();
     vi.mocked(fetchPreviousFlightData).mockReturnValue(load.promise);
 
     toggle(container, 'flight-a.json');
@@ -144,16 +146,16 @@ describe('TimeSeriesGraphs comparison loading overlay', () => {
 
   it('does not fetch a comparison again while it is still loading', async () => {
     const container = await setup();
-    const loadA = deferred<TimeSeriesStore | null>();
-    const loadB = deferred<TimeSeriesStore | null>();
+    const loadA = deferred<PreviousFlightData | null>();
+    const loadB = deferred<PreviousFlightData | null>();
     vi.mocked(fetchPreviousFlightData).mockImplementation((f) =>
       f === 'flight-a.json' ? loadA.promise : loadB.promise,
     );
 
     toggle(container, 'flight-a.json');
     toggle(container, 'flight-b.json');
-    loadA.resolve(EMPTY);
-    loadB.resolve(EMPTY);
+    loadA.resolve(EMPTY_FLIGHT);
+    loadB.resolve(EMPTY_FLIGHT);
     await flush();
 
     const calls = vi.mocked(fetchPreviousFlightData).mock.calls.map((c) => c[0]);
@@ -175,7 +177,7 @@ describe('TimeSeriesGraphs update path', () => {
 
   it('reuses a fetched comparison when it is selected again', async () => {
     const container = await setup();
-    vi.mocked(fetchPreviousFlightData).mockResolvedValue(EMPTY);
+    vi.mocked(fetchPreviousFlightData).mockResolvedValue(EMPTY_FLIGHT);
 
     toggle(container, 'flight-a.json');
     await flush();
@@ -210,6 +212,53 @@ describe('TimeSeriesGraphs update path', () => {
     handler({ timeSeries, timeSeriesVersion: 2 });
     expect(chart.update).toHaveBeenCalledTimes(2);
     expect(chart.data.datasets[0].data).toEqual([{ x: 1, y: 10 }, { x: 2, y: 20 }]);
+  });
+
+  it('marks live and comparison engine events on the selected series', async () => {
+    vi.mocked(fetchPreviousFlightList).mockResolvedValue([{ filename: 'flight-a.json', name: 'Flight A' }] as never);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let handler: (state: unknown) => void = () => {};
+    const stateManager = { subscribe: vi.fn((h) => (handler = h)) };
+    new TimeSeriesGraphs(container, stateManager as never);
+    await flush();
+    const chart = chartInstances[chartInstances.length - 1];
+    const markers = () => chart.config.options.plugins.engineEvents.markers as { x: number; color: string; tooltipLines: string[] }[];
+
+    const sh = { kind: 'engine_out', vehicle: 'superheavy', engineIds: ['sh_e17'], rings: ['engines_outer'], metSeconds: 60, runningAfter: 32, expected: 33 };
+    const ss = { ...sh, vehicle: 'starship', engineIds: ['ss_e2'], rings: ['atmo'], metSeconds: 300, runningAfter: 5, expected: 6 };
+    const engineEvents: unknown[] = [];
+    const state = { timeSeries: EMPTY, timeSeriesVersion: 0, engineEvents, engineEventsVersion: 0, separationMetSeconds: null };
+    handler(state);
+    expect(markers()).toEqual([]);
+
+    // New events alone trigger a redraw
+    chart.update.mockClear();
+    engineEvents.push(sh, ss);
+    handler({ ...state, engineEventsVersion: 1 });
+    expect(chart.update).toHaveBeenCalledTimes(1);
+    expect(markers().map((m) => m.x)).toEqual([60]);
+    expect(markers()[0].tooltipLines[0]).toMatch(/^Engine out: Super Heavy E17/);
+
+    // Comparison flight events in the flight's colour, prefixed with its name
+    vi.mocked(fetchPreviousFlightData).mockResolvedValue({
+      ...EMPTY_FLIGHT,
+      engineEvents: [{ ...sh, metSeconds: 70 }, { ...sh, metSeconds: 200 }, ss],
+      separationMetSeconds: 160,
+    } as never);
+    toggle(container, 'flight-a.json');
+    await flush();
+    expect(markers().map((m) => m.x)).toEqual([60, 70, 200]);
+    expect(markers()[1].color).toBe('#e91e63');
+    expect(markers()[1].tooltipLines[0]).toMatch(/^Flight A — Engine out/);
+
+    // Starship series: Super Heavy events before separation, Starship events
+    handler({ ...state, engineEventsVersion: 1, separationMetSeconds: 100 });
+    const select = container.querySelector('.time-series-graphs__select') as HTMLSelectElement;
+    select.value = 'accelerationStarship';
+    select.dispatchEvent(new Event('change'));
+    const rebuilt = chartInstances[chartInstances.length - 1];
+    expect(rebuilt.config.options.plugins.engineEvents.markers.map((m: { x: number }) => m.x)).toEqual([60, 300, 70, 300]);
   });
 });
 
@@ -281,6 +330,22 @@ describe('TimeSeriesGraphs PNG export', () => {
     expect(live.destroy).not.toHaveBeenCalled();
     expect(JSON.stringify(live.config.options.scales)).toBe(liveConfigBefore);
     expect(live.config.options.scales.x.ticks.font.size).toBe(10);
+  });
+
+  it('draws the engine event markers in the export', async () => {
+    vi.mocked(fetchPreviousFlightData).mockResolvedValue({
+      ...EMPTY_FLIGHT,
+      engineEvents: [{ kind: 'engine_out', vehicle: 'superheavy', engineIds: ['sh_e17'], rings: ['engines_outer'], metSeconds: 60, runningAfter: 32, expected: 33 }],
+    });
+    const container = await setup();
+    toggle(container, 'flight-a.json');
+    await flush();
+    openMenuAndDownload(container);
+
+    const exported = chartInstances[chartInstances.length - 1];
+    expect(exported.config.options.plugins.engineEvents.markers).toEqual([
+      expect.objectContaining({ x: 60, kind: 'engine_out' }),
+    ]);
   });
 
   it('defaults to the on-screen look: 10 px on the dark background', async () => {

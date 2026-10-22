@@ -3,6 +3,7 @@ import { FPSMeter } from './fps-meter';
 import { createLogger } from './logger';
 import { MetClock } from './met-clock';
 import { parseMETToSeconds } from './time-series-graphs/series-math';
+import { EngineEventDetector, type EngineEvent } from './engine-events';
 
 const logger = createLogger('state');
 
@@ -52,6 +53,18 @@ export interface AppState {
    * Grows in place like timeSeries.
    */
   telemetryRecords: TelemetryRecord[];
+  /**
+   * Engine failures detected in the live telemetry, in detection order.
+   * Grows in place like timeSeries; compare engineEventsVersion to detect new ones.
+   */
+  engineEvents: EngineEvent[];
+  /** Incremented whenever events are appended to engineEvents */
+  engineEventsVersion: number;
+  /**
+   * MET in seconds (same estimate as metSeconds) of the first record after
+   * stage separation, or null until one arrives.
+   */
+  separationMetSeconds: number | null;
   /** Frames processed per second, measured from actual message arrivals */
   processingFps: number;
 }
@@ -68,6 +81,7 @@ export class StateManager {
   private subscribers: StateChangeHandler[] = [];
   private fpsMeter: FPSMeter = new FPSMeter();
   private metClock: MetClock = new MetClock();
+  private engineEventDetector: EngineEventDetector = new EngineEventDetector();
 
   constructor() {
     this.state = createInitialState();
@@ -120,6 +134,7 @@ export class StateManager {
   reset(): void {
     this.fpsMeter.reset();
     this.metClock.reset();
+    this.engineEventDetector.reset();
     this.state = createInitialState();
     this.notifySubscribers();
   }
@@ -143,10 +158,17 @@ export class StateManager {
       : undefined;
     const appended = appendToTimeSeriesInPlace(this.state.timeSeries, record, metSeconds);
     this.state.telemetryRecords.push(record);
+    const engineEvents = this.engineEventDetector.push(record, metSeconds);
+    this.state.engineEvents.push(...engineEvents);
+    const separationMetSeconds =
+      this.state.separationMetSeconds ??
+      (record.separation_state === 'post_separation' && metSeconds !== undefined ? metSeconds : null);
     this.state = {
       ...this.state,
+      separationMetSeconds,
       latestTelemetry: record,
       timeSeriesVersion: this.state.timeSeriesVersion + (appended ? 1 : 0),
+      engineEventsVersion: this.state.engineEventsVersion + (engineEvents.length > 0 ? 1 : 0),
       processingFps: this.fpsMeter.getFps(),
     };
     logger.debug('Telemetry update applied', { sequence_number: record.sequence_number });
@@ -221,6 +243,9 @@ export function createInitialState(): AppState {
     },
     timeSeriesVersion: 0,
     telemetryRecords: [],
+    engineEvents: [],
+    engineEventsVersion: 0,
+    separationMetSeconds: null,
     processingFps: 0,
   };
 }

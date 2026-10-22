@@ -2,29 +2,11 @@ import type { StateManager, AppState } from './state';
 import { CurrentMission, type Vehicle } from './current-mission';
 import { EngineSerials } from './engine-serials';
 import { createSettingsButton, toggleEngineSettings, type EngineGroup } from './engine-settings';
+import { STARSHIP_ENGINES, SUPERHEAVY_ENGINES, engineLabel, type EnginePosition } from './engine-layout';
 
 type EngineStatus = 'active' | 'inactive' | 'undetected';
 
-interface EnginePosition {
-  id: string;
-  cx: number;
-  cy: number;
-  r: number;
-}
-
 const SVG_NS = 'http://www.w3.org/2000/svg';
-
-/** Starship engine layout (native 84×76 coordinate space) */
-const STARSHIP_ENGINES: EnginePosition[] = [
-  // Atmospheric engines
-  { id: 'ss_e1', cx: 42, cy: 21, r: 5.5 },
-  { id: 'ss_e2', cx: 50, cy: 35, r: 5.5 },
-  { id: 'ss_e3', cx: 34, cy: 35, r: 5.5 },
-  // Vacuum engines
-  { id: 'ss_e4', cx: 69, cy: 15, r: 14.5 },
-  { id: 'ss_e5', cx: 42, cy: 61, r: 14.5 },
-  { id: 'ss_e6', cx: 15, cy: 15, r: 14.5 },
-];
 
 /** A settings panel group of engines `first`..`last` of a vehicle, e.g. ss_e1..ss_e3. */
 function engineGroup(title: string, prefix: 'ss' | 'sh', first: number, last: number): EngineGroup {
@@ -49,46 +31,6 @@ const SUPERHEAVY_ENGINE_GROUPS: EngineGroup[] = [
   engineGroup('Outer ring', 'sh', 14, 33),
 ];
 
-/** Super Heavy engine layout (native 96×96 coordinate space, from superheavy_engine_diagram.svg) */
-const SUPERHEAVY_ENGINES: EnginePosition[] = [
-  // Inner ring (3 engines)
-  { id: 'sh_e1', cx: 56, cy: 43, r: 5.5 },
-  { id: 'sh_e2', cx: 48, cy: 57, r: 5.5 },
-  { id: 'sh_e3', cx: 40, cy: 43, r: 5.5 },
-  // Middle ring (10 engines)
-  { id: 'sh_e4', cx: 56, cy: 24, r: 5.5 },
-  { id: 'sh_e5', cx: 69, cy: 33, r: 5.5 },
-  { id: 'sh_e6', cx: 74, cy: 48, r: 5.5 },
-  { id: 'sh_e7', cx: 69, cy: 63, r: 5.5 },
-  { id: 'sh_e8', cx: 56, cy: 72, r: 5.5 },
-  { id: 'sh_e9', cx: 40, cy: 72, r: 5.5 },
-  { id: 'sh_e10', cx: 27, cy: 63, r: 5.5 },
-  { id: 'sh_e11', cx: 22, cy: 48, r: 5.5 },
-  { id: 'sh_e12', cx: 27, cy: 33, r: 5.5 },
-  { id: 'sh_e13', cx: 40, cy: 24, r: 5.5 },
-  // Outer ring (20 engines)
-  { id: 'sh_e14', cx: 55, cy: 6, r: 5.5 },
-  { id: 'sh_e15', cx: 67, cy: 10, r: 5.5 },
-  { id: 'sh_e16', cx: 78, cy: 18, r: 5.5 },
-  { id: 'sh_e17', cx: 86, cy: 29, r: 5.5 },
-  { id: 'sh_e18', cx: 90, cy: 41, r: 5.5 },
-  { id: 'sh_e19', cx: 90, cy: 55, r: 5.5 },
-  { id: 'sh_e20', cx: 86, cy: 67, r: 5.5 },
-  { id: 'sh_e21', cx: 78, cy: 78, r: 5.5 },
-  { id: 'sh_e22', cx: 68, cy: 86, r: 5.5 },
-  { id: 'sh_e23', cx: 55, cy: 90, r: 5.5 },
-  { id: 'sh_e24', cx: 41, cy: 90, r: 5.5 },
-  { id: 'sh_e25', cx: 28, cy: 86, r: 5.5 },
-  { id: 'sh_e26', cx: 18, cy: 78, r: 5.5 },
-  { id: 'sh_e27', cx: 10, cy: 67, r: 5.5 },
-  { id: 'sh_e28', cx: 6, cy: 55, r: 5.5 },
-  { id: 'sh_e29', cx: 6, cy: 41, r: 5.5 },
-  { id: 'sh_e30', cx: 10, cy: 29, r: 5.5 },
-  { id: 'sh_e31', cx: 18, cy: 18, r: 5.5 },
-  { id: 'sh_e32', cx: 29, cy: 10, r: 5.5 },
-  { id: 'sh_e33', cx: 41, cy: 6, r: 5.5 },
-];
-
 /** Display sizes for the rendered SVGs (used as fallback, CSS overrides with 100% width) */
 const SUPERHEAVY_DISPLAY_SIZE = 420;
 const STARSHIP_DISPLAY_WIDTH = 420;
@@ -106,11 +48,6 @@ const STARSHIP_PADDING = 2;
 const SUPERHEAVY_NATIVE = 96;
 const STARSHIP_NATIVE_W = 84;
 const STARSHIP_NATIVE_H = 76;
-
-/** "ss_e6" -> "E6": the engine id without its vehicle prefix. */
-function engineLabel(id: string): string {
-  return id.replace(/^(ss|sh)_/, '').toUpperCase();
-}
 
 /**
  * Font size that fits `label` inside a circle of radius `r`.
