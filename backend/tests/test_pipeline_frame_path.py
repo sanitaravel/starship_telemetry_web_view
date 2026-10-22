@@ -17,7 +17,7 @@ from src.enums import EngineStatus, OCRFieldStatus
 from src.gpu_detector import AccelerationBackend, GPUCapabilities
 from src.ocr_engine import OCRFieldResult, OCRResult
 from src.pipeline import PipelineOrchestrator
-from src.reorder_buffer import ReorderBuffer
+from src.pipeline.reorder_buffer import ReorderBuffer
 from src.template_registry import TemplateRegistry, load_default_template
 
 _T_ZERO_LOG = "T-0 detected during sequential processing"
@@ -54,9 +54,9 @@ def orchestrator() -> PipelineOrchestrator:
     orch._broadcast_queue = asyncio.Queue()
     # A stand-in OCR engine: _ensure_ocr_engine returns it without loading EasyOCR
     orch._ocr_engine = SimpleNamespace(t_zero_detected=False)
-    orch._run_engine_analysis = AsyncMock(side_effect=lambda frame: _engine_result())
-    orch._run_ocr_extraction = AsyncMock(side_effect=lambda frame: _ocr_result())
-    orch._run_jpeg_encoding = AsyncMock(return_value="anBlZw==")
+    orch._frames.run_engine_analysis = AsyncMock(side_effect=lambda frame: _engine_result())
+    orch._frames.run_ocr_extraction = AsyncMock(side_effect=lambda frame: _ocr_result())
+    orch._frames.run_jpeg_encoding = AsyncMock(return_value="anBlZw==")
     return orch
 
 
@@ -170,22 +170,22 @@ class TestProcessFrameTZero:
 
     async def test_stages_run_once_per_frame(self, orchestrator):
         await orchestrator._process_frame(_FRAME, 1, 30, 30.0, detect_t_zero=True)
-        orchestrator._run_engine_analysis.assert_awaited_once()
-        orchestrator._run_ocr_extraction.assert_awaited_once()
-        orchestrator._run_jpeg_encoding.assert_awaited_once()
+        orchestrator._frames.run_engine_analysis.assert_awaited_once()
+        orchestrator._frames.run_ocr_extraction.assert_awaited_once()
+        orchestrator._frames.run_jpeg_encoding.assert_awaited_once()
 
 
 class TestProcessFrameFallbacks:
     async def test_one_stage_failing_still_broadcasts(self, orchestrator):
-        orchestrator._run_engine_analysis = AsyncMock(side_effect=RuntimeError("engine"))
+        orchestrator._frames.run_engine_analysis = AsyncMock(side_effect=RuntimeError("engine"))
         await orchestrator._process_frame(_FRAME, 1, 30, 30.0, detect_t_zero=False)
         sent = _telemetry_messages(orchestrator)
         assert len(sent) == 1
         assert sent[0]["payload"]["sequence_number"] == 1
 
     async def test_both_stages_failing_skips_frame(self, orchestrator):
-        orchestrator._run_engine_analysis = AsyncMock(side_effect=RuntimeError("engine"))
-        orchestrator._run_ocr_extraction = AsyncMock(side_effect=RuntimeError("ocr"))
+        orchestrator._frames.run_engine_analysis = AsyncMock(side_effect=RuntimeError("engine"))
+        orchestrator._frames.run_ocr_extraction = AsyncMock(side_effect=RuntimeError("ocr"))
         await orchestrator._process_frame(_FRAME, 1, 30, 30.0, detect_t_zero=True)
         assert _telemetry_messages(orchestrator) == []
         # The skipped seq no longer holds up the buffer
@@ -193,7 +193,7 @@ class TestProcessFrameFallbacks:
         assert orchestrator._t_zero_detected is False
 
     async def test_jpeg_failure_keeps_telemetry(self, orchestrator):
-        orchestrator._run_jpeg_encoding = AsyncMock(side_effect=RuntimeError("jpeg"))
+        orchestrator._frames.run_jpeg_encoding = AsyncMock(side_effect=RuntimeError("jpeg"))
         await orchestrator._process_frame(_FRAME, 1, 30, 30.0, detect_t_zero=False)
         assert len(_telemetry_messages(orchestrator)) == 1
 
