@@ -18,7 +18,7 @@ import re
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.gzip import GZipMiddleware
@@ -149,6 +149,66 @@ orchestrator = PipelineOrchestrator(
 )
 
 
+# --- WebSocket control commands ---
+
+
+async def _broadcast_status() -> None:
+    """Broadcast the current pipeline status to all connected clients."""
+    await manager.broadcast_json({
+        "type": "status",
+        "payload": orchestrator.build_status_payload(),
+    })
+
+
+async def _handle_start(websocket: WebSocket, data: dict[str, Any]) -> None:
+    """Start the pipeline on the requested source URL."""
+    source_url = data.get("source_url", "")
+    skip_frames = data.get("skip_frames", 30)
+
+    await orchestrator.start(source_url, skip_frames)
+
+
+async def _handle_stop(websocket: WebSocket, data: dict[str, Any]) -> None:
+    """Stop the pipeline and broadcast the resulting status."""
+    await orchestrator.stop()
+
+    # Broadcast status update after stopping
+    await _broadcast_status()
+
+
+async def _handle_validate_url(websocket: WebSocket, data: dict[str, Any]) -> None:
+    """Validate a source URL and reply to the requesting client only."""
+    url = data.get("url", "")
+    error = await orchestrator.frame_extractor.validate(url)
+    result = {
+        "type": "validation_result",
+        "payload": {
+            "valid": error is None,
+            "message": "" if error is None else error.message,
+            "url": url,
+        },
+    }
+    await websocket.send_json(result)
+
+
+async def _handle_set_interval(websocket: WebSocket, data: dict[str, Any]) -> None:
+    """Update the frame skip count and broadcast the resulting status."""
+    skip_frames = data.get("skip_frames", 30)
+    orchestrator.set_skip_frames(skip_frames)
+
+    await _broadcast_status()
+
+
+_ACTION_HANDLERS: dict[
+    str, Callable[[WebSocket, dict[str, Any]], Awaitable[None]]
+] = {
+    "start": _handle_start,
+    "stop": _handle_stop,
+    "validate_url": _handle_validate_url,
+    "set_interval": _handle_set_interval,
+}
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -194,6 +254,7 @@ def create_app() -> FastAPI:
         )
 
         await manager.connect(websocket)
+        session_error: Exception | None = None
         try:
             while True:
                 data = await websocket.receive_json()
@@ -219,43 +280,11 @@ def create_app() -> FastAPI:
                     action,
                 )
 
-                if action == "start":
-                    source_url = data.get("source_url", "")
-                    skip_frames = data.get("skip_frames", 30)
-
-                    await orchestrator.start(source_url, skip_frames)
-
-                elif action == "stop":
-                    await orchestrator.stop()
-
-                    # Broadcast status update after stopping
-                    await manager.broadcast_json({
-                        "type": "status",
-                        "payload": orchestrator.build_status_payload(),
-                    })
-
-                elif action == "validate_url":
-                    url = data.get("url", "")
-                    error = await orchestrator.frame_extractor.validate(url)
-                    result = {
-                        "type": "validation_result",
-                        "payload": {
-                            "valid": error is None,
-                            "message": "" if error is None else error.message,
-                            "url": url,
-                        },
-                    }
-                    await websocket.send_json(result)
-
-                elif action == "set_interval":
-                    skip_frames = data.get("skip_frames", 30)
-                    orchestrator.set_skip_frames(skip_frames)
-
-                    await manager.broadcast_json({
-                        "type": "status",
-                        "payload": orchestrator.build_status_payload(),
-                    })
-
+                # Non-string actions (e.g. a JSON list) are unhashable, so only
+                # look strings up; anything else is an unknown action
+                handler = _ACTION_HANDLERS.get(action) if isinstance(action, str) else None
+                if handler is not None:
+                    await handler(websocket, data)
                 else:
                     await websocket.send_json({
                         "type": "error",
@@ -265,16 +294,10 @@ def create_app() -> FastAPI:
                     })
 
         except WebSocketDisconnect:
-            duration_ms = int((time.monotonic() - connect_time) * 1000)
-            logger.info(
-                "WebSocket session disconnected",
-                extra={
-                    "correlation_id": session_correlation_id,
-                    "duration_ms": duration_ms,
-                },
-            )
-            manager.disconnect(websocket)
+            pass
         except Exception as e:
+            session_error = e
+        finally:
             duration_ms = int((time.monotonic() - connect_time) * 1000)
             logger.info(
                 "WebSocket session disconnected",
@@ -283,7 +306,8 @@ def create_app() -> FastAPI:
                     "duration_ms": duration_ms,
                 },
             )
-            logger.error(f"WebSocket error: {e}")
+            if session_error is not None:
+                logger.error(f"WebSocket error: {session_error}")
             manager.disconnect(websocket)
 
     # --- Previous Flights Endpoints ---

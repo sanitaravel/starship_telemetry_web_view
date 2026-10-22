@@ -21,11 +21,11 @@ import numpy as np
 from src.concurrency_controller import ConcurrencyController
 from src.logging_context import frame_seq_var
 from src.engine_analyzer import EngineAnalyzerConfig, EngineAnalysisResult, analyze_engines
-from src.enums import OCRFieldStatus, PipelineStatus, SeparationState
+from src.enums import PipelineStatus, SeparationState
 from src.frame_extractor import FrameExtractor, FrameExtractorConfig
 from src.gpu_detector import GPUCapabilities
 from src.models import ROIConfiguration
-from src.ocr_engine import EasyOCREngine, OCRFieldResult, OCRResult
+from src.ocr_engine import EasyOCREngine, OCRResult
 from src.parallel_config import FPSMeter, ParallelPipelineConfig
 from src.record_assembler import RecordAssembler
 from src.reorder_buffer import BufferedResult, BufferOverflowError, ReorderBuffer
@@ -207,11 +207,7 @@ class PipelineOrchestrator:
                 seq,
                 self._parallel_config.stage_timeout_seconds,
             )
-            return EngineAnalysisResult(
-                engine_statuses={},
-                detection_accuracy=0.0,
-                engine_group_bounding_boxes=[],
-            )
+            return EngineAnalysisResult.empty()
 
     async def _run_ocr_extraction(self, frame: np.ndarray) -> OCRResult:
         """Run OCR text extraction in the thread pool executor.
@@ -260,21 +256,7 @@ class PipelineOrchestrator:
                 seq,
                 self._parallel_config.stage_timeout_seconds,
             )
-            unavailable = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
-            return OCRResult(
-                time=unavailable,
-                speed_l=unavailable,
-                speed_l_unit=unavailable,
-                speed_r=unavailable,
-                speed_r_unit=unavailable,
-                altitude_l=unavailable,
-                altitude_l_unit=unavailable,
-                altitude_r=unavailable,
-                altitude_r_unit=unavailable,
-                stage_l=unavailable,
-                stage_r=unavailable,
-                stage_sep_text=unavailable,
-            )
+            return OCRResult.unavailable()
 
     async def _run_jpeg_encoding(self, frame: np.ndarray) -> str:
         """Encode a downscaled preview of the frame as JPEG in the thread pool.
@@ -613,7 +595,7 @@ class PipelineOrchestrator:
     ) -> None:
         """Wrap frame processing with a configurable timeout.
 
-        Calls _process_frame_parallel within asyncio.wait_for using
+        Calls _process_frame within asyncio.wait_for using
         frame_timeout_seconds (default 10s). On timeout, logs a warning,
         advances the reorder buffer's expected sequence past the timed-out
         frame, and drains any consecutive results that become available.
@@ -630,7 +612,9 @@ class PipelineOrchestrator:
         """
         try:
             await asyncio.wait_for(
-                self._process_frame_parallel(frame, seq, frame_number, source_fps),
+                self._process_frame(
+                    frame, seq, frame_number, source_fps, detect_t_zero=False
+                ),
                 timeout=self._parallel_config.frame_timeout_seconds,
             )
         except asyncio.TimeoutError:
@@ -645,22 +629,86 @@ class PipelineOrchestrator:
             self._skip_frame(seq)
             await self._drain_reorder_buffer()
 
-    async def _process_frame_parallel(
-        self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float
+    def _unpack_stage_results(
+        self,
+        seq: int,
+        engine_result_or_exc: EngineAnalysisResult | BaseException,
+        ocr_result_or_exc: OCRResult | BaseException,
+    ) -> tuple[EngineAnalysisResult, OCRResult] | None:
+        """Replace a failed stage's exception with its default result.
+
+        Logs each failed stage. When only one stage failed, the other's result
+        is kept and the failed one falls back to an empty/UNAVAILABLE result.
+
+        Args:
+            seq: Frame sequence number (for logging).
+            engine_result_or_exc: Engine analysis result or the exception it raised.
+            ocr_result_or_exc: OCR extraction result or the exception it raised.
+
+        Returns:
+            (engine_result, ocr_result), or None when both stages failed and
+            the frame should be skipped.
+        """
+        if isinstance(engine_result_or_exc, BaseException):
+            logger.error(
+                "Engine analysis failed for frame %d: %s",
+                seq,
+                engine_result_or_exc,
+                exc_info=engine_result_or_exc,
+            )
+            engine_result = EngineAnalysisResult.empty()
+        else:
+            engine_result = engine_result_or_exc
+
+        if isinstance(ocr_result_or_exc, BaseException):
+            logger.error(
+                "OCR extraction failed for frame %d: %s",
+                seq,
+                ocr_result_or_exc,
+                exc_info=ocr_result_or_exc,
+            )
+            ocr_result = OCRResult.unavailable()
+        else:
+            ocr_result = ocr_result_or_exc
+
+        if isinstance(engine_result_or_exc, BaseException) and isinstance(
+            ocr_result_or_exc, BaseException
+        ):
+            logger.error(
+                "Both engine analysis and OCR failed for frame %d, skipping frame.",
+                seq,
+            )
+            return None
+        return engine_result, ocr_result
+
+    async def _process_frame(
+        self,
+        frame: np.ndarray,
+        seq: int,
+        frame_number: int,
+        source_fps: float,
+        *,
+        detect_t_zero: bool,
     ) -> None:
         """Process a frame with intra-frame parallelism using asyncio.gather.
 
-        Runs engine analysis and OCR extraction concurrently. If one stage
-        fails, uses a default result for the failed stage and continues with
-        the successful result. If both fail, the frame is skipped.
+        Runs engine analysis, OCR extraction and JPEG encoding concurrently
+        in the thread pools. If one stage fails, uses a default result for
+        the failed stage and continues with the successful result. If both
+        fail, the frame is skipped.
 
-        JPEG encoding is also run concurrently via the thread pool.
+        Used both pre-T-0 (awaited inline from _on_frame, so frames are
+        processed one at a time in capture order) and post-T-0 (spawned as
+        a task via _process_frame_with_timeout, overlapping other frames).
 
         Args:
             frame: BGR numpy array (1920x1080).
             seq: Frame sequence number from the extractor.
             frame_number: Absolute source frame index in the original stream.
             source_fps: Source video frame rate in frames per second.
+            detect_t_zero: When True (pre-T-0 sequential mode), checks after
+                OCR whether T-0 was detected and, if so, enables parallel
+                mode for subsequent frames.
         """
         if self._roi_config is None:
             logger.warning("No ROI configuration available, skipping frame.")
@@ -669,7 +717,7 @@ class PipelineOrchestrator:
         frame_start = time.monotonic()
         try:
             # Step 1: Run engine analysis and OCR extraction concurrently
-            # Also start JPEG encoding concurrently
+            # (intra-frame parallelism), plus JPEG encoding
             engine_result_or_exc, ocr_result_or_exc, frame_b64 = await asyncio.gather(
                 self._run_engine_analysis(frame),
                 self._run_ocr_extraction(frame),
@@ -677,66 +725,34 @@ class PipelineOrchestrator:
                 return_exceptions=True,
             )
 
-            # Step 2: Handle exception results from engine analysis
-            if isinstance(engine_result_or_exc, BaseException):
-                logger.error(
-                    "Engine analysis failed for frame %d: %s",
-                    seq,
-                    engine_result_or_exc,
-                    exc_info=engine_result_or_exc,
-                )
-                engine_result = EngineAnalysisResult(
-                    engine_statuses={},
-                    detection_accuracy=0.0,
-                    engine_group_bounding_boxes=[],
-                )
-            else:
-                engine_result = engine_result_or_exc
-
-            # Step 3: Handle exception results from OCR extraction
-            if isinstance(ocr_result_or_exc, BaseException):
-                logger.error(
-                    "OCR extraction failed for frame %d: %s",
-                    seq,
-                    ocr_result_or_exc,
-                    exc_info=ocr_result_or_exc,
-                )
-                unavailable = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
-                ocr_result = OCRResult(
-                    time=unavailable,
-                    speed_l=unavailable,
-                    speed_l_unit=unavailable,
-                    speed_r=unavailable,
-                    speed_r_unit=unavailable,
-                    altitude_l=unavailable,
-                    altitude_l_unit=unavailable,
-                    altitude_r=unavailable,
-                    altitude_r_unit=unavailable,
-                    stage_l=unavailable,
-                    stage_r=unavailable,
-                    stage_sep_text=unavailable,
-                )
-            else:
-                ocr_result = ocr_result_or_exc
-
-            # Step 4: If both stages failed, skip frame without crashing
-            if isinstance(engine_result_or_exc, BaseException) and isinstance(
-                ocr_result_or_exc, BaseException
-            ):
-                logger.error(
-                    "Both engine analysis and OCR failed for frame %d, skipping frame.",
-                    seq,
-                )
+            # Step 2: Fall back for a failed stage; skip the frame if both failed
+            unpacked = self._unpack_stage_results(
+                seq, engine_result_or_exc, ocr_result_or_exc
+            )
+            if unpacked is None:
                 self._skip_frame(seq)
                 await self._drain_reorder_buffer()
                 return
+            engine_result, ocr_result = unpacked
 
-            # Step 5: Stage assignment runs when the result leaves the reorder
-            # buffer, in video order; the record gets a placeholder until then
+            # Step 3: Pre-T-0 only, check for T-0 detection after OCR completes
+            ocr_engine = self._ensure_ocr_engine()
+            if detect_t_zero and not self._t_zero_detected and ocr_engine.t_zero_detected:
+                self._t_zero_detected = True
+                self._state.t_zero_detected = True
+                self._state.parallel_mode_active = True
+                logger.info(
+                    "T-0 detected during sequential processing of frame %d, "
+                    "enabling parallel frame processing mode.",
+                    seq,
+                )
+
+            # Step 4: Stage assignment runs when the result leaves the reorder
+            # buffer (see _drain_reorder_buffer), in video order; the record
+            # gets a placeholder until then
             stage_result = self._pending_stage_result()
 
-            # Step 6: Record Assembly
-            ocr_engine = self._ensure_ocr_engine()
+            # Step 5: Record Assembly
             record = self._record_assembler.assemble(
                 engine_result=engine_result,
                 ocr_result=ocr_result,
@@ -748,7 +764,7 @@ class PipelineOrchestrator:
                 stage_sep_found=stage_result.separation_state == SeparationState.POST_SEPARATION,
             )
 
-            # Step 7: Handle frame_b64 exception (only pass str | None to buffer)
+            # Step 6: Handle frame_b64 exception (only pass str | None to buffer)
             actual_frame_b64: str | None = None
             if isinstance(frame_b64, BaseException):
                 logger.warning(
@@ -757,7 +773,7 @@ class PipelineOrchestrator:
             else:
                 actual_frame_b64 = frame_b64
 
-            # Step 8: Submit to reorder buffer for ordered broadcast
+            # Step 7: Submit to reorder buffer for ordered broadcast
             await self._submit_to_reorder_buffer(seq, record, actual_frame_b64, ocr_result)
 
             # Log total frame processing duration
@@ -991,9 +1007,10 @@ class PipelineOrchestrator:
         Implements the frame dispatch logic:
         1. Assigns a Frame_Sequence_Number (starting at 1, incrementing by 1)
         2. Checks T-0 detection via the OCR engine's t_zero_detected property
-        3. Pre-T-0: processes frame sequentially via _process_frame_sequential
+        3. Pre-T-0: awaits _process_frame inline (detect_t_zero=True)
         4. Post-T-0: waits for a concurrency slot (backpressure) with timeout
-           - If slot acquired: spawns _process_frame_parallel as async task
+           - If slot acquired: spawns _process_frame (via
+             _process_frame_with_timeout) as async task
            - If wait times out: discards frame and logs warning
 
         Args:
@@ -1023,7 +1040,9 @@ class PipelineOrchestrator:
 
         if not self._t_zero_detected:
             # Pre-T-0: sequential processing
-            await self._process_frame_sequential(frame, frame_seq, frame_number, source_fps)
+            await self._process_frame(
+                frame, frame_seq, frame_number, source_fps, detect_t_zero=True
+            )
         else:
             # Post-T-0: wait for a concurrency slot with backpressure.
             # This pauses the capture loop until processing capacity is available,
@@ -1062,149 +1081,6 @@ class PipelineOrchestrator:
                         self._concurrency_controller.in_flight,
                         self._concurrency_controller.limit,
                     )
-
-    async def _process_frame_sequential(
-        self, frame: np.ndarray, seq: int, frame_number: int, source_fps: float
-    ) -> None:
-        """Process a single frame sequentially (pre-T-0 mode).
-
-        Uses the same intra-frame parallelism as _process_frame_parallel
-        (engine analysis + OCR run concurrently via asyncio.gather dispatched
-        to the thread pool) but is awaited inline — no inter-frame overlap.
-        This ensures frames are processed one at a time in capture order
-        before T-0 is detected.
-
-        After processing, checks if T-0 was detected during OCR and sets
-        _t_zero_detected to enable parallel mode for subsequent frames.
-
-        Args:
-            frame: BGR numpy array (1920x1080).
-            seq: Frame sequence number.
-            frame_number: Absolute source frame index in the original stream.
-            source_fps: Source video frame rate in frames per second.
-        """
-        if self._roi_config is None:
-            logger.warning("No ROI configuration available, skipping frame.")
-            return
-
-        frame_start = time.monotonic()
-        try:
-            # Step 1: Run engine analysis and OCR extraction concurrently
-            # (intra-frame parallelism), plus JPEG encoding
-            engine_result_or_exc, ocr_result_or_exc, frame_b64 = await asyncio.gather(
-                self._run_engine_analysis(frame),
-                self._run_ocr_extraction(frame),
-                self._run_jpeg_encoding(frame),
-                return_exceptions=True,
-            )
-
-            # Step 2: Handle exception results from engine analysis
-            if isinstance(engine_result_or_exc, BaseException):
-                logger.error(
-                    "Engine analysis failed for frame %d: %s",
-                    seq,
-                    engine_result_or_exc,
-                    exc_info=engine_result_or_exc,
-                )
-                engine_result = EngineAnalysisResult(
-                    engine_statuses={},
-                    detection_accuracy=0.0,
-                    engine_group_bounding_boxes=[],
-                )
-            else:
-                engine_result = engine_result_or_exc
-
-            # Step 3: Handle exception results from OCR extraction
-            if isinstance(ocr_result_or_exc, BaseException):
-                logger.error(
-                    "OCR extraction failed for frame %d: %s",
-                    seq,
-                    ocr_result_or_exc,
-                    exc_info=ocr_result_or_exc,
-                )
-                unavailable = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
-                ocr_result = OCRResult(
-                    time=unavailable,
-                    speed_l=unavailable,
-                    speed_l_unit=unavailable,
-                    speed_r=unavailable,
-                    speed_r_unit=unavailable,
-                    altitude_l=unavailable,
-                    altitude_l_unit=unavailable,
-                    altitude_r=unavailable,
-                    altitude_r_unit=unavailable,
-                    stage_l=unavailable,
-                    stage_r=unavailable,
-                    stage_sep_text=unavailable,
-                )
-            else:
-                ocr_result = ocr_result_or_exc
-
-            # Step 4: If both stages failed, skip frame without crashing
-            if isinstance(engine_result_or_exc, BaseException) and isinstance(
-                ocr_result_or_exc, BaseException
-            ):
-                logger.error(
-                    "Both engine analysis and OCR failed for frame %d, skipping frame.",
-                    seq,
-                )
-                self._skip_frame(seq)
-                await self._drain_reorder_buffer()
-                return
-
-            # Step 5: Check for T-0 detection after OCR completes
-            ocr_engine = self._ensure_ocr_engine()
-            if not self._t_zero_detected and ocr_engine.t_zero_detected:
-                self._t_zero_detected = True
-                self._state.t_zero_detected = True
-                self._state.parallel_mode_active = True
-                logger.info(
-                    "T-0 detected during sequential processing of frame %d, "
-                    "enabling parallel frame processing mode.",
-                    seq,
-                )
-
-            # Step 6: Stage assignment runs when the result leaves the reorder
-            # buffer (see _drain_reorder_buffer)
-            stage_result = self._pending_stage_result()
-
-            # Step 7: Record Assembly
-            record = self._record_assembler.assemble(
-                engine_result=engine_result,
-                ocr_result=ocr_result,
-                stage_result=stage_result,
-                engine_groups=self._roi_config.engine_groups,
-                frame_number=frame_number,
-                source_fps=source_fps,
-                t_zero_found=ocr_engine.t_zero_detected,
-                stage_sep_found=stage_result.separation_state == SeparationState.POST_SEPARATION,
-            )
-
-            # Step 8: Handle frame_b64 exception (only pass str | None to buffer)
-            actual_frame_b64: str | None = None
-            if isinstance(frame_b64, BaseException):
-                logger.warning(
-                    "Failed to encode frame %d: %s", seq, frame_b64
-                )
-            else:
-                actual_frame_b64 = frame_b64
-
-            # Step 9: Submit to reorder buffer for ordered broadcast
-            await self._submit_to_reorder_buffer(seq, record, actual_frame_b64, ocr_result)
-
-            # Log total frame processing duration
-            frame_end = time.monotonic()
-            total_duration_ms = int((frame_end - frame_start) * 1000)
-            logger.debug(
-                "Frame processing completed",
-                extra={"frame_seq": seq, "duration_ms": total_duration_ms},
-            )
-
-        except Exception as e:
-            logger.error(f"Error processing frame {seq}: {e}", exc_info=True)
-            # Skip this frame, pipeline continues
-            self._skip_frame(seq)
-            await self._drain_reorder_buffer()
 
     async def _on_status_change(self, new_status: PipelineStatus) -> None:
         """Handle frame extractor status changes.

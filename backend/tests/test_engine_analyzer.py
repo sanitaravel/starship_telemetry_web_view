@@ -579,3 +579,22 @@ class TestEnginePanelDetection:
         assert all(result.engine_statuses[f"s{i}"] == EngineStatus.UNDETECTED for i in range(4))
         assert result.detection_accuracy == 8 / 12
         assert result.engine_group_bounding_boxes == [PANEL_BBOX]
+
+
+class TestEngineAnalysisResultEmpty:
+    """EngineAnalysisResult.empty() is the fallback for a failed/timed-out stage."""
+
+    def test_empty_has_no_statuses_zero_accuracy_no_boxes(self):
+        result = EngineAnalysisResult.empty()
+        assert result.engine_statuses == {}
+        assert result.detection_accuracy == 0.0
+        assert result.engine_group_bounding_boxes == []
+
+    def test_empty_returns_independent_containers(self):
+        """Mutating one empty result must not leak into the next."""
+        first = EngineAnalysisResult.empty()
+        first.engine_statuses["e0"] = EngineStatus.ACTIVE
+        first.engine_group_bounding_boxes.append(PANEL_BBOX)
+        second = EngineAnalysisResult.empty()
+        assert second.engine_statuses == {}
+        assert second.engine_group_bounding_boxes == []

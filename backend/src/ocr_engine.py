@@ -111,6 +111,20 @@ class OCRResult:
     stage_r: OCRFieldResult
     stage_sep_text: OCRFieldResult
 
+    @classmethod
+    def unavailable(cls, time: OCRFieldResult | None = None) -> "OCRResult":
+        """An OCRResult carrying no telemetry: every field UNAVAILABLE.
+
+        Args:
+            time: Optional time field to keep in place of UNAVAILABLE
+                (e.g. the read that gated the rest of the frame out).
+        """
+        missing = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
+        fields = {name: missing for name in cls.__dataclass_fields__}
+        if time is not None:
+            fields["time"] = time
+        return cls(**fields)
+
 
 def _roi_bounds(frame: np.ndarray, roi: ROIRect) -> tuple[int, int, int, int]:
     """Return (x1, y1, x2, y2) for the ROI, clamped to the frame boundaries."""
@@ -481,7 +495,7 @@ class EasyOCREngine:
     @staticmethod
     def _all_unavailable(time: OCRFieldResult | None = None) -> OCRResult:
         """An OCRResult carrying no telemetry, optionally keeping the time read."""
-        return EasyOCREngine._build_result({"time": time} if time is not None else {})
+        return OCRResult.unavailable(time=time)
 
     def _process_field(
         self,

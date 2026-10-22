@@ -258,3 +258,102 @@ class TestWebSocketEndpoint:
             response = ws.receive_json()
             assert response["type"] == "validation_result"
             assert response["payload"]["valid"] is False
+
+
+class TestWebSocketDispatch:
+    """The action dispatch table, status broadcasts and disconnect cleanup."""
+
+    @pytest.mark.parametrize(
+        "action, expected_message",
+        [
+            ("warp_drive", "Unknown action: warp_drive"),
+            (["stop"], "Unknown action: ['stop']"),
+            ({"name": "stop"}, "Unknown action: {'name': 'stop'}"),
+            (None, "Unknown action: None"),
+            (42, "Unknown action: 42"),
+        ],
+        ids=["unknown-string", "list", "dict", "missing", "int"],
+    )
+    def test_unknown_or_non_string_action_errors_and_connection_survives(
+        self, app, action, expected_message
+    ):
+        """Unknown/non-string actions get an error reply; the session keeps working."""
+        message = {} if action is None else {"action": action}
+        with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+            ws.send_json(message)
+            assert ws.receive_json() == {
+                "type": "error",
+                "payload": {"message": expected_message},
+            }
+
+            # Still usable: a real command is handled normally afterwards
+            ws.send_json({"action": "validate_url", "url": ""})
+            response = ws.receive_json()
+            assert response["type"] == "validation_result"
+
+    def test_stop_broadcasts_status(self, app):
+        """stop replies to every client with a status message."""
+        with patch(
+            "src.server.orchestrator.stop", new_callable=AsyncMock
+        ) as stop, TestClient(app) as client, \
+                client.websocket_connect("/ws/telemetry") as ws, \
+                client.websocket_connect("/ws/telemetry") as other:
+            ws.send_json({"action": "stop"})
+            for conn in (ws, other):
+                response = conn.receive_json()
+                assert response["type"] == "status"
+                assert response["payload"]["status"] == "stopped"
+            stop.assert_awaited_once()
+
+    def test_set_interval_broadcasts_status_with_new_skip(self, app):
+        """set_interval updates skip_frames and broadcasts it to every client."""
+        from src.server import orchestrator
+
+        original = orchestrator.state.skip_frames
+        try:
+            with TestClient(app) as client, \
+                    client.websocket_connect("/ws/telemetry") as ws, \
+                    client.websocket_connect("/ws/telemetry") as other:
+                ws.send_json({"action": "set_interval", "skip_frames": 12})
+                for conn in (ws, other):
+                    response = conn.receive_json()
+                    assert response["type"] == "status"
+                    assert response["payload"]["skip_frames"] == 12
+        finally:
+            orchestrator.set_skip_frames(original)
+
+    def test_disconnect_removes_connection_from_manager(self, app):
+        """Closing the socket runs the finally cleanup and unregisters it."""
+        connected = []
+        real_connect = manager.connect
+
+        async def spy_connect(websocket):
+            connected.append(websocket)
+            await real_connect(websocket)
+
+        before = len(manager.active_connections)
+        with patch.object(manager, "connect", side_effect=spy_connect), \
+                TestClient(app) as client:
+            with client.websocket_connect("/ws/telemetry") as ws:
+                # Round-trip so the server has definitely registered the socket
+                ws.send_json({"action": "validate_url", "url": ""})
+                ws.receive_json()
+                assert len(connected) == 1
+                assert connected[0] in manager.active_connections
+                assert len(manager.active_connections) == before + 1
+
+        assert connected[0] not in manager.active_connections
+        assert len(manager.active_connections) == before
+
+    def test_disconnect_logged_once(self, app, src_caplog):
+        """The session-disconnected log fires exactly once per session."""
+        import logging
+
+        with src_caplog.at_level(logging.INFO, logger="src.server"), TestClient(app) as client:
+            with client.websocket_connect("/ws/telemetry") as ws:
+                ws.send_json({"action": "validate_url", "url": ""})
+                ws.receive_json()
+        disconnects = [r for r in src_caplog.records
+                       if r.getMessage() == "WebSocket session disconnected"]
+        assert len(disconnects) == 1
+        assert not [r for r in src_caplog.records if r.getMessage().startswith("WebSocket error")]
