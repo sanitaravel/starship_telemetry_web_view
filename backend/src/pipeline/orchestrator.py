@@ -17,6 +17,7 @@ import numpy as np
 
 from src.capture import FrameExtractor, FrameExtractorConfig
 from src.core.enums import PipelineStatus, SeparationState
+from src.core.gpu import GPUCapabilities
 from src.core.logging_context import frame_seq_var
 from src.ocr.engine import EasyOCREngine
 from src.ocr.results import OCRResult
@@ -31,7 +32,6 @@ from src.pipeline.status_payload import build_status_payload
 from src.telemetry.record_assembler import RecordAssembler
 from src.telemetry.stage_assignment import StageAssigner
 from src.templates.template_registry import TemplateRegistry, TemplateNotFoundError
-from src.vision.gpu_detector import GPUCapabilities
 
 
 logger = logging.getLogger(__name__)

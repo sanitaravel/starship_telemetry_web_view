@@ -15,10 +15,10 @@ import numpy as np
 import pytest
 
 from src.core.enums import OCRFieldStatus
+from src.core.gpu import AccelerationBackend, GPUCapabilities
 from src.core.models import ROIRect
 from src.ocr.engine import EasyOCREngine
 from src.ocr.regions import crop_frame_to_roi, text_columns
-from src.vision.gpu_detector import AccelerationBackend, GPUCapabilities
 
 
 # --- Fixtures ---

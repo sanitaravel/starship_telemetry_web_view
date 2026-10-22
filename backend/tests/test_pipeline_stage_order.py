@@ -4,11 +4,11 @@ import asyncio
 from types import SimpleNamespace
 
 from src.core.enums import OCRFieldStatus
+from src.core.gpu import AccelerationBackend, GPUCapabilities
 from src.ocr.results import OCRFieldResult, OCRResult
 from src.pipeline import PipelineOrchestrator
 from src.pipeline.reorder_buffer import ReorderBuffer
 from src.templates.template_registry import TemplateRegistry, load_default_template
-from src.vision.gpu_detector import AccelerationBackend, GPUCapabilities
 
 _NONE = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
 

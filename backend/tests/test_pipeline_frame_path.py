@@ -13,12 +13,12 @@ import numpy as np
 import pytest
 
 from src.core.enums import EngineStatus, OCRFieldStatus
+from src.core.gpu import AccelerationBackend, GPUCapabilities
 from src.ocr.results import OCRFieldResult, OCRResult
 from src.pipeline import PipelineOrchestrator
 from src.pipeline.reorder_buffer import ReorderBuffer
 from src.templates.template_registry import TemplateRegistry, load_default_template
 from src.vision.engine_analyzer import EngineAnalysisResult
-from src.vision.gpu_detector import AccelerationBackend, GPUCapabilities
 
 _T_ZERO_LOG = "T-0 detected during sequential processing"
 

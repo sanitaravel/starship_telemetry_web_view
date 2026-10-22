@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from src.core.enums import PipelineStatus, SeparationState
-from src.vision.gpu_detector import GPUCapabilities
+from src.core.gpu import GPUCapabilities
 
 
 @dataclass

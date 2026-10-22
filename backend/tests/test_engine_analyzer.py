@@ -17,6 +17,7 @@ from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 
 from src.core.enums import EngineStatus
+from src.core.gpu import GPUCapabilities, AccelerationBackend
 from src.core.models import EngineGroup, EngineSubgroup, ROICircle, ROIRect
 from src.vision.engine_analyzer import (
     EngineAnalyzerConfig,
@@ -25,7 +26,6 @@ from src.vision.engine_analyzer import (
     _looks_like_engine_icon,
     analyze_engines,
 )
-from src.vision.gpu_detector import GPUCapabilities, AccelerationBackend
 
 
 # ─── Strategies ───────────────────────────────────────────────────────────────

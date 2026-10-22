@@ -2,9 +2,9 @@
 
 from typing import Any
 
+from src.core.gpu import GPUCapabilities
 from src.core.version import get_version
 from src.pipeline.state import PipelineState
-from src.vision.gpu_detector import GPUCapabilities
 
 
 def build_status_payload(

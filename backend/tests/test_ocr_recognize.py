@@ -14,9 +14,9 @@ import numpy as np
 import pytest
 
 from src.core.enums import OCRFieldStatus
+from src.core.gpu import AccelerationBackend, GPUCapabilities
 from src.core.models import ROIRect
 from src.ocr.engine import EasyOCREngine, configure_torch_threads
-from src.vision.gpu_detector import AccelerationBackend, GPUCapabilities
 
 
 CPU = GPUCapabilities(

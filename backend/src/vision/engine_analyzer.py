@@ -13,8 +13,8 @@ import numpy as np
 from dataclasses import dataclass
 
 from src.core.enums import EngineStatus
+from src.core.gpu import GPUCapabilities
 from src.core.models import EngineGroup, ROIRect
-from src.vision.gpu_detector import GPUCapabilities
 
 
 @dataclass(frozen=True)

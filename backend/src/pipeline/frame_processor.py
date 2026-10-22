@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
 from src.core.enums import SeparationState
+from src.core.gpu import GPUCapabilities
 from src.core.logging_context import frame_seq_var
 from src.core.models import ROIConfiguration
 from src.ocr.engine import EasyOCREngine
@@ -23,7 +24,6 @@ from src.pipeline.stages import encode_preview, run_timed, unpack_stage_results
 from src.pipeline.state import PipelineState
 from src.telemetry.record_assembler import RecordAssembler
 from src.vision.engine_analyzer import EngineAnalyzerConfig, EngineAnalysisResult, analyze_engines
-from src.vision.gpu_detector import GPUCapabilities
 
 
 logger = logging.getLogger(__name__)

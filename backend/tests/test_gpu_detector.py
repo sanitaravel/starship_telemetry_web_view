@@ -2,11 +2,8 @@
 
 from unittest.mock import patch
 
-from src.vision.gpu_detector import (
-    AccelerationBackend,
-    GPUCapabilities,
-    detect_gpu,
-)
+from src.core.gpu import AccelerationBackend, GPUCapabilities
+from src.vision.gpu_detector import detect_gpu
 
 
 class TestImports:
