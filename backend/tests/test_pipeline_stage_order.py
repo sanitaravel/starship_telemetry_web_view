@@ -7,7 +7,7 @@ from src.enums import OCRFieldStatus
 from src.gpu_detector import AccelerationBackend, GPUCapabilities
 from src.ocr_engine import OCRFieldResult, OCRResult
 from src.pipeline import PipelineOrchestrator
-from src.reorder_buffer import ReorderBuffer
+from src.pipeline.reorder_buffer import ReorderBuffer
 from src.template_registry import TemplateRegistry, load_default_template
 
 _NONE = OCRFieldResult(status=OCRFieldStatus.UNAVAILABLE)
