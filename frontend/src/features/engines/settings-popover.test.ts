@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SERIAL_PREFIX, withPrefix, withoutPrefix } from './engine-settings';
+import { SERIAL_PREFIX, withPrefix, withoutPrefix } from './settings-popover';
 
 describe('serial prefix', () => {
   it('adds the R to what was typed', () => {

@@ -2,19 +2,19 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import type { EngineGroup } from './engine-settings';
+import type { EngineGroup } from './settings-popover';
 
 // The settings panel is a module-level singleton and workers are shared
 // (isolate: false). Load a private copy of the module and drop it afterwards,
 // so the panel created here (and later detached by other files clearing the
-// body) is never the one engine-visualizer.test.ts gets.
-let settings: typeof import('./engine-settings');
-let serialsModule: typeof import('./state/engine-serials');
+// body) is never the one the visualizer tests get (see visualizer.harness.ts).
+let settings: typeof import('./settings-popover');
+let serialsModule: typeof import('../../state/engine-serials');
 
 beforeAll(async () => {
   vi.resetModules();
-  settings = await import('./engine-settings');
-  serialsModule = await import('./state/engine-serials');
+  settings = await import('./settings-popover');
+  serialsModule = await import('../../state/engine-serials');
 });
 
 afterAll(() => {

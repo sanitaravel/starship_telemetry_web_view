@@ -1,5 +1,5 @@
-import { isNearLiveColor, PRESET_COLORS } from './state/flight-colors';
-import { bindDismiss } from './ui/popover';
+import { isNearLiveColor, PRESET_COLORS } from '../state/flight-colors';
+import { anchorPanel, bindDismiss, type AnchoredPanel } from './popover';
 
 /** What the popover edits: one flight's colour and how to change it. */
 export interface ColorChoice {
@@ -35,6 +35,7 @@ class ColorPopover {
   private readonly customInput: HTMLInputElement;
   private readonly warning: HTMLElement;
   private readonly resetButton: HTMLButtonElement;
+  private readonly anchored: AnchoredPanel;
   private anchor: HTMLElement | null = null;
   private choice: ColorChoice | null = null;
 
@@ -94,14 +95,11 @@ class ColorPopover {
       onDismiss: (reason) => this.close(reason === 'escape'),
       ignore: () => [this.anchor],
     });
-    // Fixed positioning would leave the popover behind on scroll or resize.
-    const follow = () => {
-      if (this.panel.hidden || !this.anchor) return;
-      if (this.anchor.isConnected) this.position(this.anchor);
-      else this.close(false);
-    };
-    window.addEventListener('resize', follow);
-    window.addEventListener('scroll', follow, true);
+    // Below the swatch, lined up with its left edge
+    this.anchored = anchorPanel(this.panel, () => this.anchor, {
+      align: 'left',
+      onAnchorRemoved: () => this.close(false),
+    });
   }
 
   get isOpen(): boolean {
@@ -121,7 +119,7 @@ class ColorPopover {
     this.panel.hidden = false;
     anchor.setAttribute('aria-expanded', 'true');
     this.refresh();
-    this.position(anchor);
+    this.anchored.reposition();
     (this.presets.find((p) => p.getAttribute('aria-pressed') === 'true') ?? this.presets[0]).focus();
   }
 
@@ -152,18 +150,6 @@ class ColorPopover {
     if (this.customInput.value !== color) this.customInput.value = color;
     this.warning.hidden = !isNearLiveColor(color);
     this.resetButton.disabled = !isCustom;
-  }
-
-  /** Below the swatch, kept inside the viewport. */
-  private position(anchor: HTMLElement): void {
-    const margin = 8;
-    const rect = anchor.getBoundingClientRect();
-    const { offsetWidth: width, offsetHeight: height } = this.panel;
-    const left = Math.min(Math.max(margin, rect.left), window.innerWidth - width - margin);
-    const below = rect.bottom + 6;
-    const top = below + height > window.innerHeight - margin ? rect.top - height - 6 : below;
-    this.panel.style.left = `${Math.max(margin, left)}px`;
-    this.panel.style.top = `${Math.max(margin, top)}px`;
   }
 }
 

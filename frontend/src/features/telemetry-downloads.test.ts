@@ -2,9 +2,9 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { StateManager } from './state/state-manager';
+import { StateManager } from '../state/state-manager';
 import { TelemetryDownloads } from './telemetry-downloads';
-import type { TelemetryRecord } from './core/types';
+import type { TelemetryRecord } from '../core/types';
 
 function record(sequence: number): TelemetryRecord {
   return {

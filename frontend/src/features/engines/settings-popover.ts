@@ -1,9 +1,9 @@
-import type { CurrentMission } from './state/current-mission';
-import type { Vehicle } from './domain/engines/layout';
-import { MAX_SERIAL_LENGTH, normaliseSerial, type EngineSerials } from './state/engine-serials';
+import type { CurrentMission } from '../../state/current-mission';
+import type { Vehicle } from '../../domain/engines/layout';
+import { MAX_SERIAL_LENGTH, normaliseSerial, type EngineSerials } from '../../state/engine-serials';
 import { MissionFields } from './mission-fields';
-import { bindDismiss } from './ui/popover';
-import { svgEl } from './ui/svg';
+import { anchorPanel, bindDismiss, type AnchoredPanel } from '../../ui/popover';
+import { svgEl } from '../../ui/svg';
 
 /** Raptor engine serials all start with this letter (e.g. "R576"). */
 export const SERIAL_PREFIX = 'R';
@@ -96,6 +96,7 @@ class EngineSettingsPopover {
   private readonly body: HTMLElement;
   private readonly statusSlot: HTMLElement;
   private readonly clearButton: HTMLButtonElement;
+  private readonly anchored: AnchoredPanel;
   private missionFields: MissionFields | null = null;
   private inputs: HTMLInputElement[] = [];
   private anchor: HTMLElement | null = null;
@@ -150,14 +151,11 @@ class EngineSettingsPopover {
         this.close();
       }
     });
-    // Fixed positioning would leave the panel behind on scroll or resize.
-    const follow = () => {
-      if (this.panel.hidden || !this.anchor) return;
-      if (this.anchor.isConnected) this.position(this.anchor);
-      else this.close(false);
-    };
-    window.addEventListener('resize', follow);
-    window.addEventListener('scroll', follow, true);
+    // Below the gear button, lined up with its right edge
+    this.anchored = anchorPanel(this.panel, () => this.anchor, {
+      align: 'right',
+      onAnchorRemoved: () => this.close(false),
+    });
   }
 
   toggle(anchor: HTMLElement, options: EngineSettingsOptions): void {
@@ -182,7 +180,7 @@ class EngineSettingsPopover {
     this.refresh();
     this.panel.hidden = false;
     anchor.setAttribute('aria-expanded', 'true');
-    this.position(anchor);
+    this.anchored.reposition();
     (this.missionFields?.missionInput ?? this.inputs[0])?.focus();
   }
 
@@ -258,18 +256,6 @@ class EngineSettingsPopover {
       input.value = withoutPrefix(this.serials.get(input.dataset.engine!));
     }
     this.clearButton.disabled = this.serials.isEmpty;
-  }
-
-  /** Below the button, kept inside the viewport. */
-  private position(anchor: HTMLElement): void {
-    const margin = 8;
-    const rect = anchor.getBoundingClientRect();
-    const { offsetWidth: width, offsetHeight: height } = this.panel;
-    const left = Math.min(Math.max(margin, rect.right - width), window.innerWidth - width - margin);
-    const below = rect.bottom + 6;
-    const top = below + height > window.innerHeight - margin ? rect.top - height - 6 : below;
-    this.panel.style.left = `${Math.max(margin, left)}px`;
-    this.panel.style.top = `${Math.max(margin, top)}px`;
   }
 }
 

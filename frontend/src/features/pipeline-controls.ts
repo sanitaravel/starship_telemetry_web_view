@@ -1,8 +1,8 @@
-import type { TelemetryWebSocket } from './api/websocket';
-import type { StateManager, AppState } from './state/state-manager';
-import type { PipelineStatus } from './core/types';
-import { generateCorrelationId } from './core/correlation';
-import { createLogger, setCorrelationId } from './core/logger';
+import type { TelemetryWebSocket } from '../api/websocket';
+import type { StateManager, AppState } from '../state/state-manager';
+import type { PipelineStatus } from '../core/types';
+import { generateCorrelationId } from '../core/correlation';
+import { createLogger, setCorrelationId } from '../core/logger';
 
 const logger = createLogger('pipeline-controls');
 

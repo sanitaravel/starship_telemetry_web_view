@@ -3,10 +3,10 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BackendVersion } from './backend-version';
-import type { AppState } from './state/state-manager';
+import type { AppState } from '../../state/state-manager';
 
 // The page's own version, as injected at build time
-vi.mock('./core/app-version', () => ({ appVersion: () => '0.1.0.64' }));
+vi.mock('../../core/app-version', () => ({ appVersion: () => '0.1.0.64' }));
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
