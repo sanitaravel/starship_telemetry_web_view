@@ -1,0 +1,610 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`app smoke test > renders the same DOM as before 1`] = `
+"<div id="app">
+  <header class="dashboard-header">
+    <h1>
+      Starship Telemetry Dashboard
+    </h1>
+    <span class="dashboard-header__version" title="Version (release.commit)">
+      vdev
+    </span>
+    <span class="dashboard-header__version dashboard-header__version--mismatch" id="backend-version" title="The backend runs v0.0.0.0, this page is vdev. Restart the backend (an old one may still be running) or reload the page.">
+      backend v0.0.0.0
+    </span>
+  </header>
+  <section class="dashboard-controls" aria-label="Pipeline Controls">
+    <div id="pipeline-controls" class="pipeline-controls">
+      <div class="pipeline-controls__url-row">
+        <input type="url" placeholder="Paste livestream URL..." class="pipeline-controls__url-input" aria-label="Livestream URL" .value="">
+        <button class="pipeline-controls__validate-btn" type="button">
+          Validate
+        </button>
+      </div>
+      <div class="pipeline-controls__interval-row">
+        <label class="pipeline-controls__interval-label" for="interval-input">
+          Process every:
+        </label>
+        <input type="number" id="interval-input" min="1" max="300" step="1" class="pipeline-controls__interval-input" aria-label="Process every Nth frame" .value="30">
+        <span class="pipeline-controls__interval-unit">
+          th frame
+        </span>
+      </div>
+      <div class="pipeline-controls__status-row">
+        <span class="pipeline-controls__validation-status" aria-live="polite"></span>
+        <button class="pipeline-controls__action-btn" type="button" style="display: none;"></button>
+        <span class="pipeline-controls__fps" aria-live="polite"></span>
+        <span class="pipeline-controls__status-badge" aria-live="polite"></span>
+      </div>
+    </div>
+    <div id="telemetry-downloads" class="telemetry-downloads">
+      <span class="telemetry-downloads__label">
+        OCR data:
+      </span>
+      <button type="button" class="telemetry-downloads__btn" data-format="flight" title="Speed, altitude and engines per frame in the results_previous/ format" disabled="">
+        ↓ Flight JSON
+      </button>
+      <button type="button" class="telemetry-downloads__btn" data-format="raw" title="Every record exactly as received from the backend" disabled="">
+        ↓ Raw records
+      </button>
+      <span class="telemetry-downloads__count" aria-live="polite">
+        0 records
+      </span>
+    </div>
+  </section>
+  <section class="dashboard-main" aria-label="Telemetry and Frame">
+    <div class="dashboard-main__telemetry">
+      <div id="telemetry-display" class="telemetry-display">
+        <div class="telemetry-display__met">
+          <span class="telemetry-display__met-value" aria-label="Mission Elapsed Time">
+            --:--:--
+          </span>
+        </div>
+        <div class="telemetry-display__indicators">
+          <span class="telemetry-display__badge telemetry-display__badge--inactive" aria-label="T-0 Detection Status">
+            <span class="telemetry-display__badge-dot"></span>
+            <span class="telemetry-display__badge-label">
+              T-0
+            </span>
+          </span>
+          <span class="telemetry-display__badge telemetry-display__badge--inactive" aria-label="Stage Separation Detection Status">
+            <span class="telemetry-display__badge-dot"></span>
+            <span class="telemetry-display__badge-label">
+              STAGE SEP
+            </span>
+          </span>
+        </div>
+        <div class="telemetry-display__grid">
+          <div class="telemetry-display__column">
+            <div class="telemetry-display__column-header">
+              L
+            </div>
+            <div class="telemetry-display__field-row">
+              <span class="telemetry-display__field-label">
+                SPD
+              </span>
+              <span class="telemetry-display__field-value">
+                --
+              </span>
+            </div>
+            <div class="telemetry-display__field-row">
+              <span class="telemetry-display__field-label">
+                ALT
+              </span>
+              <span class="telemetry-display__field-value">
+                --
+              </span>
+            </div>
+          </div>
+          <div class="telemetry-display__column">
+            <div class="telemetry-display__column-header">
+              R
+            </div>
+            <div class="telemetry-display__field-row">
+              <span class="telemetry-display__field-label">
+                SPD
+              </span>
+              <span class="telemetry-display__field-value">
+                --
+              </span>
+            </div>
+            <div class="telemetry-display__field-row">
+              <span class="telemetry-display__field-label">
+                ALT
+              </span>
+              <span class="telemetry-display__field-value">
+                --
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dashboard-main__frame">
+      <div id="frame-preview">
+        <div class="frame-preview">
+          <div class="frame-preview__header">
+            <span class="frame-preview__title">
+              Live Frame
+            </span>
+            <span class="frame-preview__stats">
+              <span class="frame-preview__fps"></span>
+              <span class="frame-preview__seq"></span>
+            </span>
+          </div>
+          <div class="frame-preview__image-container">
+            <img class="frame-preview__img" alt="Current processed frame">
+            <div class="frame-preview__placeholder">
+              No frame data
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="dashboard-engines" aria-label="Engine Status">
+    <div id="engine-visualizer" class="engine-visualizer">
+      <div class="engine-visualizer__section">
+        <h3 class="engine-visualizer__title">
+          SUPER HEAVY
+        </h3>
+        <button type="button" class="engine-settings-btn" title="Super Heavy engine settings" aria-label="Super Heavy engine settings" aria-haspopup="dialog" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </button>
+        <svg viewBox="-2 -2 100 100" width="420" height="420" aria-label="Super Heavy engine status diagram" class="engine-visualizer__svg">
+          <g data-label="E1" role="img" aria-label="E1">
+            <circle cx="56" cy="43" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="56" y="43" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E1
+            </text>
+          </g>
+          <g data-label="E2" role="img" aria-label="E2">
+            <circle cx="48" cy="57" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="48" y="57" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E2
+            </text>
+          </g>
+          <g data-label="E3" role="img" aria-label="E3">
+            <circle cx="40" cy="43" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="40" y="43" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E3
+            </text>
+          </g>
+          <g data-label="E4" role="img" aria-label="E4">
+            <circle cx="56" cy="24" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="56" y="24" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E4
+            </text>
+          </g>
+          <g data-label="E5" role="img" aria-label="E5">
+            <circle cx="69" cy="33" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="69" y="33" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E5
+            </text>
+          </g>
+          <g data-label="E6" role="img" aria-label="E6">
+            <circle cx="74" cy="48" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="74" y="48" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E6
+            </text>
+          </g>
+          <g data-label="E7" role="img" aria-label="E7">
+            <circle cx="69" cy="63" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="69" y="63" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E7
+            </text>
+          </g>
+          <g data-label="E8" role="img" aria-label="E8">
+            <circle cx="56" cy="72" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="56" y="72" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E8
+            </text>
+          </g>
+          <g data-label="E9" role="img" aria-label="E9">
+            <circle cx="40" cy="72" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="40" y="72" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E9
+            </text>
+          </g>
+          <g data-label="E10" role="img" aria-label="E10">
+            <circle cx="27" cy="63" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="27" y="63" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E10
+            </text>
+          </g>
+          <g data-label="E11" role="img" aria-label="E11">
+            <circle cx="22" cy="48" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="22" y="48" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E11
+            </text>
+          </g>
+          <g data-label="E12" role="img" aria-label="E12">
+            <circle cx="27" cy="33" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="27" y="33" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E12
+            </text>
+          </g>
+          <g data-label="E13" role="img" aria-label="E13">
+            <circle cx="40" cy="24" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="40" y="24" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E13
+            </text>
+          </g>
+          <g data-label="E14" role="img" aria-label="E14">
+            <circle cx="55" cy="6" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="55" y="6" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E14
+            </text>
+          </g>
+          <g data-label="E15" role="img" aria-label="E15">
+            <circle cx="67" cy="10" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="67" y="10" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E15
+            </text>
+          </g>
+          <g data-label="E16" role="img" aria-label="E16">
+            <circle cx="78" cy="18" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="78" y="18" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E16
+            </text>
+          </g>
+          <g data-label="E17" role="img" aria-label="E17">
+            <circle cx="86" cy="29" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="86" y="29" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E17
+            </text>
+          </g>
+          <g data-label="E18" role="img" aria-label="E18">
+            <circle cx="90" cy="41" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="90" y="41" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E18
+            </text>
+          </g>
+          <g data-label="E19" role="img" aria-label="E19">
+            <circle cx="90" cy="55" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="90" y="55" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E19
+            </text>
+          </g>
+          <g data-label="E20" role="img" aria-label="E20">
+            <circle cx="86" cy="67" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="86" y="67" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E20
+            </text>
+          </g>
+          <g data-label="E21" role="img" aria-label="E21">
+            <circle cx="78" cy="78" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="78" y="78" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E21
+            </text>
+          </g>
+          <g data-label="E22" role="img" aria-label="E22">
+            <circle cx="68" cy="86" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="68" y="86" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E22
+            </text>
+          </g>
+          <g data-label="E23" role="img" aria-label="E23">
+            <circle cx="55" cy="90" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="55" y="90" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E23
+            </text>
+          </g>
+          <g data-label="E24" role="img" aria-label="E24">
+            <circle cx="41" cy="90" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="41" y="90" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E24
+            </text>
+          </g>
+          <g data-label="E25" role="img" aria-label="E25">
+            <circle cx="28" cy="86" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="28" y="86" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E25
+            </text>
+          </g>
+          <g data-label="E26" role="img" aria-label="E26">
+            <circle cx="18" cy="78" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="18" y="78" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E26
+            </text>
+          </g>
+          <g data-label="E27" role="img" aria-label="E27">
+            <circle cx="10" cy="67" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="10" y="67" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E27
+            </text>
+          </g>
+          <g data-label="E28" role="img" aria-label="E28">
+            <circle cx="6" cy="55" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="6" y="55" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E28
+            </text>
+          </g>
+          <g data-label="E29" role="img" aria-label="E29">
+            <circle cx="6" cy="41" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="6" y="41" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E29
+            </text>
+          </g>
+          <g data-label="E30" role="img" aria-label="E30">
+            <circle cx="10" cy="29" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="10" y="29" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E30
+            </text>
+          </g>
+          <g data-label="E31" role="img" aria-label="E31">
+            <circle cx="18" cy="18" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="18" y="18" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E31
+            </text>
+          </g>
+          <g data-label="E32" role="img" aria-label="E32">
+            <circle cx="29" cy="10" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="29" y="10" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E32
+            </text>
+          </g>
+          <g data-label="E33" role="img" aria-label="E33">
+            <circle cx="41" cy="6" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="41" y="6" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="4.89">
+              E33
+            </text>
+          </g>
+        </svg>
+      </div>
+      <div class="engine-visualizer__section">
+        <h3 class="engine-visualizer__title">
+          STARSHIP
+        </h3>
+        <button type="button" class="engine-settings-btn" title="Starship engine settings" aria-label="Starship engine settings" aria-haspopup="dialog" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </button>
+        <svg viewBox="-2 -2 88 80" width="420" height="380" aria-label="Starship engine status diagram" class="engine-visualizer__svg">
+          <g data-label="E1" role="img" aria-label="E1">
+            <circle cx="42" cy="21" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="42" y="21" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E1
+            </text>
+          </g>
+          <g data-label="E2" role="img" aria-label="E2">
+            <circle cx="50" cy="35" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="50" y="35" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E2
+            </text>
+          </g>
+          <g data-label="E3" role="img" aria-label="E3">
+            <circle cx="34" cy="35" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="34" y="35" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="5.50">
+              E3
+            </text>
+          </g>
+          <g data-label="E4" role="img" aria-label="E4">
+            <circle cx="69" cy="15" r="14.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="69" y="15" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="14.50">
+              E4
+            </text>
+          </g>
+          <g data-label="E5" role="img" aria-label="E5">
+            <circle cx="42" cy="61" r="14.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="42" y="61" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="14.50">
+              E5
+            </text>
+          </g>
+          <g data-label="E6" role="img" aria-label="E6">
+            <circle cx="15" cy="15" r="14.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
+            <text x="15" y="15" text-anchor="middle" dominant-baseline="central" fill="#FEFEFE" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="14.50">
+              E6
+            </text>
+          </g>
+        </svg>
+      </div>
+      <div class="engine-visualizer__legend" aria-label="Engine status legend">
+        <div class="engine-visualizer__legend-item">
+          <span class="engine-visualizer__legend-swatch" style="background-color: rgb(255, 128, 20); border-color: rgb(255, 160, 64);"></span>
+          <span class="engine-visualizer__legend-label" title="Engine is firing">
+            Active
+          </span>
+        </div>
+        <div class="engine-visualizer__legend-item">
+          <span class="engine-visualizer__legend-swatch" style="background-color: rgb(26, 26, 26); border-color: rgb(68, 68, 68);"></span>
+          <span class="engine-visualizer__legend-label" title="Engine is off">
+            Inactive
+          </span>
+        </div>
+        <div class="engine-visualizer__legend-item">
+          <span class="engine-visualizer__legend-swatch" style="background-color: rgb(102, 102, 102); border-color: rgb(136, 136, 136);"></span>
+          <span class="engine-visualizer__legend-label" title="Status unknown">
+            Undetected
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="dashboard-globe" aria-label="Ship Position">
+    <div id="ship-globe" class="ship-globe">
+      <div class="ship-globe__header">
+        <h2 class="ship-globe__heading">
+          Ship Position
+        </h2>
+        <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" hidden="" data-tracks=""></div>
+      </div>
+      <div class="ship-globe__history" hidden="">
+        <span class="ship-globe__history-label">
+          Previous ships:
+        </span>
+        <div class="ship-globe__history-toggles"></div>
+        <span class="ship-globe__gradient-legend" aria-label="Paths fade from launch to end">
+          start
+          <span class="ship-globe__gradient-bar"></span>
+          end
+        </span>
+      </div>
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom."></canvas>
+            <div class="ship-globe__zoom" role="group" aria-label="Globe view">
+              <button type="button" class="ship-globe__zoom-btn ship-globe__center-btn" aria-label="Center on ship" title="Center on ship" disabled="">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="7"></circle>
+                  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                </svg>
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in">
+                +
+              </button>
+              <button type="button" class="ship-globe__zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out">
+                −
+              </button>
+              <button type="button" class="ship-globe__zoom-btn ship-globe__zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom">
+                1.0×
+              </button>
+            </div>
+          </div>
+          <p class="ship-globe__hint">
+            Drag to rotate · Scroll to zoom
+          </p>
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">
+            Active ship
+          </h3>
+          <div class="ship-globe__readout" aria-live="polite">
+            <p class="ship-globe__empty">
+              No ship above ground in the SpaceX tracker feed.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+  <section class="dashboard-graphs" aria-label="Time-Series Graphs">
+    <div id="time-series-graphs">
+      <div class="time-series-graphs">
+        <div class="time-series-graphs__header">
+          <h2 class="time-series-graphs__heading">
+            Time-Series
+          </h2>
+          <div class="time-series-graphs__controls">
+            <select class="time-series-graphs__select" aria-label="Select data series" .value="speedSuperHeavy">
+              <option value="speedSuperHeavy">
+                Speed — Super Heavy
+              </option>
+              <option value="speedStarship">
+                Speed — Starship
+              </option>
+              <option value="altitudeSuperHeavy">
+                Altitude — Super Heavy
+              </option>
+              <option value="altitudeStarship">
+                Altitude — Starship
+              </option>
+              <option value="accelerationSuperHeavy">
+                Acceleration — Super Heavy
+              </option>
+              <option value="accelerationStarship">
+                Acceleration — Starship
+              </option>
+            </select>
+            <button class="time-series-graphs__reset-btn" aria-label="Reset zoom">
+              Reset Zoom
+            </button>
+            <div class="time-series-graphs__export">
+              <button type="button" class="time-series-graphs__save-btn" aria-label="Save chart as PNG image" aria-haspopup="dialog" aria-expanded="false" aria-controls="time-series-graphs-export-#">
+                Save PNG ▾
+              </button>
+              <div id="time-series-graphs-export-#" class="time-series-graphs__export-panel" role="dialog" aria-label="PNG export options" hidden="">
+                <label class="time-series-graphs__export-field">
+                  <span class="time-series-graphs__export-label">
+                    Font size
+                  </span>
+                  <select class="time-series-graphs__select time-series-graphs__export-font" .value="10">
+                    <option value="10">
+                      10 px (default)
+                    </option>
+                    <option value="12">
+                      12 px
+                    </option>
+                    <option value="14">
+                      14 px
+                    </option>
+                    <option value="16">
+                      16 px
+                    </option>
+                    <option value="20">
+                      20 px
+                    </option>
+                    <option value="24">
+                      24 px
+                    </option>
+                  </select>
+                </label>
+                <fieldset class="time-series-graphs__export-field">
+                  <legend class="time-series-graphs__export-label">
+                    Background
+                  </legend>
+                  <div class="time-series-graphs__export-segments">
+                    <label class="time-series-graphs__export-segment">
+                      <input type="radio" name="time-series-graphs-export-#-background" value="dark" .checked="true">
+                      <span class="time-series-graphs__export-swatch time-series-graphs__export-swatch--dark" aria-hidden="true"></span>
+                      <span>
+                        Dark
+                      </span>
+                    </label>
+                    <label class="time-series-graphs__export-segment">
+                      <input type="radio" name="time-series-graphs-export-#-background" value="white" .checked="false">
+                      <span class="time-series-graphs__export-swatch time-series-graphs__export-swatch--white" aria-hidden="true"></span>
+                      <span>
+                        White
+                      </span>
+                    </label>
+                    <label class="time-series-graphs__export-segment">
+                      <input type="radio" name="time-series-graphs-export-#-background" value="transparent" .checked="false">
+                      <span class="time-series-graphs__export-swatch time-series-graphs__export-swatch--transparent" aria-hidden="true"></span>
+                      <span>
+                        Transparent
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
+                <button type="button" class="time-series-graphs__export-download">
+                  Download PNG
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="time-series-graphs__toolbar">
+          <div class="time-series-graphs__compare-wrapper">
+            <span class="time-series-graphs__compare-label">
+              Compare:
+            </span>
+            <div class="time-series-graphs__compare-options"></div>
+          </div>
+          <span class="time-series-graphs__zoom-hint">
+            Drag to pan · Ctrl+Drag to zoom · Scroll to zoom
+          </span>
+        </div>
+        <div class="time-series-graphs__canvas-container">
+          <canvas id="chart-main" style="display: block; box-sizing: border-box; touch-action: none; user-select: none; height: 0px; width: 0px;" height="0" width="0"></canvas>
+          <div class="time-series-graphs__loading" role="status" hidden="">
+            <span class="time-series-graphs__spinner" aria-hidden="true"></span>
+            <span class="time-series-graphs__loading-text">
+              Loading comparison data…
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="engine-tooltip" role="tooltip" hidden="">
+  <span class="engine-tooltip__engine"></span>
+  <span class="engine-tooltip__serial"></span>
+</div>"
+`;

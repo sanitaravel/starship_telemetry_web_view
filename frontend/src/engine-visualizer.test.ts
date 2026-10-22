@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import { EngineVisualizer } from './engine-visualizer';
 import { CurrentMission } from './current-mission';
 import { EngineSerials } from './engine-serials';
@@ -11,11 +11,29 @@ import { StateManager } from './state';
 let container: HTMLElement;
 let visualizer: EngineVisualizer;
 let api: FakeMissionsApi;
+/** The visualizer's current mission, so tests can wait for its saves. */
+let currentMission: CurrentMission;
+/** Every mission-list request; the field reloads the list when it gets focus. */
+let listSpy: MockInstance<FakeMissionsApi['list']>;
 
 /** A visualizer whose mission files live in `api`, not on a backend. */
 function createVisualizer(): EngineVisualizer {
   const serials = { starship: new EngineSerials('starship'), superheavy: new EngineSerials('superheavy') };
-  return new EngineVisualizer(container, new StateManager(), serials, new CurrentMission(serials, api, 0));
+  currentMission = new CurrentMission(serials, api, 0);
+  return new EngineVisualizer(container, new StateManager(), serials, currentMission);
+}
+
+/**
+ * Waits for every mission list requested so far and for the mission field to
+ * take it in: the field awaited the same promise first, so it has its choices.
+ */
+async function choicesLoaded(): Promise<void> {
+  await Promise.allSettled(listSpy.mock.results.map((r) => r.value));
+}
+
+/** The status line of the open settings panel. */
+function panelStatus(): string {
+  return panel().querySelector('.engine-settings__status')!.textContent!;
 }
 
 const E6 = [15, 15] as const;
@@ -70,6 +88,7 @@ function reload(): void {
 beforeEach(() => {
   localStorage.clear();
   api = new FakeMissionsApi();
+  listSpy = vi.spyOn(api, 'list');
   container = document.createElement('div');
   document.body.appendChild(container);
   visualizer = createVisualizer();
@@ -218,8 +237,6 @@ describe('Starship engine serials on the diagram', () => {
 });
 
 describe('mission and ship in the settings panel', () => {
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
-
   function missionField(): HTMLInputElement {
     return panel().querySelector<HTMLInputElement>('[data-field="mission"]')!;
   }
@@ -239,7 +256,7 @@ describe('mission and ship in the settings panel', () => {
   }
 
   function status(): string {
-    return panel().querySelector('.engine-settings__status')!.textContent!;
+    return panelStatus();
   }
 
   beforeEach(() => {
@@ -259,7 +276,7 @@ describe('mission and ship in the settings panel', () => {
 
   it('opens on the mission field and asks for a name before saving', async () => {
     gear().click();
-    await settle();
+    await choicesLoaded();
 
     expect(document.activeElement).toBe(missionField());
     expect(status()).toBe('Name the mission to save it to a file');
@@ -267,7 +284,7 @@ describe('mission and ship in the settings panel', () => {
 
   it('does not drop the list down just because the panel opened', async () => {
     gear().click();
-    await settle();
+    await choicesLoaded();
 
     expect(document.activeElement).toBe(missionField());
     expect(suggestions()).toEqual([]);
@@ -276,7 +293,7 @@ describe('mission and ship in the settings panel', () => {
 
   it('a click on the field or arrow down lists every mission', async () => {
     gear().click();
-    await settle();
+    await choicesLoaded();
     missionField().click();
     expect(suggestions()).toEqual(['IFT 14S33', 'IFT 13recorded flight']);
 
@@ -288,7 +305,7 @@ describe('mission and ship in the settings panel', () => {
 
   it('suggests saved missions and recorded flights matching what is typed', async () => {
     gear().click();
-    await settle();
+    await choicesLoaded();
 
     type(missionField(), '13');
     expect(suggestions()).toEqual(['IFT 13recorded flight']);
@@ -299,11 +316,12 @@ describe('mission and ship in the settings panel', () => {
 
   it('picking a saved mission loads its ship and serials', async () => {
     gear().click();
-    await settle();
+    await choicesLoaded();
     type(missionField(), 'ift 1');
     key(missionField(), 'ArrowDown');
     key(missionField(), 'Enter');
-    await settle();
+    // Loading the file ends by showing where it came from
+    await vi.waitFor(() => expect(status()).toBe('File: missions/engines_ift-14.json'));
 
     expect(missionField().value).toBe('IFT 14');
     expect(shipField().value).toBe('S33');
@@ -317,24 +335,23 @@ describe('mission and ship in the settings panel', () => {
 
   it('clicking a suggestion picks it', async () => {
     gear().click();
-    await settle();
+    await choicesLoaded();
     missionField().click();
     panel().querySelector<HTMLElement>('[data-mission="ift-14"]')!.click();
-    await settle();
 
-    expect(shipField().value).toBe('S33');
+    await vi.waitFor(() => expect(shipField().value).toBe('S33'));
   });
 
   it('a new mission name gets its own file with the ship and serials typed in', async () => {
     gear().click();
-    await settle();
+    await choicesLoaded();
     type(missionField(), 'IFT 15');
     key(missionField(), 'Enter');
-    await settle();
+    await vi.waitFor(() => expect(api.files.has('ift-15')).toBe(true)); // the new mission's file exists
     shipField().value = 'S35';
     shipField().dispatchEvent(new Event('change'));
     type(field('ss_e4'), '404');
-    await settle();
+    await currentMission.flush();
 
     expect(api.files.get('ift-15')).toMatchObject({
       mission: 'IFT 15',
@@ -347,9 +364,12 @@ describe('mission and ship in the settings panel', () => {
 
   it('typing part of a saved name loads nothing until it is committed', async () => {
     gear().click();
-    await settle();
+    await choicesLoaded();
     type(missionField(), 'IFT 1'); // on the way to "IFT 15"
-    await settle();
+    // Nothing to wait for if nothing gets committed; a macrotask lets any
+    // wrongly started load (all promise work, no timers) finish first.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await currentMission.flush();
 
     expect(shipField().value).toBe('');
     expect(field('ss_e1').value).toBe('');
@@ -357,7 +377,7 @@ describe('mission and ship in the settings panel', () => {
 
   it('Escape closes the suggestions first, then the panel', async () => {
     gear().click();
-    await settle();
+    await choicesLoaded();
     missionField().click();
     expect(suggestions()).not.toEqual([]);
 
@@ -372,28 +392,26 @@ describe('mission and ship in the settings panel', () => {
   it('shows when the backend cannot be reached', async () => {
     api.offline = true;
     gear().click();
-    await settle();
+    await choicesLoaded();
     type(missionField(), 'IFT 15');
     key(missionField(), 'Enter');
-    await settle();
 
-    expect(status()).toBe('Not saved: backend unreachable');
+    await vi.waitFor(() => expect(status()).toBe('Not saved: backend unreachable'));
   });
 });
 
 describe('mission list freshness', () => {
   it('offers a mission created since the panel opened', async () => {
-    const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
     gear().click();
-    await settle();
+    await choicesLoaded();
     const mission = panel().querySelector<HTMLInputElement>('[data-field="mission"]')!;
     type(mission, 'IFT 16');
     mission.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    await settle();
+    await vi.waitFor(() => expect(api.files.has('ift-16')).toBe(true)); // created since the panel opened
 
     mission.blur();
     mission.focus();
-    await settle();
+    await choicesLoaded();
     mission.click();
 
     const offered = [...panel().querySelectorAll<HTMLElement>('.engine-settings__suggestion')].map((li) => li.dataset.mission);
@@ -403,7 +421,6 @@ describe('mission list freshness', () => {
 
 describe('Super Heavy engine settings panel', () => {
   const SH_E1 = [56, 43] as const;
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
 
   it('lists all 33 engines ring by ring in a wide panel', () => {
     gear('Super Heavy').click();
@@ -462,11 +479,12 @@ describe('Super Heavy engine settings panel', () => {
       updated_at: null,
     });
     gear('Super Heavy').click();
-    await settle();
+    await choicesLoaded();
     const mission = panel().querySelector<HTMLInputElement>('[data-field="mission"]')!;
     type(mission, 'IFT 14');
     mission.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    await settle();
+    // Loading the file ends by showing where it came from
+    await vi.waitFor(() => expect(panelStatus()).toBe('File: missions/engines_ift-14.json'));
 
     expect(panel().querySelector<HTMLInputElement>('[data-field="booster"]')!.value).toBe('B15');
     expect(field('sh_e1').value).toBe('301');
@@ -487,7 +505,7 @@ describe('Super Heavy engine settings panel', () => {
       updated_at: null,
     });
     gear('Super Heavy').click();
-    await settle();
+    await choicesLoaded();
     panel().querySelector<HTMLInputElement>('[data-field="mission"]')!.click();
 
     expect(panel().querySelector('.engine-settings__suggestion')!.textContent).toBe('IFT 14S41 · B15');
