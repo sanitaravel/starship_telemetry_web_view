@@ -43,12 +43,19 @@ export function isNearLiveColor(hex: string): boolean {
  */
 export class FlightColors {
   private readonly storageKey: string;
+  private readonly persist: boolean;
   private overrides: Record<string, string>;
   private listeners = new Set<() => void>();
 
-  constructor(namespace: string) {
+  constructor(namespace: string, options: FlightColorsOptions = {}) {
     this.storageKey = `flight-colors.${namespace}`;
-    this.overrides = this.load();
+    this.persist = options.persist ?? true;
+    this.overrides = this.persist ? this.load() : validColors(options.initial ?? {});
+  }
+
+  /** Every override set, by flight id. */
+  snapshot(): Record<string, string> {
+    return { ...this.overrides };
   }
 
   get(id: string, fallback: string): string {
@@ -82,13 +89,7 @@ export class FlightColors {
     try {
       const raw = localStorage.getItem(this.storageKey);
       if (!raw) return {};
-      const saved = JSON.parse(raw) as unknown;
-      if (typeof saved !== 'object' || saved === null) return {};
-      const valid: Record<string, string> = {};
-      for (const [id, hex] of Object.entries(saved)) {
-        if (typeof hex === 'string' && HEX_COLOR.test(hex)) valid[id] = hex.toLowerCase();
-      }
-      return valid;
+      return validColors(JSON.parse(raw) as unknown);
     } catch {
       // Storage blocked (private mode, disabled site data) or corrupt JSON
       return {};
@@ -96,11 +97,33 @@ export class FlightColors {
   }
 
   private save(): void {
-    try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.overrides));
-    } catch {
-      // Not persisting is fine; the colour still applies for this page view
+    if (this.persist) {
+      try {
+        localStorage.setItem(this.storageKey, JSON.stringify(this.overrides));
+      } catch {
+        // Not persisting is fine; the colour still applies for this page view
+      }
     }
     for (const listener of this.listeners) listener();
   }
+}
+
+export interface FlightColorsOptions {
+  /**
+   * False keeps the colours in memory only: localStorage is never read or
+   * written (overlays). Default true.
+   */
+  persist?: boolean;
+  /** Starting overrides when not persisting, validated like loaded ones. */
+  initial?: Record<string, string>;
+}
+
+/** The valid hex colours of a loaded object, lower-cased, by flight id. */
+function validColors(saved: unknown): Record<string, string> {
+  if (typeof saved !== 'object' || saved === null) return {};
+  const valid: Record<string, string> = {};
+  for (const [id, hex] of Object.entries(saved)) {
+    if (typeof hex === 'string' && HEX_COLOR.test(hex)) valid[id] = hex.toLowerCase();
+  }
+  return valid;
 }

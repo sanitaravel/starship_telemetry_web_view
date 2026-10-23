@@ -75,6 +75,38 @@ describe('FlightColors', () => {
   });
 });
 
+describe('FlightColors with persist: false', () => {
+  it('never touches localStorage and keeps changes in memory', () => {
+    localStorage.setItem('flight-colors.telemetry', JSON.stringify({ 'ift-13': '#81c784' }));
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+    try {
+      const colors = new FlightColors('telemetry', {
+        persist: false,
+        initial: { 'ift-12': '#4FC3F7', bad: 'red' },
+      });
+      const listener = vi.fn();
+      colors.subscribe(listener);
+
+      expect(colors.get('ift-13', '#000000')).toBe('#000000');
+      expect(colors.snapshot()).toEqual({ 'ift-12': '#4fc3f7' });
+      colors.set('ift-13', '#e91e63');
+      colors.reset('ift-12');
+      expect(colors.snapshot()).toEqual({ 'ift-13': '#e91e63' });
+      expect(listener).toHaveBeenCalledTimes(2);
+
+      expect(getItem).not.toHaveBeenCalled();
+      expect(setItem).not.toHaveBeenCalled();
+      expect(removeItem).not.toHaveBeenCalled();
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+      removeItem.mockRestore();
+    }
+  });
+});
+
 describe('isNearLiveColor', () => {
   it('flags the live orange and close shades', () => {
     expect(isNearLiveColor(LIVE_COLOR)).toBe(true);

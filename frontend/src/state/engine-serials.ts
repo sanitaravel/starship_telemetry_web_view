@@ -1,16 +1,15 @@
-/** Longest serial accepted; real ones look like "R576". */
-export const MAX_SERIAL_LENGTH = 8;
+import { normaliseSerial } from '../domain/engines/serials';
 
-/**
- * Cleans what was typed into an engine serial: upper case, letters, digits
- * and dashes only, at most MAX_SERIAL_LENGTH characters. An empty result
- * means "no serial".
- */
-export function normaliseSerial(raw: string): string {
-  return raw
-    .toUpperCase()
-    .replace(/[^A-Z0-9-]/g, '')
-    .slice(0, MAX_SERIAL_LENGTH);
+export { MAX_SERIAL_LENGTH, normaliseSerial } from '../domain/engines/serials';
+
+export interface EngineSerialsOptions {
+  /**
+   * False keeps the serials in memory only: localStorage is never read or
+   * written (overlays). Default true.
+   */
+  persist?: boolean;
+  /** Starting serials when not persisting, cleaned like loaded ones. */
+  initial?: Record<string, string>;
 }
 
 /**
@@ -20,12 +19,14 @@ export function normaliseSerial(raw: string): string {
  */
 export class EngineSerials {
   private readonly storageKey: string;
+  private readonly persist: boolean;
   private serials: Record<string, string>;
   private listeners = new Set<() => void>();
 
-  constructor(vehicle: string) {
+  constructor(vehicle: string, options: EngineSerialsOptions = {}) {
     this.storageKey = `engine-serials.${vehicle}`;
-    this.serials = this.load();
+    this.persist = options.persist ?? true;
+    this.serials = this.persist ? this.load() : cleanSerials(options.initial ?? {});
   }
 
   /** The engine's serial, or undefined when none has been entered. */
@@ -80,14 +81,7 @@ export class EngineSerials {
     try {
       const raw = localStorage.getItem(this.storageKey);
       if (!raw) return {};
-      const saved = JSON.parse(raw) as unknown;
-      if (typeof saved !== 'object' || saved === null) return {};
-      const valid: Record<string, string> = {};
-      for (const [id, value] of Object.entries(saved)) {
-        const serial = typeof value === 'string' ? normaliseSerial(value) : '';
-        if (serial) valid[id] = serial;
-      }
-      return valid;
+      return cleanSerials(JSON.parse(raw) as unknown);
     } catch {
       // Storage blocked (private mode, disabled site data) or corrupt JSON
       return {};
@@ -95,11 +89,24 @@ export class EngineSerials {
   }
 
   private save(): void {
-    try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.serials));
-    } catch {
-      // Not persisting is fine; the serials still show for this page view
+    if (this.persist) {
+      try {
+        localStorage.setItem(this.storageKey, JSON.stringify(this.serials));
+      } catch {
+        // Not persisting is fine; the serials still show for this page view
+      }
     }
     for (const listener of this.listeners) listener();
   }
+}
+
+/** The non-empty cleaned string serials of a loaded object, by engine id. */
+function cleanSerials(saved: unknown): Record<string, string> {
+  if (typeof saved !== 'object' || saved === null) return {};
+  const valid: Record<string, string> = {};
+  for (const [id, value] of Object.entries(saved)) {
+    const serial = typeof value === 'string' ? normaliseSerial(value) : '';
+    if (serial) valid[id] = serial;
+  }
+  return valid;
 }
