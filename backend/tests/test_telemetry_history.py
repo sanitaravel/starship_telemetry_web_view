@@ -5,6 +5,7 @@ import logging
 import uuid
 
 import pytest
+from hypothesis import given, settings, strategies as st
 
 from src.core.telemetry_record import DetectionAccuracy, TelemetryFieldValue, TelemetryRecord
 from src.pipeline.history import (
@@ -147,3 +148,86 @@ def test_empty_replay_message_shape():
             "records": [],
         },
     }
+
+
+# --- Properties 1 and 2 ---
+
+_payloads = st.fixed_dictionaries(
+    {"sequence_number": st.integers(min_value=0, max_value=10**9)},
+    optional={
+        "name": st.text(max_size=20),
+        "value": st.floats(allow_nan=False, allow_infinity=False),
+    },
+)
+
+
+@settings(max_examples=100, deadline=None)
+@given(payloads=st.lists(_payloads, max_size=40), max_records=st.integers(min_value=1, max_value=45))
+def test_property_history_keeps_newest_records_in_order(payloads, max_records):
+    """Property 1: the last min(n, max) serialised payloads, truncated iff n > max."""
+    history = TelemetryHistory(max_records=max_records)
+    for payload in payloads:
+        history.append(payload)
+    snapshot = history.snapshot()
+    assert snapshot.records == tuple(_live_text(p) for p in payloads[-max_records:])
+    assert snapshot.truncated is (len(payloads) > max_records)
+    assert len(history) == min(len(payloads), max_records)
+
+
+_finite = st.floats(allow_nan=False, allow_infinity=False, width=32)
+_field_values = st.builds(
+    TelemetryFieldValue,
+    value=st.none() | _finite,
+    unit=st.none() | st.text(max_size=6),
+    status=st.sampled_from(["available", "unavailable", "occluded_by_engines"]),
+)
+_engine_status = st.sampled_from(["active", "inactive", "undetected"])
+_records = st.builds(
+    TelemetryRecord,
+    sequence_number=st.integers(min_value=0, max_value=10**9),
+    frame_number=st.none() | st.integers(min_value=0, max_value=10**9),
+    mission_elapsed_time=st.none() | st.text(max_size=12),
+    mission_elapsed_time_raw=st.none() | st.text(max_size=12),
+    speed_left=_field_values,
+    speed_right=_field_values,
+    altitude_left=_field_values,
+    altitude_right=_field_values,
+    stage_left_label=st.none() | st.text(max_size=12),
+    stage_right_label=st.none() | st.text(max_size=12),
+    stage_separation_text=st.none() | st.text(max_size=12),
+    stage_assignment_left=st.text(max_size=12),
+    stage_assignment_right=st.text(max_size=12),
+    separation_state=st.sampled_from(["pre_separation", "post_separation"]),
+    t_zero_found=st.booleans(),
+    stage_sep_found=st.booleans(),
+    starship_engines=st.dictionaries(
+        st.sampled_from([f"ss_e{i}" for i in range(1, 7)]), _engine_status
+    ),
+    superheavy_engines=st.dictionaries(
+        st.sampled_from([f"sh_e{i}" for i in range(1, 34)]), _engine_status
+    ),
+    detection_accuracy=st.builds(DetectionAccuracy, starship=_finite, superheavy=_finite),
+    timestamp=st.integers(min_value=0, max_value=2**53),
+)
+
+
+@settings(max_examples=100, deadline=None)
+@given(record=_records)
+def test_property_replayed_text_equals_live_text(record):
+    """Property 2: the stored text is the payload part of the live message text."""
+    from src.api.replay import replay_messages
+
+    payload = record.model_dump()
+    live = json.dumps({"type": "telemetry", "payload": payload},
+                      separators=(",", ":"), ensure_ascii=False)
+    prefix, suffix = '{"type":"telemetry","payload":', "}"
+    assert live.startswith(prefix) and live.endswith(suffix)
+    live_payload_text = live[len(prefix):-len(suffix)]
+
+    history = TelemetryHistory()
+    history.append(payload)
+    stored = history.snapshot().records[0]
+    assert stored == live_payload_text
+    assert TelemetryRecord.model_validate(json.loads(stored)) == record
+    (replay_text,) = replay_messages(history.snapshot())
+    assert ('"records":[' + live_payload_text + "]}}") in replay_text

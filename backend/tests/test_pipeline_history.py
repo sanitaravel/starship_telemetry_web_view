@@ -6,7 +6,10 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from hypothesis import given, settings, strategies as st
 
+from src.api.connections import ConnectionManager
+from src.api.replay import replay_messages
 from src.core.gpu import AccelerationBackend, GPUCapabilities
 from src.pipeline import PipelineOrchestrator
 from src.pipeline.broadcast import Broadcaster
@@ -201,6 +204,123 @@ async def test_concurrent_starts_give_exactly_one_run(orchestrator_and_sent):
         assert orch._starting is False
     finally:
         await orch.stop()
+
+
+class _Socket:
+    """A websocket that records what it is sent."""
+
+    def __init__(self) -> None:
+        self.sent: list[str] = []
+
+    async def accept(self) -> None:
+        pass
+
+    async def send_text(self, text: str) -> None:
+        await asyncio.sleep(0)
+        self.sent.append(text)
+
+    async def close(self, code: int = 1000) -> None:
+        pass
+
+    def messages(self) -> list[dict]:
+        return [json.loads(t) for t in self.sent]
+
+
+def _orchestrator_on(manager: ConnectionManager) -> PipelineOrchestrator:
+    registry = TemplateRegistry()
+    load_default_template(registry)
+    cpu = GPUCapabilities(backend=AccelerationBackend.CPU, device_name=None,
+                          cuda_version=None, gpu_available=False)
+    orch = PipelineOrchestrator(cpu, registry, broadcast=manager.broadcast_json)
+    orch._frames.ocr_engine = SimpleNamespace(t_zero_detected=False, reset=lambda: None)
+    orch._frame_extractor.start = Mock()
+    orch._frame_extractor.stop = Mock()
+    return orch
+
+
+def _replay_source(orch: PipelineOrchestrator):
+    return lambda: replay_messages(orch.history.snapshot(), chunk_size=2)
+
+
+def _records_of(socket: _Socket) -> list[int]:
+    """Sequence numbers received, from replay chunks and live telemetry, in order."""
+    seqs = []
+    for m in socket.messages():
+        if m["type"] == "replay":
+            seqs.extend(r["sequence_number"] for r in m["payload"]["records"])
+        elif m["type"] == "telemetry":
+            seqs.append(m["payload"]["sequence_number"])
+    return seqs
+
+
+@settings(max_examples=25, deadline=None)
+@given(
+    first_run=st.integers(min_value=0, max_value=6),
+    second_run=st.integers(min_value=0, max_value=6),
+    clients=st.integers(min_value=0, max_value=3),
+)
+def test_property_new_run_resets_every_client(first_run, second_run, clients):
+    """Property 6: after start(), each client sees an empty chunk 0 with the new run id
+    before any telemetry of the Run, and a later client gets only the new Run's records."""
+
+    async def scenario():
+        manager = ConnectionManager()
+        orch = _orchestrator_on(manager)
+        await orch.start("http://example.invalid/a.m3u8")
+        for seq in range(1, first_run + 1):
+            orch._broadcaster.enqueue(_telemetry(seq))
+        await _drain(orch._broadcaster)
+        sockets = [_Socket() for _ in range(clients)]
+        for s in sockets:
+            await manager.connect(s, replay=_replay_source(orch))
+        await orch.stop()
+
+        await orch.start("http://example.invalid/b.m3u8")
+        new_run_id = orch.history.run_id
+        for seq in range(1001, 1001 + second_run):
+            orch._broadcaster.enqueue(_telemetry(seq))
+        await _drain(orch._broadcaster)
+        late = _Socket()
+        await manager.connect(late, replay=_replay_source(orch))
+        await orch.stop()
+        return sockets, late, new_run_id
+
+    sockets, late, new_run_id = asyncio.run(scenario())
+    for s in sockets:
+        messages = s.messages()
+        resets = [i for i, m in enumerate(messages)
+                  if m["type"] == "replay" and m["payload"]["run_id"] == new_run_id]
+        assert resets, "client never got the new run's reset"
+        reset = messages[resets[0]]["payload"]
+        assert reset["chunk"] == 0 and reset["records"] == []
+        after = messages[resets[0] + 1:]
+        assert [m["payload"]["sequence_number"] for m in after if m["type"] == "telemetry"] \
+            == list(range(1001, 1001 + second_run))
+        assert all(m["payload"]["sequence_number"] < 1001
+                   for m in messages[:resets[0]] if m["type"] == "telemetry")
+    assert _records_of(late) == list(range(1001, 1001 + second_run))
+    assert {m["payload"]["run_id"] for m in late.messages()} == {new_run_id}
+
+
+@settings(max_examples=25, deadline=None)
+@given(count=st.integers(min_value=0, max_value=8))
+def test_property_stop_keeps_the_history(count):
+    """Property 7: a client connecting after stop() receives every record broadcast."""
+
+    async def scenario():
+        manager = ConnectionManager()
+        orch = _orchestrator_on(manager)
+        await orch.start("http://example.invalid/a.m3u8")
+        for seq in range(1, count + 1):
+            orch._broadcaster.enqueue(_telemetry(seq))
+        await _drain(orch._broadcaster)
+        await orch.stop()
+        late = _Socket()
+        await manager.connect(late, replay=_replay_source(orch))
+        return late
+
+    late = asyncio.run(scenario())
+    assert _records_of(late) == list(range(1, count + 1))
 
 
 async def test_starting_guard_cleared_when_start_fails(orchestrator_and_sent):

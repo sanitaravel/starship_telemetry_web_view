@@ -6,6 +6,8 @@ import logging
 
 import pytest
 from fastapi import WebSocketDisconnect
+from hypothesis import settings, strategies as st
+from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 
 from src.api import connections
 from src.api.connections import ConnectionManager
@@ -206,3 +208,167 @@ async def test_snapshot_and_registration_are_one_step():
     messages = ws.messages()
     assert messages[0]["payload"]["records"] == []
     assert _received_seqs(ws) == [1]
+
+
+# --- Properties 4 and 5: model-based test of the replay/live handoff ---
+
+_MODEL_MAX_PENDING = 6
+
+
+class _Client:
+    """One fake websocket plus what the model knows about its connection."""
+
+    def __init__(self) -> None:
+        self.ws = FakeWebSocket()
+        self.task: asyncio.Task | None = None
+        self.snapshot_seqs: list[int] | None = None  # history at snapshot time
+        self.log_len_at_snapshot: int | None = None  # broadcasts made before it
+        self.overflowed = False
+
+
+class ReplayHandoffMachine(RuleBasedStateMachine):
+    """Records, statuses and frames are broadcast by one worker task (as the
+    Broadcaster does: append, then broadcast, no await between) while clients
+    connect at arbitrary moments and the event loop is stepped a few times."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._patch = pytest.MonkeyPatch()
+        self._patch.setattr(connections, "MAX_PENDING_MESSAGES", _MODEL_MAX_PENDING)
+        self.loop = asyncio.new_event_loop()
+        self.cm = ConnectionManager()
+        self.history = TelemetryHistory()
+        self.log: list[tuple[str, int]] = []  # every non-frame message, in broadcast order
+        self.next_id = 1
+        self.clients: list[_Client] = []
+        self.queue: asyncio.Queue | None = None
+        self.worker: asyncio.Task | None = None
+        self.loop.run_until_complete(self._setup())
+
+    async def _setup(self) -> None:
+        self.queue = asyncio.Queue()
+        self.worker = asyncio.create_task(self._work())
+
+    async def _work(self) -> None:
+        while True:
+            message = await self.queue.get()
+            try:
+                # The Broadcaster send step: the log, history append and routing
+                # happen together, with no await before broadcast_json routes.
+                kind = message["type"]
+                if kind != "frame":
+                    self.log.append((kind, message["payload"]["id"]))
+                if kind == "telemetry":
+                    self.history.append(message["payload"])
+                await self.cm.broadcast_json(message)
+            finally:
+                self.queue.task_done()
+
+    def _run(self, coro) -> None:
+        self.loop.run_until_complete(coro)
+
+    # --- rules ---
+
+    @rule(kind=st.sampled_from(["telemetry", "telemetry", "telemetry", "status", "frame"]))
+    def broadcast(self, kind):
+        message_id = self.next_id
+        self.next_id += 1
+        payload = {"id": message_id}
+        if kind == "telemetry":
+            payload["sequence_number"] = message_id
+        self.queue.put_nowait({"type": kind, "payload": payload})
+
+    @rule(chunk_size=st.integers(min_value=1, max_value=3))
+    def connect(self, chunk_size):
+        client = _Client()
+
+        def source():
+            snapshot = self.history.snapshot()
+            client.snapshot_seqs = [json.loads(r)["sequence_number"] for r in snapshot.records]
+            client.log_len_at_snapshot = len(self.log)
+            return replay_messages(snapshot, chunk_size=chunk_size)
+
+        async def session():
+            try:
+                await self.cm.connect(client.ws, replay=source)
+            except WebSocketDisconnect:
+                client.overflowed = True
+
+        async def spawn():
+            client.task = asyncio.create_task(session())
+
+        self._run(spawn())
+        self.clients.append(client)
+
+    @rule(steps=st.integers(min_value=1, max_value=8))
+    def run_loop(self, steps):
+        async def spin():
+            for _ in range(steps):
+                await asyncio.sleep(0)
+
+        self._run(spin())
+
+    # --- invariants ---
+
+    @invariant()
+    def replaying_queues_are_bounded_and_frame_free(self):
+        for queue in self.cm._pending.values():
+            assert len(queue) <= _MODEL_MAX_PENDING
+            assert all(json.loads(text)["type"] != "frame" for text in queue)
+
+    @invariant()
+    def no_concurrent_sends_to_one_socket(self):
+        assert all(c.ws.concurrent_sends == 0 for c in self.clients)
+
+    # --- final checks ---
+
+    async def _drain(self) -> None:
+        await asyncio.wait_for(self.queue.join(), timeout=5)
+        tasks = [c.task for c in self.clients if c.task is not None]
+        if tasks:
+            await asyncio.wait_for(asyncio.gather(*tasks), timeout=5)
+
+    def teardown(self) -> None:
+        try:
+            self._run(self._drain())
+            self._check_clients()
+        finally:
+            self.worker.cancel()
+            self.loop.run_until_complete(asyncio.gather(self.worker, return_exceptions=True))
+            self.loop.close()
+            self._patch.undo()
+
+    def _check_clients(self) -> None:
+        last_seq = max((i for kind, i in self.log if kind == "telemetry"), default=None)
+        for client in self.clients:
+            if client.snapshot_seqs is None:
+                continue  # the loop never got far enough to connect it
+            if client.overflowed:
+                assert client.ws.closed_with == 1013
+                assert not self.cm.is_replaying(client.ws)
+                assert client.ws not in self.cm.active_connections
+                continue
+            assert not self.cm.is_replaying(client.ws)
+            replayed, live = [], []
+            for message in client.ws.messages():
+                if message["type"] == "replay":
+                    assert not live, "a replay chunk arrived after live messages"
+                    replayed.extend(r["sequence_number"] for r in message["payload"]["records"])
+                elif message["type"] != "frame":
+                    live.append((message["type"], message["payload"]["id"]))
+            # The replay is the history at snapshot time, oldest first
+            assert replayed == client.snapshot_seqs
+            # Everything broadcast after the snapshot arrives once, in order,
+            # statuses in their place between the records
+            assert live == self.log[client.log_len_at_snapshot:]
+            # Together: strictly increasing, gap-free up to the last broadcast
+            received = replayed + [i for kind, i in live if kind == "telemetry"]
+            assert received == sorted(set(received))
+            expected_all = [i for kind, i in self.log if kind == "telemetry"]
+            assert received == expected_all
+
+
+ReplayHandoffMachine.TestCase.settings = settings(
+    max_examples=60, stateful_step_count=40, deadline=None
+)
+TestReplayHandoff = ReplayHandoffMachine.TestCase

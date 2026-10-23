@@ -3,6 +3,7 @@
 import json
 
 import pytest
+from hypothesis import given, settings, strategies as st
 
 from src.api.replay import REPLAY_CHUNK_SIZE, replay_messages
 from src.pipeline.history import HistorySnapshot, TelemetryHistory, empty_replay_message
@@ -73,3 +74,26 @@ def test_is_lazy():
 def test_invalid_chunk_size_rejected():
     with pytest.raises(ValueError):
         list(replay_messages(_snapshot(1), chunk_size=0))
+
+
+@settings(max_examples=150, deadline=None)
+@given(
+    records=st.lists(st.integers(min_value=0, max_value=10**6), max_size=60),
+    chunk_size=st.integers(min_value=1, max_value=70),
+    truncated=st.booleans(),
+    run_id=st.text(max_size=12),
+)
+def test_property_chunking_is_lossless(records, chunk_size, truncated, run_id):
+    """Property 3: ceil(n/size) (at least 1) valid chunks, numbered, one final, same records."""
+    stored = tuple(json.dumps({"sequence_number": r}, separators=(",", ":")) for r in records)
+    snapshot = HistorySnapshot(run_id, stored, truncated)
+    texts = list(replay_messages(snapshot, chunk_size=chunk_size))
+    expected = max(1, -(-len(records) // chunk_size))
+    assert len(texts) == expected
+    assert all(json.loads(t)["type"] == "replay" for t in texts)
+    payloads = [json.loads(t)["payload"] for t in texts]
+    assert [p["chunk"] for p in payloads] == list(range(expected))
+    assert [p["final"] for p in payloads] == [False] * (expected - 1) + [True]
+    assert all(len(p["records"]) <= chunk_size for p in payloads)
+    assert all(p["run_id"] == run_id and p["truncated"] is truncated for p in payloads)
+    assert [r["sequence_number"] for p in payloads for r in p["records"]] == records
