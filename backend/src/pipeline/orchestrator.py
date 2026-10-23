@@ -105,6 +105,9 @@ class PipelineOrchestrator:
         # In-flight frame task tracking for graceful shutdown
         self._in_flight_tasks: set[asyncio.Task] = set()
 
+        # True while start() runs, so a concurrent start() is rejected
+        self._starting = False
+
         # Register callbacks on frame extractor
         self._frame_extractor.on_frame(self._on_frame)
         self._frame_extractor.on_status_change(self._on_status_change)
@@ -152,10 +155,21 @@ class PipelineOrchestrator:
             source_url: Video source URL to capture frames from.
             skip_frames: Process every Nth frame from the stream.
         """
-        if self._state.status == PipelineStatus.RUNNING:
+        if self._state.status == PipelineStatus.RUNNING or self._starting:
             logger.warning("Pipeline is already running, ignoring start request.")
             return
 
+        # Set with no await after the check above: start() awaits before the
+        # status becomes RUNNING (the empty-replay broadcast), and a second
+        # start() during that await must be rejected too
+        self._starting = True
+        try:
+            await self._start_run(source_url, skip_frames)
+        finally:
+            self._starting = False
+
+    async def _start_run(self, source_url: str, skip_frames: int) -> None:
+        """The body of start(), run while the starting guard is held."""
         # Resolve the active ROI template
         template_result = resolve_template(
             self._template_registry, self._state.active_template_name

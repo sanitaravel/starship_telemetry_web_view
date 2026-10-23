@@ -179,3 +179,35 @@ async def test_history_survives_stop_and_second_start_resets_it(orchestrator_and
         assert [m["payload"]["run_id"] for m in replays] == [first_run, orch.history.run_id]
     finally:
         await orch.stop()
+
+
+async def test_concurrent_starts_give_exactly_one_run(orchestrator_and_sent):
+    """A second start() while the first awaits its broadcasts is rejected."""
+    orch, sent = orchestrator_and_sent
+
+    async def yielding_broadcast(message):
+        await asyncio.sleep(0)  # a real send suspends, opening the race window
+        sent.append(message)
+
+    orch._broadcast = yielding_broadcast
+    await asyncio.gather(
+        orch.start("http://example.invalid/a.m3u8"),
+        orch.start("http://example.invalid/b.m3u8"),
+    )
+    try:
+        orch._frame_extractor.start.assert_called_once()
+        assert len([m for m in sent if m["type"] == "replay"]) == 1
+        assert orch.state.source_url == "http://example.invalid/a.m3u8"
+        assert orch._starting is False
+    finally:
+        await orch.stop()
+
+
+async def test_starting_guard_cleared_when_start_fails(orchestrator_and_sent):
+    orch, _ = orchestrator_and_sent
+    orch._frame_extractor.start.side_effect = RuntimeError("boom")
+    with pytest.raises(RuntimeError):
+        await orch.start("http://example.invalid/a.m3u8")
+    assert orch._starting is False
+    await orch._frames.close_pools()
+    orch._broadcaster.stop()
