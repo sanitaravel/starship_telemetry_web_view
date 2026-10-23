@@ -33,6 +33,17 @@ async def client(app):
         yield ac
 
 
+def _receive_replay(ws) -> list[dict]:
+    """Read the replay a new connection gets first; return its records."""
+    records = []
+    while True:
+        message = ws.receive_json()
+        assert message["type"] == "replay"
+        records.extend(message["payload"]["records"])
+        if message["payload"]["final"]:
+            return records
+
+
 class TestGetPipelineStatus:
     """Tests for GET /api/status endpoint."""
 
@@ -239,6 +250,7 @@ class TestWebSocketEndpoint:
     def test_websocket_connection_accepted(self, app):
         """WebSocket connection should be accepted at /ws/telemetry."""
         with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+            _receive_replay(ws)
             # Connection was accepted - send a stop command to test communication
             ws.send_json({"action": "stop"})
             response = ws.receive_json()
@@ -248,6 +260,7 @@ class TestWebSocketEndpoint:
     def test_websocket_unknown_action_returns_error(self, app):
         """Unknown actions should return an error message."""
         with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+            _receive_replay(ws)
             ws.send_json({"action": "unknown_action"})
             response = ws.receive_json()
             assert response["type"] == "error"
@@ -256,10 +269,64 @@ class TestWebSocketEndpoint:
     def test_websocket_validate_url_command(self, app):
         """validate_url action should return validation result."""
         with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+            _receive_replay(ws)
             ws.send_json({"action": "validate_url", "url": ""})
             response = ws.receive_json()
             assert response["type"] == "validation_result"
             assert response["payload"]["valid"] is False
+
+    def test_first_message_is_replay_chunk_zero(self, app):
+        """A new connection gets the (empty) replay before anything else."""
+        from src.api.runtime import orchestrator
+
+        with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+            message = ws.receive_json()
+            assert message["type"] == "replay"
+            assert message["payload"]["chunk"] == 0
+            assert message["payload"]["run_id"] == orchestrator.history.run_id
+
+    def test_history_is_replayed_in_order(self, app):
+        """Records already in the history arrive in the replay, oldest first."""
+        from src.api.replay import replay_messages
+        from src.api.runtime import orchestrator
+
+        def small_chunks():
+            return replay_messages(orchestrator.history.snapshot(), chunk_size=3)
+
+        orchestrator.history.clear()
+        try:
+            for seq in range(1, 8):
+                orchestrator.history.append({"sequence_number": seq})
+            with patch("src.api.websocket._replay_source", small_chunks), \
+                    TestClient(app) as client, \
+                    client.websocket_connect("/ws/telemetry") as ws:
+                chunks = []
+                while True:
+                    message = ws.receive_json()
+                    assert message["type"] == "replay"
+                    chunks.append(message["payload"])
+                    if message["payload"]["final"]:
+                        break
+            assert [c["chunk"] for c in chunks] == [0, 1, 2]
+            assert [r["sequence_number"] for c in chunks for r in c["records"]] == list(
+                range(1, 8)
+            )
+        finally:
+            orchestrator.history.clear()
+
+    def test_default_replay_source_carries_the_history(self, app):
+        """Without patching, the endpoint replays orchestrator.history."""
+        from src.api.runtime import orchestrator
+
+        orchestrator.history.clear()
+        try:
+            orchestrator.history.append({"sequence_number": 1})
+            orchestrator.history.append({"sequence_number": 2})
+            with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+                records = _receive_replay(ws)
+            assert [r["sequence_number"] for r in records] == [1, 2]
+        finally:
+            orchestrator.history.clear()
 
 
 class TestWebSocketDispatch:
@@ -282,6 +349,7 @@ class TestWebSocketDispatch:
         """Unknown/non-string actions get an error reply; the session keeps working."""
         message = {} if action is None else {"action": action}
         with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+            _receive_replay(ws)
             ws.send_json(message)
             assert ws.receive_json() == {
                 "type": "error",
@@ -300,6 +368,8 @@ class TestWebSocketDispatch:
         ) as stop, TestClient(app) as client, \
                 client.websocket_connect("/ws/telemetry") as ws, \
                 client.websocket_connect("/ws/telemetry") as other:
+            _receive_replay(ws)
+            _receive_replay(other)
             ws.send_json({"action": "stop"})
             for conn in (ws, other):
                 response = conn.receive_json()
@@ -316,6 +386,8 @@ class TestWebSocketDispatch:
             with TestClient(app) as client, \
                     client.websocket_connect("/ws/telemetry") as ws, \
                     client.websocket_connect("/ws/telemetry") as other:
+                _receive_replay(ws)
+                _receive_replay(other)
                 ws.send_json({"action": "set_interval", "skip_frames": 12})
                 for conn in (ws, other):
                     response = conn.receive_json()
@@ -329,14 +401,15 @@ class TestWebSocketDispatch:
         connected = []
         real_connect = manager.connect
 
-        async def spy_connect(websocket):
+        async def spy_connect(websocket, replay=None):
             connected.append(websocket)
-            await real_connect(websocket)
+            await real_connect(websocket, replay=replay)
 
         before = len(manager.active_connections)
         with patch.object(manager, "connect", side_effect=spy_connect), \
                 TestClient(app) as client:
             with client.websocket_connect("/ws/telemetry") as ws:
+                _receive_replay(ws)
                 # Round-trip so the server has definitely registered the socket
                 ws.send_json({"action": "validate_url", "url": ""})
                 ws.receive_json()
@@ -353,9 +426,37 @@ class TestWebSocketDispatch:
 
         with src_caplog.at_level(logging.INFO, logger="src.api"), TestClient(app) as client:
             with client.websocket_connect("/ws/telemetry") as ws:
+                _receive_replay(ws)
                 ws.send_json({"action": "validate_url", "url": ""})
                 ws.receive_json()
         disconnects = [r for r in src_caplog.records
                        if r.getMessage() == "WebSocket session disconnected"]
         assert len(disconnects) == 1
         assert not [r for r in src_caplog.records if r.getMessage().startswith("WebSocket error")]
+
+    def test_replay_send_failure_logged_once(self, app, src_caplog):
+        """A failure while sending the replay ends the session through the same cleanup."""
+        import logging
+
+        def failing_replay():
+            def texts():
+                yield ('{"type":"replay","payload":{"run_id":"r","chunk":0,"final":false,'
+                       '"truncated":false,"records":[]}}')
+                raise RuntimeError("replay send failed")
+            return texts()
+
+        before = len(manager.active_connections)
+        with patch("src.api.websocket._replay_source", failing_replay), \
+                src_caplog.at_level(logging.INFO, logger="src.api"), \
+                TestClient(app) as client:
+            with client.websocket_connect("/ws/telemetry") as ws:
+                assert ws.receive_json()["payload"]["final"] is False
+                # (the endpoint returns without a close frame, so the test
+                # client would wait forever on another receive)
+        disconnects = [r for r in src_caplog.records
+                       if r.getMessage() == "WebSocket session disconnected"]
+        assert len(disconnects) == 1
+        errors = [r for r in src_caplog.records if r.getMessage().startswith("WebSocket error")]
+        assert len(errors) == 1
+        assert len(manager.active_connections) == before
+        assert not manager._pending

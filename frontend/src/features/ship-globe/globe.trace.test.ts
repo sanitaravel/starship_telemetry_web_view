@@ -23,6 +23,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ShipGlobe } from './globe';
+import { FlightColors } from '../../state/flight-colors';
 import type { ShipPosition, ShipTrack } from '../../core/ship-track';
 import type { ShipTracker } from '../../state/ship-tracker';
 import type { HistoricalTrajectory } from '../../api/trajectories';
@@ -30,6 +31,8 @@ import type { HistoricalTrajectory } from '../../api/trajectories';
 const FIXED_NOW = new Date('2026-01-01T12:00:00.000Z');
 const WRAP_WIDTH_BEFORE = 600;
 const WRAP_WIDTH_AFTER = 760;
+/** Drawing the world map at every step can pass the 5 s default when the whole suite runs. */
+const TRACE_TIMEOUT_MS = 30_000;
 
 /** Every canvas call, property set, pointer-capture call and frame request, in order. */
 let trace: string[] = [];
@@ -383,5 +386,44 @@ describe('ShipGlobe canvas trace', () => {
     records.forEach(([name, record], index) => {
       expect(record).toMatchSnapshot(`${index}. ${name}`);
     });
-  });
+  }, TRACE_TIMEOUT_MS);
+
+  it('without chrome draws one hidden path less, a colour override and no controls', () => {
+    wrapWidth = WRAP_WIDTH_BEFORE;
+    const host = document.createElement('section');
+    host.setAttribute('data-globe-host', '');
+    document.body.append(host);
+    const fake = fakeTracker(initialTracks());
+    const colors = new FlightColors('trajectory', { persist: false, initial: { ship36: '#81c784' } });
+    let globe: ShipGlobe | undefined;
+
+    const steps: Array<[string, () => void]> = [
+      [
+        'mount without chrome, setHistory and initial draw',
+        () => {
+          globe = new ShipGlobe(host, fake.tracker, { chrome: false, hidden: ['ship35'], colors });
+          globe.setHistory(HISTORY);
+        },
+      ],
+      ['new track sample', () => fake.publish(withNewSample(initialTracks()))],
+    ];
+
+    trace = [];
+    const records: Array<[string, StepRecord]> = [];
+    for (const [name, act] of steps) {
+      act();
+      const frames = flush();
+      const calls = trace.splice(0);
+      expect(calls.length, `${name} produced no trace`).toBeGreaterThan(0);
+      records.push([name, { frames, callCount: calls.length, traceSha256: traceDigest(calls), innerHTML: host.innerHTML }]);
+    }
+
+    expect(host.querySelectorAll('button, select, input')).toHaveLength(0);
+    expect(host.querySelector('.ship-globe__readout')?.textContent).toContain('Ship 40');
+    expect(globe!.overlaySnapshot()).toEqual({ v: 1, t: { ship36: '#81c784' }, h: ['ship35'] });
+    records.forEach(([name, record], index) => {
+      expect(record).toMatchSnapshot(`chrome off ${index}. ${name}`);
+    });
+    host.remove();
+  }, TRACE_TIMEOUT_MS);
 });

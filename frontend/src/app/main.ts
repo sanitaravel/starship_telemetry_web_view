@@ -12,9 +12,15 @@ import { ShipTracker } from '../state/ship-tracker';
 import { fetchHistoricalTrajectories } from '../api/trajectories';
 import { BackendVersion } from '../features/header/backend-version';
 import { renderLayout } from './layout';
+import { mountOverlay } from './overlay';
+import { parseOverlayLocation } from '../domain/overlay/snapshot';
 
 const app = document.getElementById('app');
-if (app) {
+// ?overlay=<id>: one widget for an OBS Browser Source (app/overlay.ts)
+const overlayRoute = parseOverlayLocation(window.location.search);
+if (app && overlayRoute) {
+  mountOverlay(app, overlayRoute);
+} else if (app) {
   renderLayout(app);
 
   // Initialize state manager

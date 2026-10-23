@@ -86,3 +86,36 @@ describe('EngineSerials', () => {
     setItem.mockRestore();
   });
 });
+
+describe('EngineSerials with persist: false', () => {
+  it('never touches localStorage and keeps changes in memory', () => {
+    localStorage.setItem('engine-serials.starship', JSON.stringify({ ss_e1: 'R100' }));
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+    try {
+      const serials = new EngineSerials('starship', {
+        persist: false,
+        initial: { ss_e6: ' r576 ', ss_e2: '!!' },
+      });
+      const listener = vi.fn();
+      serials.subscribe(listener);
+
+      expect(serials.get('ss_e1')).toBeUndefined();
+      expect(serials.snapshot()).toEqual({ ss_e6: 'R576' });
+      serials.set('ss_e3', 'R300');
+      serials.replaceAll({ ss_e4: 'R400' });
+      serials.clear();
+      expect(serials.isEmpty).toBe(true);
+      expect(listener).toHaveBeenCalledTimes(3);
+
+      expect(getItem).not.toHaveBeenCalled();
+      expect(setItem).not.toHaveBeenCalled();
+      expect(removeItem).not.toHaveBeenCalled();
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+      removeItem.mockRestore();
+    }
+  });
+});

@@ -9,6 +9,7 @@ import logging
 import time
 from typing import Any, Awaitable, Callable
 
+from src.pipeline.history import TelemetryHistory
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +21,21 @@ _MAX_QUEUED_BROADCASTS = 8
 class Broadcaster:
     """Owns the broadcast queue and the worker task that drains it."""
 
-    def __init__(self, broadcast: Callable[[dict[str, Any]], Awaitable[None]]) -> None:
+    def __init__(
+        self,
+        broadcast: Callable[[dict[str, Any]], Awaitable[None]],
+        history: TelemetryHistory | None = None,
+    ) -> None:
         """Initialize the broadcaster.
 
         Args:
             broadcast: Async callback that sends a JSON message to all
                 connected WebSocket clients.
+            history: Store that each telemetry record is appended to as it
+                is sent, for replay to clients that connect later.
         """
         self._broadcast = broadcast
+        self._history = history
         self.queue: asyncio.Queue[dict[str, Any]] | None = None
         self._task: asyncio.Task | None = None
 
@@ -66,6 +74,13 @@ class Broadcaster:
             message = await queue.get()
             start = time.monotonic()
             try:
+                # NO AWAIT between the append and the call into broadcast:
+                # the broadcast callback routes the message (live or queued
+                # per client) before its first await, so appending and routing
+                # are one synchronous step and a client connecting at any
+                # point gets each record exactly once (replay or live).
+                if self._history is not None and message.get("type") == "telemetry":
+                    self._history.append(message["payload"])
                 await self._broadcast(message)
             except Exception as e:
                 logger.warning("Failed to broadcast %s message: %s", message.get("type"), e)

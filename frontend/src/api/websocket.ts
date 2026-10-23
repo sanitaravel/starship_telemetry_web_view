@@ -9,6 +9,11 @@ export type ConnectionState = 'connected' | 'disconnected' | 'connecting';
 export type MessageHandler = (message: WebSocketMessage) => void;
 export type ConnectionStateHandler = (state: ConnectionState) => void;
 
+export interface TelemetryWebSocketOptions {
+  /** Never send any command (overlays): sendCommand drops it with a warning. */
+  readOnly?: boolean;
+}
+
 /**
  * WebSocket client module with auto-reconnection.
  * Connects to the backend at /ws/telemetry and dispatches incoming messages
@@ -20,6 +25,11 @@ export class TelemetryWebSocket {
   private connectionStateHandlers: ConnectionStateHandler[] = [];
   private _connectionState: ConnectionState = 'disconnected';
   private retryCount: number = 0;
+  private readonly readOnly: boolean;
+
+  constructor(options: TelemetryWebSocketOptions = {}) {
+    this.readOnly = options.readOnly ?? false;
+  }
 
   get connectionState(): ConnectionState {
     return this._connectionState;
@@ -84,6 +94,12 @@ export class TelemetryWebSocket {
    * Send a control command to the backend.
    */
   sendCommand(command: ControlCommand): void {
+    if (this.readOnly) {
+      logger.warn(`Command dropped: action="${command.action}", the connection is read-only`, {
+        action: command.action,
+      });
+      return;
+    }
     if (this.ws && this._connectionState === 'connected') {
       this.ws.send(JSON.stringify(command));
     } else {
@@ -155,6 +171,16 @@ export class TelemetryWebSocket {
   }
 }
 
+/** Every message type the backend sends. */
+const MESSAGE_TYPES: ReadonlySet<string> = new Set<WebSocketMessage['type']>([
+  'telemetry',
+  'status',
+  'error',
+  'validation_result',
+  'frame',
+  'replay',
+]);
+
 /**
  * Validate that a parsed JSON value conforms to the expected WebSocketMessage structure.
  * Returns the message if valid, or null if it fails validation.
@@ -171,7 +197,7 @@ function validateMessageStructure(parsed: unknown): WebSocketMessage | null {
 
   const { type, payload } = parsed as Record<string, unknown>;
 
-  if (type !== 'telemetry' && type !== 'status' && type !== 'error' && type !== 'validation_result' && type !== 'frame') {
+  if (typeof type !== 'string' || !MESSAGE_TYPES.has(type)) {
     return null;
   }
 
@@ -179,7 +205,17 @@ function validateMessageStructure(parsed: unknown): WebSocketMessage | null {
     return null;
   }
 
+  if (type === 'replay' && !isReplayPayloadShape(payload as Record<string, unknown>)) {
+    return null;
+  }
+
   return { type, payload } as WebSocketMessage;
+}
+
+/** A replay payload needs a `records` array and a non-negative integer `chunk`. */
+function isReplayPayloadShape(payload: Record<string, unknown>): boolean {
+  const { chunk, records } = payload;
+  return Array.isArray(records) && typeof chunk === 'number' && Number.isInteger(chunk) && chunk >= 0;
 }
 
 /**
@@ -187,28 +223,7 @@ function validateMessageStructure(parsed: unknown): WebSocketMessage | null {
  * Returns null if the message is invalid.
  */
 export function parseWebSocketMessage(data: string): WebSocketMessage | null {
-  const parsed = JSON.parse(data);
-
-  if (
-    typeof parsed !== 'object' ||
-    parsed === null ||
-    !('type' in parsed) ||
-    !('payload' in parsed)
-  ) {
-    return null;
-  }
-
-  const { type, payload } = parsed;
-
-  if (type !== 'telemetry' && type !== 'status' && type !== 'error' && type !== 'validation_result' && type !== 'frame') {
-    return null;
-  }
-
-  if (typeof payload !== 'object' || payload === null) {
-    return null;
-  }
-
-  return { type, payload } as WebSocketMessage;
+  return validateMessageStructure(JSON.parse(data));
 }
 
 /**

@@ -52,11 +52,31 @@ export interface FramePayload {
 }
 
 /**
+ * Replay payload received over WebSocket: the current Run's telemetry so far,
+ * sent in chunks right after connecting (see backend/src/api/replay.py), and
+ * broadcast as an empty chunk 0 when a new Run starts
+ * (backend/src/pipeline/history.py `empty_replay_message`). Chunk 0 resets
+ * the client's live data.
+ */
+export interface ReplayPayload {
+  /** Id of the Run the records belong to */
+  run_id: string;
+  /** Chunk index, from 0 */
+  chunk: number;
+  /** True on the last chunk of this replay */
+  final: boolean;
+  /** True when the server dropped the Run's oldest records */
+  truncated: boolean;
+  /** The `telemetry` payloads, oldest first */
+  records: TelemetryRecord[];
+}
+
+/**
  * Message received over the WebSocket connection.
  */
 export interface WebSocketMessage {
-  type: 'telemetry' | 'status' | 'error' | 'validation_result' | 'frame';
-  payload: TelemetryRecord | PipelineStatus | ErrorPayload | ValidationResult | FramePayload;
+  type: 'telemetry' | 'status' | 'error' | 'validation_result' | 'frame' | 'replay';
+  payload: TelemetryRecord | PipelineStatus | ErrorPayload | ValidationResult | FramePayload | ReplayPayload;
 }
 
 /**

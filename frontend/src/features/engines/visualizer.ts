@@ -7,6 +7,9 @@ import { engineLabel, type Vehicle } from '../../domain/engines/layout';
 import { createStarshipDiagram, createSuperHeavyDiagram, getStatusFill, getStatusStroke } from './diagram';
 import { createLegend } from './legend';
 import { EngineTooltip } from './tooltip';
+import { buildOverlayUrl, type OverlaySnapshot } from '../../domain/overlay/snapshot';
+import { overlayWidget, type OverlayWidgetId } from '../../domain/overlay/widgets';
+import { createObsButton, overlayBaseUrl, toggleObsPopover } from '../../ui/obs-popover';
 
 /** A settings panel group of engines `first`..`last` of a vehicle, e.g. ss_e1..ss_e3. */
 function engineGroup(title: string, prefix: 'ss' | 'sh', first: number, last: number): EngineGroup {
@@ -31,6 +34,53 @@ const SUPERHEAVY_ENGINE_GROUPS: EngineGroup[] = [
   engineGroup('Outer ring', 'sh', 14, 33),
 ];
 
+/** How overlay snapshots key a vehicle's serials: the engine number after this prefix ("6" for ss_e6). */
+const ENGINE_ID_PREFIX: Record<Vehicle, string> = { starship: 'ss_e', superheavy: 'sh_e' };
+
+export interface EngineVisualizerOptions {
+  /** The diagrams to draw, in order. Default both, Super Heavy first. */
+  vehicles?: readonly Vehicle[];
+  /**
+   * False leaves out the chrome (overlays): vehicle titles, settings gears,
+   * OBS buttons and the legend. Default true.
+   */
+  chrome?: boolean;
+  /** Each vehicle's serials. Default the localStorage-backed stores. */
+  serials?: Record<Vehicle, EngineSerials>;
+  /**
+   * The mission the serials belong to. Default one built on the serials;
+   * null builds none (overlays: CurrentMission writes the mission's file).
+   */
+  mission?: CurrentMission | null;
+  /** Mission, ship and booster names to report when there is no mission (overlays). */
+  missionNames?: MissionNames;
+}
+
+type MissionNames = NonNullable<OverlaySnapshot['m']>;
+
+/** The panel a vehicle's gear opens, and what its OBS button offers. */
+interface VehicleSection {
+  heading: string;
+  name: string;
+  widget: OverlayWidgetId;
+  panel: { title: string; groups: EngineGroup[]; vehicle: Vehicle; wide?: boolean };
+}
+
+const SECTIONS: Record<Vehicle, VehicleSection> = {
+  superheavy: {
+    heading: 'SUPER HEAVY',
+    name: 'Super Heavy',
+    widget: 'engines-superheavy',
+    panel: { title: 'Super Heavy engines', groups: SUPERHEAVY_ENGINE_GROUPS, vehicle: 'superheavy', wide: true },
+  },
+  starship: {
+    heading: 'STARSHIP',
+    name: 'Starship',
+    widget: 'engines-starship',
+    panel: { title: 'Starship engines', groups: STARSHIP_ENGINE_GROUPS, vehicle: 'starship' },
+  },
+};
+
 /**
  * Engine Visualizer UI component.
  * Renders SVG diagrams showing the spatial layout of engines for both
@@ -48,31 +98,52 @@ export class EngineVisualizer {
   private starshipCircles: Map<string, SVGGElement> = new Map();
   /** Serial numbers entered for this mission's engines, per vehicle. */
   private readonly serials: Record<Vehicle, EngineSerials>;
-  /** The mission, ship and booster those serials belong to, saved to the mission's file. */
-  private readonly mission: CurrentMission;
+  /** The mission, ship and booster those serials belong to, saved to the mission's file; null in overlays. */
+  private readonly mission: CurrentMission | null;
+  private readonly missionNames: MissionNames;
+  private readonly vehicles: readonly Vehicle[];
+  private readonly chrome: boolean;
   private unsubscribeSerials: (() => void)[] = [];
   private tooltip!: EngineTooltip;
 
-  constructor(
-    container: HTMLElement,
-    stateManager: StateManager,
-    serials: Record<Vehicle, EngineSerials> = {
-      starship: new EngineSerials('starship'),
-      superheavy: new EngineSerials('superheavy'),
-    },
-    mission: CurrentMission = new CurrentMission(serials)
-  ) {
+  constructor(container: HTMLElement, stateManager: StateManager, options: EngineVisualizerOptions = {}) {
     this.container = container;
     this.stateManager = stateManager;
-    this.serials = serials;
-    this.mission = mission;
+    this.serials = options.serials ?? {
+      starship: new EngineSerials('starship'),
+      superheavy: new EngineSerials('superheavy'),
+    };
+    this.mission = options.mission === undefined ? new CurrentMission(this.serials) : options.mission;
+    this.missionNames = options.missionNames ?? { n: '', ss: '', sh: '' };
+    this.vehicles = options.vehicles ?? ['superheavy', 'starship'];
+    this.chrome = options.chrome ?? true;
 
     this.render();
     this.subscribeToState();
-    this.unsubscribeSerials = (['starship', 'superheavy'] as const).map((vehicle) =>
-      serials[vehicle].subscribe(() => this.labelEngines(vehicle))
+    this.unsubscribeSerials = this.vehicles.map((vehicle) =>
+      this.serials[vehicle].subscribe(() => this.labelEngines(vehicle))
     );
     this.update(this.stateManager.getState());
+  }
+
+  /**
+   * One vehicle's overlay settings: the mission, ship and booster names and
+   * the vehicle's serials by engine number.
+   */
+  overlaySnapshot(vehicle: Vehicle): OverlaySnapshot {
+    const m: MissionNames = this.mission
+      ? {
+          n: this.mission.mission,
+          ss: this.mission.vehicleName('starship'),
+          sh: this.mission.vehicleName('superheavy'),
+        }
+      : { ...this.missionNames };
+    const prefix = ENGINE_ID_PREFIX[vehicle];
+    const e: Record<string, string> = {};
+    for (const [id, serial] of Object.entries(this.serials[vehicle].snapshot())) {
+      if (id.startsWith(prefix)) e[id.slice(prefix.length)] = serial;
+    }
+    return { v: 1, m, e };
   }
 
   /**
@@ -81,62 +152,35 @@ export class EngineVisualizer {
   private render(): void {
     this.container.innerHTML = '';
     this.container.classList.add('engine-visualizer');
-
-    // Super Heavy section
-    const superheavySection = document.createElement('div');
-    superheavySection.className = 'engine-visualizer__section';
-
-    const superheavyTitle = document.createElement('h3');
-    superheavyTitle.className = 'engine-visualizer__title';
-    superheavyTitle.textContent = 'SUPER HEAVY';
-    superheavySection.appendChild(superheavyTitle);
-
-    superheavySection.appendChild(
-      this.createSettingsButton('Super Heavy', {
-        title: 'Super Heavy engines',
-        groups: SUPERHEAVY_ENGINE_GROUPS,
-        vehicle: 'superheavy',
-        wide: true,
-      })
-    );
-
-    const superheavy = createSuperHeavyDiagram();
-    this.superheavyCircles = superheavy.circles;
-    superheavySection.appendChild(superheavy.svg);
-
-    // Starship section
-    const starshipSection = document.createElement('div');
-    starshipSection.className = 'engine-visualizer__section';
-
-    const starshipTitle = document.createElement('h3');
-    starshipTitle.className = 'engine-visualizer__title';
-    starshipTitle.textContent = 'STARSHIP';
-    starshipSection.appendChild(starshipTitle);
-
-    starshipSection.appendChild(
-      this.createSettingsButton('Starship', {
-        title: 'Starship engines',
-        groups: STARSHIP_ENGINE_GROUPS,
-        vehicle: 'starship',
-      })
-    );
-
-    const starship = createStarshipDiagram();
-    this.starshipCircles = starship.circles;
-    starshipSection.appendChild(starship.svg);
-
     this.tooltip = new EngineTooltip();
-    this.tooltip.attach(superheavy.svg);
-    this.tooltip.attach(starship.svg);
-    this.labelEngines('superheavy');
-    this.labelEngines('starship');
 
-    this.container.appendChild(superheavySection);
-    this.container.appendChild(starshipSection);
+    for (const vehicle of this.vehicles) {
+      const section = this.createSection(SECTIONS[vehicle]);
+      const diagram = vehicle === 'superheavy' ? createSuperHeavyDiagram() : createStarshipDiagram();
+      if (vehicle === 'superheavy') this.superheavyCircles = diagram.circles;
+      else this.starshipCircles = diagram.circles;
+      section.appendChild(diagram.svg);
+      this.tooltip.attach(diagram.svg);
+      this.container.appendChild(section);
+    }
+    for (const vehicle of this.vehicles) this.labelEngines(vehicle);
 
-    // Legend
-    const legend = createLegend();
-    this.container.appendChild(legend);
+    if (this.chrome) this.container.appendChild(createLegend());
+  }
+
+  /** A vehicle's section with, unless chrome is off, its title, gear and OBS button. */
+  private createSection({ heading, name, widget, panel }: VehicleSection): HTMLElement {
+    const section = document.createElement('div');
+    section.className = 'engine-visualizer__section';
+    if (!this.chrome) return section;
+
+    const title = document.createElement('h3');
+    title.className = 'engine-visualizer__title';
+    title.textContent = heading;
+    section.appendChild(title);
+    section.appendChild(this.createSettingsButton(name, panel));
+    section.appendChild(this.createObsButton(name, panel.vehicle, widget));
+    return section;
   }
 
   /** Gear opening a vehicle's engine settings; both vehicles share the mission. */
@@ -145,8 +189,24 @@ export class EngineVisualizer {
     panel: { title: string; groups: EngineGroup[]; vehicle: Vehicle; wide?: boolean }
   ): HTMLButtonElement {
     const button = createSettingsButton(vehicleName);
+    const mission = this.mission;
+    button.addEventListener('click', () => {
+      if (mission) toggleEngineSettings(button, { ...panel, serials: this.serials[panel.vehicle], mission });
+    });
+    return button;
+  }
+
+  /** OBS button offering this vehicle's diagram as an overlay. */
+  private createObsButton(vehicleName: string, vehicle: Vehicle, widget: OverlayWidgetId): HTMLButtonElement {
+    const button = createObsButton(`${vehicleName} engines`);
+    button.classList.add('engine-visualizer__obs');
     button.addEventListener('click', () =>
-      toggleEngineSettings(button, { ...panel, serials: this.serials[panel.vehicle], mission: this.mission })
+      toggleObsPopover(button, {
+        title: `${vehicleName} engines`,
+        widgets: [overlayWidget(widget)],
+        selected: widget,
+        urlFor: (id) => buildOverlayUrl(overlayBaseUrl(), id, this.overlaySnapshot(vehicle)),
+      })
     );
     return button;
   }

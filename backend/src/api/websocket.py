@@ -4,10 +4,11 @@ import logging
 import re
 import time
 import uuid
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Iterator
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from src.api.replay import replay_messages
 from src.api.runtime import manager, orchestrator
 from src.core.logging_context import correlation_id_var
 
@@ -24,6 +25,15 @@ _UUID4_PATTERN = re.compile(
 def _is_valid_uuid4(value: str) -> bool:
     """Check if a string is a valid UUID v4 in lowercase hyphenated format."""
     return bool(_UUID4_PATTERN.match(value))
+
+
+def _replay_source() -> Iterator[str]:
+    """The new client's replay; called synchronously inside manager.connect().
+
+    The history snapshot is taken here, at call time, in the same step as the
+    client's registration; the chunk texts are built lazily as they are sent.
+    """
+    return replay_messages(orchestrator.history.snapshot())
 
 
 # --- WebSocket control commands ---
@@ -109,9 +119,11 @@ async def telemetry_websocket(websocket: WebSocket) -> None:
         extra={"correlation_id": session_correlation_id},
     )
 
-    await manager.connect(websocket)
     session_error: Exception | None = None
     try:
+        # Inside the try, so a failure while sending the replay is logged and
+        # cleaned up once by the finally below, like any failed session
+        await manager.connect(websocket, replay=_replay_source)
         while True:
             data = await websocket.receive_json()
             action = data.get("action")

@@ -193,4 +193,18 @@ describe('TelemetryDisplay', () => {
       // No error thrown means unsubscribe worked
     });
   });
+
+  describe('OBS button', () => {
+    it('sits next to the MET on the dashboard', () => {
+      const button = container.querySelector('.telemetry-display__met .obs-btn');
+      expect(button?.textContent).toBe('OBS');
+    });
+
+    it('is left out without chrome, with the badges kept', () => {
+      const bare = document.createElement('div');
+      new TelemetryDisplay(bare, stateManager, { chrome: false });
+      expect(bare.querySelectorAll('button, select, input')).toHaveLength(0);
+      expect(bare.querySelectorAll('.telemetry-display__badge')).toHaveLength(2);
+    });
+  });
 });

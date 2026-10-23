@@ -9,6 +9,23 @@ import { baseRadius, DEFAULT_ROTATION } from './map-data';
 import { GlobeRenderer } from './draw';
 import { bindDrag, bindZoom, fitCanvas } from './interaction';
 import { GLOBE_HTML, latestShip, renderDownloads, renderHistoryToggles, renderReadout } from './overlay';
+import { buildOverlayUrl, type OverlaySnapshot } from '../../domain/overlay/snapshot';
+import { overlayWidget } from '../../domain/overlay/widgets';
+import { createObsButton, overlayBaseUrl, toggleObsPopover } from '../../ui/obs-popover';
+
+export interface ShipGlobeOptions {
+  /**
+   * False leaves out the chrome (overlays): heading, OBS button, live track
+   * downloads, the previous ships bar, the zoom and centre controls and the
+   * hint; the globe always follows the ship and ignores drag and wheel.
+   * Default true.
+   */
+  chrome?: boolean;
+  /** Names of the recorded flights hidden whenever the history is set. Default none. */
+  hidden?: readonly string[];
+  /** Path colour overrides by trajectory name. Default the localStorage-backed store. */
+  colors?: FlightColors;
+}
 
 /**
  * Rotatable globe showing the live position and track of each ship reported
@@ -30,16 +47,26 @@ export class ShipGlobe {
   private history: HistoricalTrajectory[] = [];
   private hiddenHistory = new Set<string>();
   /** User-picked path colours, keyed by trajectory name; separate from the graphs' colours. */
-  private historyColors = new FlightColors('trajectory');
+  private historyColors: FlightColors;
   private historySwatches = new Map<string, HTMLButtonElement>();
+  /** Recorded flights hidden whenever the history is set (overlays). */
+  private readonly initiallyHidden: readonly string[];
+  /** Overlays size the globe to the page rather than to the column width. */
+  private readonly fill: boolean;
   private followShip = true;
   private zoom = MIN_ZOOM;
   private width = 0;
   private height = 0;
   private frameRequested = false;
 
-  constructor(container: HTMLElement, tracker: ShipTracker) {
+  constructor(container: HTMLElement, tracker: ShipTracker, options: ShipGlobeOptions = {}) {
+    const chrome = options.chrome ?? true;
+    this.historyColors = options.colors ?? new FlightColors('trajectory');
+    this.initiallyHidden = options.hidden ?? [];
+    this.fill = !chrome;
     container.classList.add('ship-globe');
+    // Fills the page, one frame for map and readout (styles/overlay.css)
+    if (!chrome) container.classList.add('ship-globe--overlay');
     container.innerHTML = GLOBE_HTML;
     this.canvas = container.querySelector('.ship-globe__canvas')!;
     this.readout = container.querySelector('.ship-globe__readout')!;
@@ -49,6 +76,14 @@ export class ShipGlobe {
     this.historyBar = container.querySelector('.ship-globe__history')!;
     this.historyToggles = container.querySelector('.ship-globe__history-toggles')!;
     this.downloads = container.querySelector('.ship-globe__downloads')!;
+    if (chrome) {
+      container.querySelector('.ship-globe__header')!.appendChild(this.createObsButton());
+    } else {
+      // Removed after being looked up: the class keeps them, detached, and works unchanged
+      container
+        .querySelectorAll('.ship-globe__header, .ship-globe__history, .ship-globe__zoom, .ship-globe__hint')
+        .forEach((el) => el.remove());
+    }
 
     this.centerButton.addEventListener('click', () => {
       this.followShip = true;
@@ -60,18 +95,20 @@ export class ShipGlobe {
       const track = this.tracks.find((t) => t.id === id);
       if (track) downloadText(trackFilename(track), trackToCsv(track), 'text/csv');
     });
-    bindDrag(this.canvas, {
-      getRotation: () => this.rotation,
-      setRotation: (rotation) => {
-        this.rotation = rotation;
-      },
-      radius: () => baseRadius(this.width, this.height) * this.zoom,
-      onGrab: () => {
-        this.followShip = false;
-      },
-      requestDraw: () => this.requestDraw(),
-    });
-    bindZoom(this.canvas, container, () => this.zoom, (zoom) => this.setZoom(zoom));
+    if (chrome) {
+      bindDrag(this.canvas, {
+        getRotation: () => this.rotation,
+        setRotation: (rotation) => {
+          this.rotation = rotation;
+        },
+        radius: () => baseRadius(this.width, this.height) * this.zoom,
+        onGrab: () => {
+          this.followShip = false;
+        },
+        requestDraw: () => this.requestDraw(),
+      });
+      bindZoom(this.canvas, container, () => this.zoom, (zoom) => this.setZoom(zoom));
+    }
     this.historyToggles.addEventListener('change', (e) => {
       const input = e.target as HTMLInputElement;
       const name = input.dataset.trajectory;
@@ -95,10 +132,33 @@ export class ShipGlobe {
     tracker.subscribe((tracks) => this.update(tracks));
   }
 
-  /** Replaces the recorded flight paths and their on/off toggles. All start visible. */
+  /** The globe overlay's settings: the path colour overrides and the hidden recorded flights. */
+  overlaySnapshot(): OverlaySnapshot {
+    return { v: 1, t: this.historyColors.snapshot(), h: [...this.hiddenHistory] };
+  }
+
+  /** OBS button offering the globe as an overlay. */
+  private createObsButton(): HTMLButtonElement {
+    const button = createObsButton('Ship Position');
+    button.classList.add('ship-globe__obs');
+    button.addEventListener('click', () =>
+      toggleObsPopover(button, {
+        title: 'Ship Position',
+        widgets: [overlayWidget('globe')],
+        selected: 'globe',
+        urlFor: (id) => buildOverlayUrl(overlayBaseUrl(), id, this.overlaySnapshot()),
+      }),
+    );
+    return button;
+  }
+
+  /**
+   * Replaces the recorded flight paths and their on/off toggles. All start
+   * visible except the `hidden` option's.
+   */
   setHistory(trajectories: HistoricalTrajectory[]): void {
     this.history = trajectories;
-    this.hiddenHistory.clear();
+    this.hiddenHistory = new Set(this.initiallyHidden);
     this.historyBar.hidden = trajectories.length === 0;
     this.historySwatches = renderHistoryToggles(
       this.historyToggles,
@@ -145,7 +205,7 @@ export class ShipGlobe {
   }
 
   private resize(wrap: HTMLElement): void {
-    const size = fitCanvas(this.canvas, wrap, { width: this.width, height: this.height });
+    const size = fitCanvas(this.canvas, wrap, { width: this.width, height: this.height }, this.fill);
     if (!size) return;
     this.width = size.width;
     this.height = size.height;

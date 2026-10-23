@@ -22,6 +22,7 @@ from src.core.logging_context import frame_seq_var
 from src.pipeline.broadcast import Broadcaster
 from src.pipeline.concurrency_controller import ConcurrencyController
 from src.pipeline.frame_processor import FrameProcessor
+from src.pipeline.history import TelemetryHistory, empty_replay_message
 from src.pipeline.lifecycle import cancel_in_flight, resolve_template
 from src.pipeline.ordering import ReorderCoordinator
 from src.pipeline.parallel_config import ParallelPipelineConfig
@@ -74,8 +75,10 @@ class PipelineOrchestrator:
         self._state = PipelineState(gpu_capabilities=gpu_capabilities)
 
         # Ordered broadcast queue, drained by a single task so sending to
-        # clients never holds up frame processing or its concurrency slot
-        self._broadcaster = Broadcaster(broadcast)
+        # clients never holds up frame processing or its concurrency slot.
+        # It feeds the Run's history, replayed to clients that connect later.
+        self._history = TelemetryHistory()
+        self._broadcaster = Broadcaster(broadcast, self._history)
 
         # Reorder buffer for sequential broadcasting
         self._ordering = ReorderCoordinator(
@@ -102,6 +105,9 @@ class PipelineOrchestrator:
         # In-flight frame task tracking for graceful shutdown
         self._in_flight_tasks: set[asyncio.Task] = set()
 
+        # True while start() runs, so a concurrent start() is rejected
+        self._starting = False
+
         # Register callbacks on frame extractor
         self._frame_extractor.on_frame(self._on_frame)
         self._frame_extractor.on_status_change(self._on_status_change)
@@ -110,6 +116,11 @@ class PipelineOrchestrator:
     def state(self) -> PipelineState:
         """Return the current pipeline state."""
         return self._state
+
+    @property
+    def history(self) -> TelemetryHistory:
+        """Return the current Run's telemetry history (kept after stop)."""
+        return self._history
 
     @property
     def frame_extractor(self) -> FrameExtractor:
@@ -144,10 +155,21 @@ class PipelineOrchestrator:
             source_url: Video source URL to capture frames from.
             skip_frames: Process every Nth frame from the stream.
         """
-        if self._state.status == PipelineStatus.RUNNING:
+        if self._state.status == PipelineStatus.RUNNING or self._starting:
             logger.warning("Pipeline is already running, ignoring start request.")
             return
 
+        # Set with no await after the check above: start() awaits before the
+        # status becomes RUNNING (the empty-replay broadcast), and a second
+        # start() during that await must be rejected too
+        self._starting = True
+        try:
+            await self._start_run(source_url, skip_frames)
+        finally:
+            self._starting = False
+
+    async def _start_run(self, source_url: str, skip_frames: int) -> None:
+        """The body of start(), run while the starting guard is held."""
         # Resolve the active ROI template
         template_result = resolve_template(
             self._template_registry, self._state.active_template_name
@@ -170,6 +192,12 @@ class PipelineOrchestrator:
         self._state.skip_frames = skip_frames
         self._state.current_sequence = 0
         self._state.separation_state = SeparationState.PRE_SEPARATION
+
+        # New Run: empty the history and tell every client to reset, before
+        # the broadcaster and extractor run, so the empty replay precedes
+        # every telemetry message of this Run on every connection
+        run_id = self._history.clear()
+        await self._broadcast(empty_replay_message(run_id))
 
         # Ensure OCR engine is loaded, with T-0 detection cleared from any
         # previous run so the time gate applies again

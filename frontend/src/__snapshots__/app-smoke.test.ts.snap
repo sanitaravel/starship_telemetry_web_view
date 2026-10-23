@@ -59,6 +59,9 @@ exports[`app smoke test > renders the same DOM as before 1`] = `
           <span class="telemetry-display__met-value" aria-label="Mission Elapsed Time">
             --:--:--
           </span>
+          <button type="button" class="obs-btn telemetry-display__obs" title="OBS Browser Source URL for Telemetry" aria-label="OBS Browser Source URL for Telemetry" aria-haspopup="dialog" aria-expanded="false">
+            OBS
+          </button>
         </div>
         <div class="telemetry-display__indicators">
           <span class="telemetry-display__badge telemetry-display__badge--inactive" aria-label="T-0 Detection Status">
@@ -152,6 +155,9 @@ exports[`app smoke test > renders the same DOM as before 1`] = `
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
           </svg>
+        </button>
+        <button type="button" class="obs-btn engine-visualizer__obs" title="OBS Browser Source URL for Super Heavy engines" aria-label="OBS Browser Source URL for Super Heavy engines" aria-haspopup="dialog" aria-expanded="false">
+          OBS
         </button>
         <svg viewBox="-2 -2 100 100" width="420" height="420" aria-label="Super Heavy engine status diagram" class="engine-visualizer__svg">
           <g data-label="E1" role="img" aria-label="E1">
@@ -363,6 +369,9 @@ exports[`app smoke test > renders the same DOM as before 1`] = `
             <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
           </svg>
         </button>
+        <button type="button" class="obs-btn engine-visualizer__obs" title="OBS Browser Source URL for Starship engines" aria-label="OBS Browser Source URL for Starship engines" aria-haspopup="dialog" aria-expanded="false">
+          OBS
+        </button>
         <svg viewBox="-2 -2 88 80" width="420" height="380" aria-label="Starship engine status diagram" class="engine-visualizer__svg">
           <g data-label="E1" role="img" aria-label="E1">
             <circle cx="42" cy="21" r="5.5" fill="#666666" stroke="#888888" stroke-width="0.5"></circle>
@@ -431,6 +440,9 @@ exports[`app smoke test > renders the same DOM as before 1`] = `
           Ship Position
         </h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" hidden="" data-tracks=""></div>
+        <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">
+          OBS
+        </button>
       </div>
       <div class="ship-globe__history" hidden="">
         <span class="ship-globe__history-label">
@@ -577,6 +589,9 @@ exports[`app smoke test > renders the same DOM as before 1`] = `
                 </button>
               </div>
             </div>
+            <button type="button" class="obs-btn" title="OBS Browser Source URL for the time-series graph" aria-label="OBS Browser Source URL for the time-series graph" aria-haspopup="dialog" aria-expanded="false">
+              OBS
+            </button>
           </div>
         </div>
         <div class="time-series-graphs__toolbar">

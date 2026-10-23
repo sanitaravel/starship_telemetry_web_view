@@ -18,11 +18,26 @@ export const LIVE_STYLE: ChartStyle = {
   theme: EXPORT_THEMES.dark,
 };
 
-/** Chart.js config for a series: axes, tooltip, zoom and the engine-event markers. */
+/**
+ * The zoom plugin with pan and every zoom gesture off. chartjs-plugin-zoom
+ * 2.2 has no top-level `enabled`, and `zoom: false` would drop the plugin
+ * from the chart while graphs.ts still calls chart.resetZoom().
+ */
+const ZOOM_DISABLED = {
+  pan: { enabled: false },
+  zoom: { wheel: { enabled: false }, pinch: { enabled: false }, drag: { enabled: false } },
+};
+
+/**
+ * Chart.js config for a series: axes, tooltip, zoom and the engine-event
+ * markers. With `interactive` false (overlays), zoom, pan and the
+ * crosshair are off.
+ */
 export function createChartConfig(
   option: SeriesOption,
   markers: EngineMarker[],
   style: ChartStyle = LIVE_STYLE,
+  interactive = true,
 ): ChartConfiguration<'line'> {
   return {
     type: 'line',
@@ -99,7 +114,8 @@ export function createChartConfig(
         engineEvents: {
           markers,
         },
-        zoom: {
+        ...(interactive ? {} : { crosshair: false as const }),
+        zoom: interactive ? {
           pan: {
             enabled: true,
             mode: 'x',
@@ -117,7 +133,7 @@ export function createChartConfig(
             },
             mode: 'x',
           },
-        },
+        } : ZOOM_DISABLED,
       },
     },
   };

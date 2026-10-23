@@ -62,16 +62,20 @@ export function bindZoom(
 
 /**
  * Size the canvas to its wrapper: the column's full width so a zoomed-in
- * globe fills the area. Returns the new CSS size, or null if nothing changed.
+ * globe fills the area. With `fill` (overlays) the canvas takes the
+ * wrapper's height too, so the globe (radius from the smaller side, centred)
+ * fits whatever size the page is. Returns the new CSS size, or null if
+ * nothing changed.
  */
 export function fitCanvas(
   canvas: HTMLCanvasElement,
   wrap: HTMLElement,
   current: { width: number; height: number },
+  fill = false,
 ): { width: number; height: number } | null {
   const width = Math.floor(wrap.clientWidth);
-  const height = Math.min(width, MAX_GLOBE_SIZE);
-  if (width <= 0 || (width === current.width && height === current.height)) return null;
+  const height = fill ? Math.floor(wrap.clientHeight) : Math.min(width, MAX_GLOBE_SIZE);
+  if (width <= 0 || height <= 0 || (width === current.width && height === current.height)) return null;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = width * dpr;
   canvas.height = height * dpr;

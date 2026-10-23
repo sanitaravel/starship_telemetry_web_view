@@ -11,6 +11,21 @@ import { createChartConfig } from './chart-config';
 import { buildDatasets, buildMarkers, ChartData } from './chart-data';
 import { Comparisons } from './comparisons';
 import { renderGraphsDom } from './toolbar';
+import { buildOverlayUrl, type OverlaySnapshot } from '../../domain/overlay/snapshot';
+import { GRAPH_SERIES, graphWidgetId, overlayWidget } from '../../domain/overlay/widgets';
+import { overlayBaseUrl, toggleObsPopover } from '../../ui/obs-popover';
+
+export interface TimeSeriesGraphsOptions {
+  /**
+   * False draws the chart only (overlays): no header, toolbar, compare list
+   * or loading overlay, and no zoom, pan or crosshair. Default true.
+   */
+  chrome?: boolean;
+  /** The series shown first. Default speed of Super Heavy. */
+  series?: SeriesKey;
+  /** Compared flights as [filename, colour], fixed and headless (overlays). */
+  comparisons?: readonly [string, string][];
+}
 
 /**
  * Time-Series Graphs component.
@@ -44,10 +59,15 @@ export class TimeSeriesGraphs {
   private liveConfig: ChartConfiguration<'line'> | null = null;
   /** Previous flights offered for comparison and the ones overlaid. */
   private comparisons!: Comparisons;
+  private readonly chrome: boolean;
+  private readonly fixedComparisons: readonly [string, string][] | null;
 
-  constructor(container: HTMLElement, stateManager: StateManager) {
+  constructor(container: HTMLElement, stateManager: StateManager, options: TimeSeriesGraphsOptions = {}) {
     this.container = container;
     this.stateManager = stateManager;
+    this.chrome = options.chrome ?? true;
+    this.selectedKey = options.series ?? this.selectedKey;
+    this.fixedComparisons = options.comparisons ?? null;
     this.render();
     this.initChart();
     this.comparisons.start();
@@ -84,12 +104,38 @@ export class TimeSeriesGraphs {
         }
       },
       onSave: (options) => this.saveAsPng(options),
-    });
+      onObs: (button) => this.toggleObs(button),
+    }, this.chrome);
     this.canvasContainer = dom.canvasContainer;
     this.loadingOverlay = dom.loadingOverlay;
-    this.comparisons = new Comparisons(dom.compareContainer, {
-      refresh: () => this.redraw(),
-      setLoading: (loading) => this.setLoading(loading),
+    this.comparisons = new Comparisons(
+      dom.compareContainer,
+      {
+        refresh: () => this.redraw(),
+        // An overlay never shows the loading text on stream
+        setLoading: (loading) => {
+          if (this.chrome) this.setLoading(loading);
+        },
+      },
+      this.fixedComparisons,
+    );
+  }
+
+  /** The graph overlays' settings: the compared flights in load order with their colours. */
+  overlaySnapshot(): OverlaySnapshot {
+    return {
+      v: 1,
+      x: this.comparisons.loaded.map((c): [string, string] => [c.filename, this.comparisons.flightColor(c.filename)]),
+    };
+  }
+
+  /** The OBS popover offering every series, the one shown preselected. */
+  private toggleObs(button: HTMLButtonElement): void {
+    toggleObsPopover(button, {
+      title: 'Time-Series',
+      widgets: GRAPH_SERIES.map(({ key }) => overlayWidget(graphWidgetId(key))),
+      selected: graphWidgetId(this.selectedKey),
+      urlFor: (widget) => buildOverlayUrl(overlayBaseUrl(), widget, this.overlaySnapshot()),
     });
   }
 
@@ -101,7 +147,7 @@ export class TimeSeriesGraphs {
     const canvas = this.container.querySelector('#chart-main') as HTMLCanvasElement | null;
     if (!canvas) return;
 
-    this.liveConfig = createChartConfig(this.getSelectedOption(), this.markers);
+    this.liveConfig = createChartConfig(this.getSelectedOption(), this.markers, undefined, this.chrome);
     this.chart = new Chart(canvas, this.liveConfig) as Chart<'line'>;
   }
 

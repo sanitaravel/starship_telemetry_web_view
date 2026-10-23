@@ -1,0 +1,142 @@
+/* OBS button on each dashboard panel and the popover it opens (ui/obs-popover.ts) */
+
+.obs-btn {
+  padding: 0.1rem 0.4rem;
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  color: var(--color-muted);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.obs-btn:hover,
+.obs-btn[aria-expanded="true"] {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.obs-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* Where each panel puts its OBS button */
+.telemetry-display__met {
+  position: relative;
+}
+
+.telemetry-display__obs {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+/* Left of the engine diagram's settings gear (24px wide, 0.3rem from the corner) */
+.engine-visualizer__obs {
+  position: absolute;
+  top: calc(0.3rem + 1px);
+  right: calc(0.3rem + 24px + 4px);
+}
+
+/* At the right end of the globe header, the track downloads just before it */
+.ship-globe__header .ship-globe__downloads {
+  margin-left: auto;
+}
+
+.ship-globe__obs {
+  margin-left: 0.5rem;
+}
+
+/* After the graphs' export menu */
+.time-series-graphs__controls .obs-btn {
+  align-self: center;
+}
+
+.obs-popover {
+  position: fixed;
+  z-index: 100;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 0.75rem;
+  color: var(--color-text);
+}
+
+.obs-popover[hidden],
+.obs-popover__field[hidden] {
+  display: none;
+}
+
+.obs-popover__title {
+  font-weight: 600;
+}
+
+.obs-popover__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--color-muted);
+}
+
+.obs-popover__select,
+.obs-popover__url {
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  font: inherit;
+  color: var(--color-text);
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.obs-popover__select:focus-visible,
+.obs-popover__url:focus-visible,
+.obs-popover__copy:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.obs-popover__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.obs-popover__copy {
+  padding: 0.3rem 0.75rem;
+  font: inherit;
+  color: var(--color-text);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.obs-popover__copy:hover {
+  border-color: var(--color-accent);
+}
+
+.obs-popover__size,
+.obs-popover__note {
+  color: var(--color-muted);
+}
+
+.obs-popover__status {
+  color: var(--color-accent);
+}
+
+.obs-popover__status:empty {
+  display: none;
+}

@@ -2,32 +2,49 @@ import { SERIES_OPTIONS } from './panels';
 import type { SeriesKey } from './types';
 import { ExportMenu } from './export/export-menu';
 import type { ExportOptions } from './export/export-png';
+import { createObsButton } from '../../ui/obs-popover';
 
 /** What the toolbar's controls do. */
 export interface GraphsHandlers {
   onSelect(key: SeriesKey): void;
   onResetZoom(): void;
   onSave(options: ExportOptions): void;
+  /** The OBS button was clicked. */
+  onObs(button: HTMLButtonElement): void;
 }
 
 /** The elements the graphs component keeps a handle on. */
 export interface GraphsDom {
-  selectElement: HTMLSelectElement;
+  /** The series select; null without chrome. */
+  selectElement: HTMLSelectElement | null;
+  /** Where the compare checkboxes go; detached without chrome. */
   compareContainer: HTMLElement;
   canvasContainer: HTMLElement;
   loadingOverlay: HTMLElement;
 }
 
-/** Build the header, compare toolbar and canvas container inside `container`. */
+/**
+ * Build the header, compare toolbar and canvas container inside `container`;
+ * with `chrome` false (overlays), only the canvas container.
+ */
 export function renderGraphsDom(
   container: HTMLElement,
   selectedKey: SeriesKey,
   handlers: GraphsHandlers,
+  chrome = true,
 ): GraphsDom {
   container.innerHTML = '';
 
   const wrapper = document.createElement('div');
   wrapper.className = 'time-series-graphs';
+
+  if (!chrome) {
+    wrapper.classList.add('time-series-graphs--overlay');
+    const { canvasContainer, loadingOverlay } = renderCanvas();
+    wrapper.appendChild(canvasContainer);
+    container.appendChild(wrapper);
+    return { selectElement: null, compareContainer: document.createElement('div'), canvasContainer, loadingOverlay };
+  }
 
   // Row 1: Title + primary controls (select + reset)
   const header = document.createElement('div');
@@ -62,9 +79,13 @@ export function renderGraphsDom(
 
   const exportMenu = new ExportMenu((options) => handlers.onSave(options));
 
+  const obsButton = createObsButton('the time-series graph');
+  obsButton.addEventListener('click', () => handlers.onObs(obsButton));
+
   controls.appendChild(selectElement);
   controls.appendChild(resetBtn);
   controls.appendChild(exportMenu.element);
+  controls.appendChild(obsButton);
 
   header.appendChild(title);
   header.appendChild(controls);
@@ -92,6 +113,18 @@ export function renderGraphsDom(
   toolbar.appendChild(compareWrapper);
   toolbar.appendChild(zoomHint);
 
+  const { canvasContainer, loadingOverlay } = renderCanvas();
+
+  wrapper.appendChild(header);
+  wrapper.appendChild(toolbar);
+  wrapper.appendChild(canvasContainer);
+  container.appendChild(wrapper);
+
+  return { selectElement, compareContainer, canvasContainer, loadingOverlay };
+}
+
+/** The canvas container with the chart's canvas and the comparison loading overlay. */
+function renderCanvas(): { canvasContainer: HTMLElement; loadingOverlay: HTMLElement } {
   // Canvas container
   const canvasContainer = document.createElement('div');
   canvasContainer.className = 'time-series-graphs__canvas-container';
@@ -118,10 +151,5 @@ export function renderGraphsDom(
   loadingOverlay.appendChild(loadingText);
   canvasContainer.appendChild(loadingOverlay);
 
-  wrapper.appendChild(header);
-  wrapper.appendChild(toolbar);
-  wrapper.appendChild(canvasContainer);
-  container.appendChild(wrapper);
-
-  return { selectElement, compareContainer, canvasContainer, loadingOverlay };
+  return { canvasContainer, loadingOverlay };
 }
