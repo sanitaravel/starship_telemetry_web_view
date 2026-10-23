@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import fc from 'fast-check';
 import { StateManager } from './state-manager';
 import type { TelemetryRecord, PipelineStatus, ErrorPayload, WebSocketMessage } from '../core/types';
 
@@ -314,5 +315,126 @@ describe('StateManager replay', () => {
     expect(b.engineEvents).toEqual(a.engineEvents);
     expect(b.separationMetSeconds).toEqual(a.separationMetSeconds);
     expect(b.latestTelemetry).toEqual(a.latestTelemetry);
+  });
+});
+
+describe('StateManager replay properties', () => {
+  const statuses = ['active', 'inactive', 'undetected'] as const;
+
+  /** Records with MET strings (or none), separation flips and engine statuses; timestamps rise. */
+  const recordsArb = fc
+    .array(
+      fc.record({
+        met: fc.option(fc.integer({ min: 0, max: 7200 }), { nil: null }),
+        sep: fc.constantFrom('pre_separation', 'post_separation') as fc.Arbitrary<TelemetryRecord['separation_state']>,
+        engines: fc.array(fc.constantFrom(...statuses), { minLength: 33, maxLength: 33 }),
+        gap: fc.integer({ min: 1, max: 5000 }),
+      }),
+      { maxLength: 40 },
+    )
+    .map((items) => {
+      let timestamp = 1700000000000;
+      return items.map((it, i) => {
+        timestamp += it.gap;
+        const met = it.met;
+        const text =
+          met === null
+            ? null
+            : `T+${String(Math.floor(met / 3600)).padStart(2, '0')}:${String(Math.floor(met / 60) % 60).padStart(2, '0')}:${String(met % 60).padStart(2, '0')}`;
+        return createTestTelemetryRecord({
+          sequence_number: i + 1,
+          mission_elapsed_time: text,
+          separation_state: it.sep,
+          superheavy_engines: Object.fromEntries(it.engines.map((st, k) => [`sh_e${k + 1}`, st])),
+          timestamp,
+        });
+      });
+    });
+
+  /** Cut points into chunks: any split of the array, including empty chunks. */
+  const splitArb = (n: number) => fc.array(fc.integer({ min: 0, max: n }), { maxLength: 6 });
+
+  function chunked<T>(items: T[], cuts: number[]): T[][] {
+    const points = [0, ...[...cuts].sort((a, b) => a - b), items.length];
+    const chunks: T[][] = [];
+    for (let i = 0; i + 1 < points.length; i++) chunks.push(items.slice(points[i], points[i + 1]));
+    return chunks;
+  }
+
+  function replayMessage(chunk: number, records: TelemetryRecord[]): WebSocketMessage {
+    return { type: 'replay', payload: { run_id: 'r', chunk, final: false, truncated: false, records } };
+  }
+
+  function feedReplay(manager: StateManager, records: TelemetryRecord[], cuts: number[]): void {
+    chunked(records, cuts).forEach((c, i) => manager.handleMessage(replayMessage(i, c)));
+  }
+
+  function comparable(manager: StateManager) {
+    const s = manager.getState();
+    return {
+      timeSeries: s.timeSeries,
+      telemetryRecords: s.telemetryRecords,
+      engineEvents: s.engineEvents,
+      separationMetSeconds: s.separationMetSeconds,
+      latestTelemetry: s.latestTelemetry,
+    };
+  }
+
+  // Property 8
+  it('replay in any chunking equals reset then live delivery', () => {
+    fc.assert(
+      fc.property(recordsArb.chain((r) => fc.tuple(fc.constant(r), splitArb(r.length))), ([records, cuts]) => {
+        const live = new StateManager();
+        live.reset();
+        for (const r of records) live.handleMessage({ type: 'telemetry', payload: r });
+        const replayed = new StateManager();
+        feedReplay(replayed, records, cuts);
+        // The empty case: replay with no records leaves a reset state, as live does
+        if (records.length === 0) replayed.handleMessage(replayMessage(0, []));
+        expect(comparable(replayed)).toEqual(comparable(live));
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  // Property 9
+  it('chunk 0 resets: live records followed by a replay equal that replay alone', () => {
+    fc.assert(
+      fc.property(
+        recordsArb,
+        recordsArb.chain((b) => fc.tuple(fc.constant(b), splitArb(b.length))),
+        (a, [b, cuts]) => {
+          const reconnected = new StateManager();
+          for (const r of a) reconnected.handleMessage({ type: 'telemetry', payload: r });
+          feedReplay(reconnected, b, cuts);
+          if (b.length === 0) reconnected.handleMessage(replayMessage(0, []));
+          const alone = new StateManager();
+          feedReplay(alone, b, cuts);
+          if (b.length === 0) alone.handleMessage(replayMessage(0, []));
+          expect(comparable(reconnected)).toEqual(comparable(alone));
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  // Property 10
+  it('notifies once per replay message and never changes processingFps', () => {
+    fc.assert(
+      fc.property(recordsArb.chain((r) => fc.tuple(fc.constant(r), splitArb(r.length))), ([records, cuts]) => {
+        const manager = new StateManager();
+        let calls = 0;
+        manager.subscribe(() => calls++);
+        const chunks = chunked(records, cuts);
+        chunks.forEach((c, i) => {
+          const before = calls;
+          const fps = manager.getState().processingFps;
+          manager.handleMessage(replayMessage(i, c));
+          expect(calls - before).toBe(1);
+          expect(manager.getState().processingFps).toBe(fps);
+        });
+      }),
+      { numRuns: 100 },
+    );
   });
 });

@@ -11,6 +11,7 @@
  * isolate: false shares the module cache with other files.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import fc from 'fast-check';
 import type { TelemetryRecord } from '../core/types';
 import { OVERLAY_WIDGETS } from '../domain/overlay/widgets';
 import { SERIES_OPTIONS } from '../features/graphs/panels';
@@ -292,5 +293,99 @@ describe('overlay widget ids', () => {
   it('has a graph widget for every graph series', () => {
     const graphIds = OVERLAY_WIDGETS.map((w) => w.id).filter((id) => id.startsWith('graph-'));
     expect(graphIds).toEqual(SERIES_OPTIONS.map((o) => `graph-${o.key}`));
+  });
+});
+
+describe('overlay properties', () => {
+  const widgetIds = OVERLAY_WIDGETS.map((w) => w.id);
+  const seededKeys = [
+    'engine-serials.starship',
+    'engine-serials.superheavy',
+    'flight-colors.telemetry',
+    'flight-colors.trajectory',
+    'engine-mission.current',
+    'time-series-graphs.export-options',
+  ];
+  const hex = fc.array(fc.constantFrom(...'0123456789abcdef'), { minLength: 6, maxLength: 6 }).map((d) => `#${d.join('')}`);
+  const snapshotArb = fc.record(
+    {
+      v: fc.constant(1 as const),
+      x: fc.constant([['ift-12.json', '#e91e63']] as [string, string][]),
+      t: fc.dictionary(fc.constantFrom('ship33', 'ship39'), hex),
+      h: fc.subarray(['ship33', 'ship39']),
+      m: fc.constant({ n: 'IFT 14', ss: 'S41', sh: 'B15' }),
+      e: fc.dictionary(fc.integer({ min: 1, max: 33 }).map(String), fc.constantFrom('R576', 'RVAC-1')),
+    },
+    { requiredKeys: ['v'] },
+  );
+
+  // Property 14
+  it('is read-only and isolated for every widget id and snapshot', async () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+    try {
+      await fc.assert(
+        fc.asyncProperty(fc.constantFrom(...widgetIds), snapshotArb, async (id, snapshot) => {
+          sockets.length = 0;
+          requests.length = 0;
+          getItem.mockClear();
+          setItem.mockClear();
+          removeItem.mockClear();
+          app.innerHTML = '';
+          for (const key of seededKeys) localStorage.setItem(key, JSON.stringify({ ss_e6: 'R999', sh_e1: 'R888', seeded: '#123456' }));
+          setItem.mockClear();
+
+          const mounted = overlay.mountOverlay(app, { widget: id, snapshot })!;
+          await settle();
+          expect(sockets).toHaveLength(1);
+          sockets[0].emit('open');
+          sockets[0].message(replay(0, [record(1), record(2)], false));
+          sockets[0].message(replay(1, [record(3)]));
+          sockets[0].message({ type: 'telemetry', payload: record(4) });
+          mounted.socket.sendCommand({ action: 'stop' });
+          await settle();
+
+          expect(sockets[0].sent).toEqual([]);
+          expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
+          expect(setItem).not.toHaveBeenCalled();
+          expect(removeItem).not.toHaveBeenCalled();
+          expect(getItem.mock.calls.map((c) => c[0]).filter((k) => k !== 'LOG_LEVEL')).toEqual([]);
+          expect(app.querySelectorAll('button, select, input')).toHaveLength(0);
+        }),
+        { numRuns: 25 },
+      );
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+      removeItem.mockRestore();
+    }
+  }, 60_000);
+
+  it('shows the list of valid ids for any unknown id and opens no socket', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ maxLength: 20 }).filter((t) => !widgetIds.includes(t as never)),
+        (id) => {
+          sockets.length = 0;
+          app.innerHTML = '';
+          expect(overlay.mountOverlay(app, { widget: id, snapshot: { v: 1 } })).toBeNull();
+          for (const valid of widgetIds) expect(app.textContent).toContain(valid);
+          expect(app.querySelector('#overlay-widget')).toBeNull();
+          expect(sockets).toHaveLength(0);
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  // Property 15
+  it('has a registry entry for every widget id and a graph widget for every series', async () => {
+    const { OVERLAY_REGISTRY } = await import('./overlay-registry');
+    expect(Object.keys(OVERLAY_REGISTRY).sort()).toEqual([...widgetIds].sort());
+    for (const { key } of SERIES_OPTIONS) {
+      expect(widgetIds).toContain(`graph-${key}`);
+      expect(OVERLAY_REGISTRY[`graph-${key}` as keyof typeof OVERLAY_REGISTRY]).toBeTypeOf('function');
+    }
   });
 });
