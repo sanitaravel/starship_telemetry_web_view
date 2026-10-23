@@ -29,7 +29,7 @@ let listSpy: MockInstance<FakeMissionsApi['list']>;
 function createVisualizer(): EngineVisualizer {
   const serials = { starship: new EngineSerials('starship'), superheavy: new EngineSerials('superheavy') };
   currentMission = new CurrentMission(serials, api, 0);
-  return new Visualizer(container, new StateManager(), serials, currentMission);
+  return new Visualizer(container, new StateManager(), { serials, mission: currentMission });
 }
 
 /** Registers the hooks that give every test in the calling file a fresh visualizer. */

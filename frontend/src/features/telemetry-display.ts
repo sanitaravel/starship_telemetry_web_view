@@ -1,5 +1,16 @@
 import type { StateManager, AppState } from '../state/state-manager';
 import type { TelemetryRecord } from '../core/types';
+import { buildOverlayUrl } from '../domain/overlay/snapshot';
+import { OVERLAY_WIDGETS } from '../domain/overlay/widgets';
+import { createObsButton, overlayBaseUrl, toggleObsPopover } from '../ui/obs-popover';
+
+export interface TelemetryDisplayOptions {
+  /** False leaves out the OBS button (overlays). Default true. */
+  chrome?: boolean;
+}
+
+/** The overlays the telemetry display's OBS button offers. */
+const OBS_WIDGETS = OVERLAY_WIDGETS.filter((w) => w.id === 'telemetry' || w.id === 'met');
 
 /**
  * Determines if a telemetry field value should display a placeholder.
@@ -43,10 +54,12 @@ export class TelemetryDisplay {
 
   private unsubscribe: (() => void) | null = null;
   private lastRecord: AppState['latestTelemetry'] = null;
+  private readonly chrome: boolean;
 
-  constructor(container: HTMLElement, stateManager: StateManager) {
+  constructor(container: HTMLElement, stateManager: StateManager, options: TelemetryDisplayOptions = {}) {
     this.container = container;
     this.stateManager = stateManager;
+    this.chrome = options.chrome ?? true;
 
     this.render();
     this.subscribeToState();
@@ -70,6 +83,7 @@ export class TelemetryDisplay {
     this.metElement.textContent = '--:--:--';
 
     metSection.appendChild(this.metElement);
+    if (this.chrome) metSection.appendChild(this.createObsButton());
 
     // Status indicators for T-0 and Stage Separation
     const indicatorsSection = document.createElement('div');
@@ -154,6 +168,21 @@ export class TelemetryDisplay {
     this.container.appendChild(metSection);
     this.container.appendChild(indicatorsSection);
     this.container.appendChild(grid);
+  }
+
+  /** OBS button offering the telemetry and MET overlays (neither has settings). */
+  private createObsButton(): HTMLButtonElement {
+    const button = createObsButton('Telemetry');
+    button.classList.add('telemetry-display__obs');
+    button.addEventListener('click', () =>
+      toggleObsPopover(button, {
+        title: 'Telemetry',
+        widgets: OBS_WIDGETS,
+        selected: 'telemetry',
+        urlFor: (widget) => buildOverlayUrl(overlayBaseUrl(), widget, { v: 1 }),
+      })
+    );
+    return button;
   }
 
   /**

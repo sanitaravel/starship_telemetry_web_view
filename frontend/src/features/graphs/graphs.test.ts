@@ -359,3 +359,86 @@ describe('TimeSeriesGraphs PNG export', () => {
     expect(style.fill).toBe(EXPORT_THEMES.dark.fill);
   });
 });
+
+describe('TimeSeriesGraphs overlay mode and OBS snapshot', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    chartInstances.length = 0;
+    vi.mocked(fetchPreviousFlightData).mockReset();
+  });
+
+  it('has an OBS button in the dashboard header', async () => {
+    const container = await setup();
+    expect(container.querySelector('.time-series-graphs__controls .obs-btn')?.textContent).toBe('OBS');
+  });
+
+  it('without chrome draws the canvas only, with zoom, pan and crosshair off', async () => {
+    vi.mocked(fetchPreviousFlightList).mockResolvedValue([] as never);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    new TimeSeriesGraphs(container, { subscribe: vi.fn() } as never, { chrome: false, series: 'altitudeStarship' });
+    await flush();
+
+    expect(container.querySelectorAll('button, select, input, h2')).toHaveLength(0);
+    expect(container.querySelector('.time-series-graphs__zoom-hint')).toBeNull();
+    expect(container.querySelector('canvas#chart-main')).not.toBeNull();
+    const { plugins } = chartInstances[chartInstances.length - 1].config.options;
+    expect(plugins.zoom).toEqual({
+      pan: { enabled: false },
+      zoom: { wheel: { enabled: false }, pinch: { enabled: false }, drag: { enabled: false } },
+    });
+    expect(plugins.crosshair).toBe(false);
+    expect(chartInstances[chartInstances.length - 1].config.options.scales.y.title.text).toBe('Altitude');
+  });
+
+  it('keeps zoom on and the crosshair registered on the dashboard', async () => {
+    await setup();
+    const { plugins } = chartInstances[chartInstances.length - 1].config.options;
+    expect(plugins.zoom.pan.enabled).toBe(true);
+    expect(plugins.crosshair).toBeUndefined();
+  });
+
+  it('without chrome loads the fixed comparisons by GET and draws them in the snapshot colours, in order', async () => {
+    vi.mocked(fetchPreviousFlightList).mockResolvedValue([
+      { filename: 'flight-a.json', name: 'Flight A' },
+      { filename: 'flight-b.json', name: 'Flight B' },
+    ] as never);
+    const loadA = deferred<PreviousFlightData | null>();
+    vi.mocked(fetchPreviousFlightData).mockImplementation((f) =>
+      f === 'flight-a.json' ? loadA.promise : Promise.resolve(EMPTY_FLIGHT),
+    );
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const graphs = new TimeSeriesGraphs(container, { subscribe: vi.fn() } as never, {
+      chrome: false,
+      comparisons: [['flight-a.json', '#123456'], ['flight-b.json', '#abcdef']],
+    });
+    await flush();
+    loadA.resolve(EMPTY_FLIGHT); // settles after B
+    await flush();
+
+    expect(vi.mocked(fetchPreviousFlightData).mock.calls.map((c) => c[0])).toEqual(['flight-a.json', 'flight-b.json']);
+    const datasets = chartInstances[chartInstances.length - 1].data.datasets as { label: string; borderColor: string }[];
+    // No live data yet, so only the comparisons
+    expect(datasets.map((d) => [d.label, d.borderColor])).toEqual([
+      ['Speed — Super Heavy (Flight A)', '#123456'],
+      ['Speed — Super Heavy (Flight B)', '#abcdef'],
+    ]);
+    expect(graphs.overlaySnapshot()).toEqual({ v: 1, x: [['flight-a.json', '#123456'], ['flight-b.json', '#abcdef']] });
+    expect(getItem).not.toHaveBeenCalledWith('flight-colors.telemetry');
+    getItem.mockRestore();
+  });
+
+  it('reports the dashboard comparisons with their resolved colours', async () => {
+    // setup() keeps no handle; build a second one on the same container
+    const container = await setup();
+    vi.mocked(fetchPreviousFlightData).mockResolvedValue(EMPTY_FLIGHT);
+    const graphs = new TimeSeriesGraphs(container, { subscribe: vi.fn() } as never);
+    await flush();
+    toggle(container, 'flight-b.json');
+    await flush();
+
+    expect(graphs.overlaySnapshot()).toEqual({ v: 1, x: [['flight-b.json', '#00bcd4']] });
+  });
+});

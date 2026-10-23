@@ -8,7 +8,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -65,7 +65,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -122,7 +122,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -179,7 +179,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -236,7 +236,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -293,7 +293,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -350,7 +350,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -407,7 +407,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -464,7 +464,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -521,7 +521,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -578,7 +578,7 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       <div class="ship-globe__header">
         <h2 class="ship-globe__heading">Ship Position</h2>
         <div class="ship-globe__downloads" role="group" aria-label="Download live tracks" data-tracks="ship39,ship40"><button type="button" class="ship-globe__download-btn" data-track="ship39" title="Download the Ship 39 track recorded this session (trajectories/ CSV format)">↓ Ship 39 CSV</button><button type="button" class="ship-globe__download-btn" data-track="ship40" title="Download the Ship 40 track recorded this session (trajectories/ CSV format)">↓ Ship 40 CSV</button></div>
-      </div>
+      <button type="button" class="obs-btn ship-globe__obs" title="OBS Browser Source URL for Ship Position" aria-label="OBS Browser Source URL for Ship Position" aria-haspopup="dialog" aria-expanded="false">OBS</button></div>
       <div class="ship-globe__history">
         <span class="ship-globe__history-label">Previous ships:</span>
         <div class="ship-globe__history-toggles">
@@ -624,5 +624,63 @@ exports[`ShipGlobe canvas trace > draws the same calls and DOM at every step of 
       </div>
     ",
   "traceSha256": "2c334b87b7888a735c4d304c597f6137ea75d55f43e4d0918fe70d312f41c718",
+}
+`;
+
+exports[`ShipGlobe canvas trace > without chrome draws one hidden path less, a colour override and no controls > chrome off 0. mount without chrome, setHistory and initial draw 1`] = `
+{
+  "callCount": 7087,
+  "frames": 1,
+  "innerHTML": "
+      
+      
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1200" height="1200" style="width: 600px; height: 600px;"></canvas>
+            
+          </div>
+          
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:06</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">33.0 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,372 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">31.600° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">75.000° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">4</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:32 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "d9f43d435542d3af76fe0a3c1b7ab18b2f9e2b762de5dc4301933dc6e69f80de",
+}
+`;
+
+exports[`ShipGlobe canvas trace > without chrome draws one hidden path less, a colour override and no controls > chrome off 1. new track sample 1`] = `
+{
+  "callCount": 7069,
+  "frames": 1,
+  "innerHTML": "
+      
+      
+      <div class="ship-globe__body">
+        <div class="ship-globe__map">
+          <div class="ship-globe__canvas-wrap">
+            <canvas class="ship-globe__canvas" aria-label="Globe showing the ship's position. Drag to rotate, scroll to zoom." width="1200" height="1200" style="width: 600px; height: 600px;"></canvas>
+            
+          </div>
+          
+        </div>
+        <aside class="ship-globe__panel" aria-label="Active ship">
+          <h3 class="ship-globe__panel-title">Active ship</h3>
+          <div class="ship-globe__readout" aria-live="polite"><div class="ship-globe__vehicle">
+        <span class="ship-globe__vehicle-name">Ship 40</span>
+        <span class="ship-globe__mission-time">T+00:00:08</span>
+      </div>
+      <dl class="ship-globe__fields"><div class="ship-globe__field"><dt class="ship-globe__field-label">Altitude</dt><dd class="ship-globe__field-value">34.5 km</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Speed</dt><dd class="ship-globe__field-value">6,354 km/h</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Latitude</dt><dd class="ship-globe__field-value">32.200° N</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Longitude</dt><dd class="ship-globe__field-value">73.900° W</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Track points</dt><dd class="ship-globe__field-value">5</dd></div><div class="ship-globe__field"><dt class="ship-globe__field-label">Updated</dt><dd class="ship-globe__field-value">00:16:34 UTC</dd></div></dl></div>
+        </aside>
+      </div>
+    ",
+  "traceSha256": "6982bb944efd52adfcf59eef03c9d8dff7cab25f359e827f5c35aa4bfe48ddc7",
 }
 `;

@@ -21,6 +21,9 @@ export interface ComparisonHooks {
 /**
  * Previous flights offered for comparison: the checkbox list, the fetches
  * behind it and the flights currently loaded for overlay.
+ *
+ * Given `fixed` flights (overlays) it runs headless: no checkbox list, just
+ * those flights in that order and in those colours, kept in memory only.
  */
 export class Comparisons {
   private compareContainer: HTMLElement;
@@ -33,19 +36,44 @@ export class Comparisons {
   /** Fetched comparison flights, kept so re-selecting one needs no refetch. */
   private flightCache: Map<string, PreviousFlightData> = new Map();
   /** User-picked overlay colours, keyed by flight filename. */
-  private colors = new FlightColors('telemetry');
+  private colors: FlightColors;
   /** Swatch buttons in the compare list, keyed by flight filename. */
   private swatches: Map<string, HTMLButtonElement> = new Map();
+  /** The fixed selection of a headless list, as [filename, colour]; null for the dashboard. */
+  private readonly fixed: readonly [string, string][] | null;
 
-  constructor(compareContainer: HTMLElement, hooks: ComparisonHooks) {
+  constructor(compareContainer: HTMLElement, hooks: ComparisonHooks, fixed: readonly [string, string][] | null = null) {
     this.compareContainer = compareContainer;
     this.hooks = hooks;
+    this.fixed = fixed;
+    this.colors = fixed
+      ? new FlightColors('telemetry', { persist: false, initial: Object.fromEntries(fixed) })
+      : new FlightColors('telemetry');
   }
 
   /** Fetch the flight list and start repainting on colour changes. */
   start(): void {
+    if (this.fixed) {
+      void this.loadFixed(this.fixed);
+      return;
+    }
     this.loadPreviousFlightList();
     this.colors.subscribe(() => this.onColorsChange());
+  }
+
+  /** Load the fixed flights (names from the flight list), then draw them in order. */
+  private async loadFixed(fixed: readonly [string, string][]): Promise<void> {
+    try {
+      this.previousFlights = await fetchPreviousFlightList();
+    } catch (err) {
+      logger.error('Failed to load the previous flight list', { error: String(err) });
+    }
+    for (const [filename] of fixed) this.selectedCompareFilenames.add(filename);
+    await Promise.all(fixed.map(([filename]) => this.loadComparison(filename)));
+    // Fetches settle in any order; keep the snapshot's
+    const order = fixed.map(([filename]) => filename);
+    this.loadedComparisons.sort((a, b) => order.indexOf(a.filename) - order.indexOf(b.filename));
+    this.hooks.refresh();
   }
 
   /** The flights currently overlaid, in load order. */

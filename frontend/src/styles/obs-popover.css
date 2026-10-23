@@ -25,6 +25,38 @@
   outline-offset: 1px;
 }
 
+/* Where each panel puts its OBS button */
+.telemetry-display__met {
+  position: relative;
+}
+
+.telemetry-display__obs {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+/* Left of the engine diagram's settings gear (24px wide, 0.3rem from the corner) */
+.engine-visualizer__obs {
+  position: absolute;
+  top: calc(0.3rem + 1px);
+  right: calc(0.3rem + 24px + 4px);
+}
+
+/* At the right end of the globe header, the track downloads just before it */
+.ship-globe__header .ship-globe__downloads {
+  margin-left: auto;
+}
+
+.ship-globe__obs {
+  margin-left: 0.5rem;
+}
+
+/* After the graphs' export menu */
+.time-series-graphs__controls .obs-btn {
+  align-self: center;
+}
+
 .obs-popover {
   position: fixed;
   z-index: 100;

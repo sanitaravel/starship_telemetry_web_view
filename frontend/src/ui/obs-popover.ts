@@ -13,6 +13,11 @@ export interface ObsChoice {
   urlFor(widget: OverlayWidgetId): string;
 }
 
+/** The overlay URL base: this page's own origin and path, so it works wherever the dashboard is served. */
+export function overlayBaseUrl(): string {
+  return window.location.origin + window.location.pathname;
+}
+
 /** The "OBS" button that opens the OBS popover for a panel. */
 export function createObsButton(panelName: string): HTMLButtonElement {
   const button = document.createElement('button');
