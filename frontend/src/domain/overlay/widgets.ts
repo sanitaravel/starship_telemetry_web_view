@@ -45,10 +45,10 @@ export function graphWidgetId(key: GraphSeriesId): OverlayWidgetId {
 }
 
 export const OVERLAY_WIDGETS: readonly OverlayWidgetInfo[] = [
-  { id: 'telemetry', label: 'Telemetry', size: { width: 420, height: 260 } },
-  { id: 'met', label: 'Mission elapsed time', size: { width: 320, height: 90 } },
-  { id: 'engines-superheavy', label: 'Super Heavy engines', size: { width: 380, height: 400 } },
-  { id: 'engines-starship', label: 'Starship engines', size: { width: 260, height: 260 } },
+  { id: 'telemetry', label: 'Telemetry', size: { width: 420, height: 215 } },
+  { id: 'met', label: 'Mission elapsed time', size: { width: 250, height: 80 } },
+  { id: 'engines-superheavy', label: 'Super Heavy engines', size: { width: 380, height: 290 } },
+  { id: 'engines-starship', label: 'Starship engines', size: { width: 260, height: 240 } },
   { id: 'globe', label: 'Ship position', size: { width: 640, height: 400 } },
   ...GRAPH_SERIES.map(({ key, label }) => ({ id: graphWidgetId(key), label: `Graph: ${label}`, size: GRAPH_SIZE })),
 ];

@@ -68,7 +68,15 @@ export class Comparisons {
     } catch (err) {
       logger.error('Failed to load the previous flight list', { error: String(err) });
     }
-    for (const [filename] of fixed) this.selectedCompareFilenames.add(filename);
+    for (const [filename] of fixed) {
+      if (!this.previousFlights.some((f) => f.filename === filename)) {
+        logger.warn('Compared flight not among the previous flights; it may not draw', {
+          filename,
+          known: this.previousFlights.map((f) => f.filename).join(', '),
+        });
+      }
+      this.selectedCompareFilenames.add(filename);
+    }
     await Promise.all(fixed.map(([filename]) => this.loadComparison(filename)));
     // Fetches settle in any order; keep the snapshot's
     const order = fixed.map(([filename]) => filename);

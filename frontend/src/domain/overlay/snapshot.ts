@@ -86,7 +86,10 @@ export function decodeSnapshot(text: string | null): OverlaySnapshot {
   }
   const raw = parsed as Record<string, unknown>;
   if (raw.v !== SNAPSHOT_VERSION) {
-    logger.warn('Overlay settings have an unknown version, using defaults', { version: String(raw.v) });
+    // JSON text of a parsed value, never String(): {"toString":null} would throw
+    logger.warn('Overlay settings have an unknown version, using defaults', {
+      version: JSON.stringify(raw.v) ?? 'missing',
+    });
     return { v: SNAPSHOT_VERSION };
   }
   return validateSnapshot(raw);

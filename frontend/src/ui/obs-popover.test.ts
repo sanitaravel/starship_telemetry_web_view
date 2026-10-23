@@ -83,7 +83,7 @@ describe('toggleObsPopover', () => {
     expect(button.getAttribute('aria-expanded')).toBe('true');
     expect(url.value).toBe('http://localhost:5173/?overlay=telemetry&s=eyJ2IjoxfQ');
     expect(urlFor).toHaveBeenCalledWith('telemetry');
-    expect(size.textContent).toContain('420 × 260');
+    expect(size.textContent).toContain('420 × 215');
     expect(select.options).toHaveLength(2);
 
     toggleObsPopover(button, choice);
@@ -103,7 +103,7 @@ describe('toggleObsPopover', () => {
     select.dispatchEvent(new Event('change'));
     expect(urlFor).toHaveBeenLastCalledWith('met');
     expect(url.value).toContain('overlay=met');
-    expect(size.textContent).toContain('320 × 90');
+    expect(size.textContent).toContain('250 × 80');
   });
 
   it('closes on Escape inside it and on a press outside it', () => {

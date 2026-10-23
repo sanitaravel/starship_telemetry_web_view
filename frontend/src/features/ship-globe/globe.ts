@@ -51,6 +51,8 @@ export class ShipGlobe {
   private historySwatches = new Map<string, HTMLButtonElement>();
   /** Recorded flights hidden whenever the history is set (overlays). */
   private readonly initiallyHidden: readonly string[];
+  /** Overlays size the globe to the page rather than to the column width. */
+  private readonly fill: boolean;
   private followShip = true;
   private zoom = MIN_ZOOM;
   private width = 0;
@@ -61,7 +63,10 @@ export class ShipGlobe {
     const chrome = options.chrome ?? true;
     this.historyColors = options.colors ?? new FlightColors('trajectory');
     this.initiallyHidden = options.hidden ?? [];
+    this.fill = !chrome;
     container.classList.add('ship-globe');
+    // Fills the page, one frame for map and readout (styles/overlay.css)
+    if (!chrome) container.classList.add('ship-globe--overlay');
     container.innerHTML = GLOBE_HTML;
     this.canvas = container.querySelector('.ship-globe__canvas')!;
     this.readout = container.querySelector('.ship-globe__readout')!;
@@ -200,7 +205,7 @@ export class ShipGlobe {
   }
 
   private resize(wrap: HTMLElement): void {
-    const size = fitCanvas(this.canvas, wrap, { width: this.width, height: this.height });
+    const size = fitCanvas(this.canvas, wrap, { width: this.width, height: this.height }, this.fill);
     if (!size) return;
     this.width = size.width;
     this.height = size.height;

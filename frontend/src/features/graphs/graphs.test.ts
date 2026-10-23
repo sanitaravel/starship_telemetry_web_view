@@ -430,6 +430,24 @@ describe('TimeSeriesGraphs overlay mode and OBS snapshot', () => {
     getItem.mockRestore();
   });
 
+  it('warns when a fixed comparison is not among the previous flights', async () => {
+    vi.mocked(fetchPreviousFlightList).mockResolvedValue([{ filename: 'ift-12', name: 'IFT 12' }] as never);
+    vi.mocked(fetchPreviousFlightData).mockResolvedValue(null);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    new TimeSeriesGraphs(container, { subscribe: vi.fn() } as never, {
+      chrome: false,
+      comparisons: [['ift-12', '#123456'], ['ift-12.json', '#abcdef']],
+    });
+    await flush();
+
+    const messages = warn.mock.calls.map((c) => String(c[0]));
+    expect(messages.filter((m) => m.includes('Compared flight not among the previous flights'))).toHaveLength(1);
+    expect(messages.find((m) => m.includes('not among'))).toContain('ift-12.json');
+    warn.mockRestore();
+  });
+
   it('reports the dashboard comparisons with their resolved colours', async () => {
     // setup() keeps no handle; build a second one on the same container
     const container = await setup();

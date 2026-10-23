@@ -31,6 +31,8 @@ import type { HistoricalTrajectory } from '../../api/trajectories';
 const FIXED_NOW = new Date('2026-01-01T12:00:00.000Z');
 const WRAP_WIDTH_BEFORE = 600;
 const WRAP_WIDTH_AFTER = 760;
+/** Drawing the world map at every step can pass the 5 s default when the whole suite runs. */
+const TRACE_TIMEOUT_MS = 30_000;
 
 /** Every canvas call, property set, pointer-capture call and frame request, in order. */
 let trace: string[] = [];
@@ -384,7 +386,7 @@ describe('ShipGlobe canvas trace', () => {
     records.forEach(([name, record], index) => {
       expect(record).toMatchSnapshot(`${index}. ${name}`);
     });
-  });
+  }, TRACE_TIMEOUT_MS);
 
   it('without chrome draws one hidden path less, a colour override and no controls', () => {
     wrapWidth = WRAP_WIDTH_BEFORE;
@@ -423,5 +425,5 @@ describe('ShipGlobe canvas trace', () => {
       expect(record).toMatchSnapshot(`chrome off ${index}. ${name}`);
     });
     host.remove();
-  });
+  }, TRACE_TIMEOUT_MS);
 });
