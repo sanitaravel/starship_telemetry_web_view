@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { parseWebSocketMessage, serializeCommand } from './websocket';
+import { describe, it, expect, vi } from 'vitest';
+import { parseWebSocketMessage, serializeCommand, TelemetryWebSocket } from './websocket';
 import type { ControlCommand } from '../core/types';
 
 describe('parseWebSocketMessage', () => {
@@ -93,6 +93,59 @@ describe('parseWebSocketMessage', () => {
 
   it('throws for non-JSON input', () => {
     expect(() => parseWebSocketMessage('not json')).toThrow();
+  });
+});
+
+describe('parseWebSocketMessage replay', () => {
+  it('accepts a replay message', () => {
+    const data = JSON.stringify({
+      type: 'replay',
+      payload: { run_id: 'abc', chunk: 0, final: true, truncated: false, records: [] },
+    });
+    const result = parseWebSocketMessage(data);
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe('replay');
+  });
+
+  it.each([
+    ['records missing', { run_id: 'abc', chunk: 0, final: true, truncated: false }],
+    ['records not an array', { run_id: 'abc', chunk: 0, final: true, truncated: false, records: {} }],
+    ['chunk missing', { run_id: 'abc', final: true, truncated: false, records: [] }],
+    ['chunk not an integer', { run_id: 'abc', chunk: 1.5, final: true, truncated: false, records: [] }],
+    ['chunk negative', { run_id: 'abc', chunk: -1, final: true, truncated: false, records: [] }],
+  ])('rejects a replay with %s', (_name, payload) => {
+    expect(parseWebSocketMessage(JSON.stringify({ type: 'replay', payload }))).toBeNull();
+  });
+});
+
+describe('TelemetryWebSocket readOnly', () => {
+  /** Give the client a connected underlying socket whose send is a spy. */
+  function connected(socket: TelemetryWebSocket) {
+    const send = vi.fn();
+    Object.assign(socket as unknown as Record<string, unknown>, {
+      ws: { send, close: vi.fn() },
+      _connectionState: 'connected',
+    });
+    return send;
+  }
+
+  it('never sends a command', () => {
+    const socket = new TelemetryWebSocket({ readOnly: true });
+    const send = connected(socket);
+
+    socket.sendCommand({ action: 'stop' });
+    socket.sendCommand({ action: 'start', source_url: 'https://example.com/stream' });
+    socket.sendCommand({ action: 'validate_url', url: 'https://example.com/stream' });
+    socket.sendCommand({ action: 'set_interval', skip_frames: 10 });
+
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('sends commands when not read-only', () => {
+    const socket = new TelemetryWebSocket();
+    const send = connected(socket);
+    socket.sendCommand({ action: 'stop' });
+    expect(send).toHaveBeenCalledOnce();
   });
 });
 

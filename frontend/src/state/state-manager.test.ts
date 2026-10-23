@@ -224,3 +224,95 @@ describe('StateManager timeSeriesVersion', () => {
     expect(manager.getState().timeSeriesVersion).toBe(1);
   });
 });
+
+describe('StateManager replay', () => {
+  function replay(chunk: number, records: TelemetryRecord[], runId = 'run-1'): WebSocketMessage {
+    return {
+      type: 'replay',
+      payload: { run_id: runId, chunk, final: true, truncated: false, records },
+    };
+  }
+
+  function rec(seq: number): TelemetryRecord {
+    const s = 90 + seq;
+    return createTestTelemetryRecord({
+      sequence_number: seq,
+      mission_elapsed_time: `T+00:${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`,
+      timestamp: 1700000000000 + seq * 1000,
+    });
+  }
+
+  it('chunk 0 clears earlier live data but keeps the pipeline status', () => {
+    const manager = new StateManager();
+    const status: PipelineStatus = {
+      status: 'running',
+      gpu: { available: false, device_name: null },
+      skip_frames: 30,
+      current_sequence: 1,
+    };
+    manager.handleMessage({ type: 'status', payload: status });
+    manager.handleMessage({ type: 'telemetry', payload: rec(1) });
+    const oldSeries = manager.getState().timeSeries;
+
+    manager.handleMessage(replay(0, [rec(5), rec(6)]));
+
+    const state = manager.getState();
+    expect(state.pipelineStatus).toEqual(status);
+    expect(state.telemetryRecords.map((r) => r.sequence_number)).toEqual([5, 6]);
+    expect(state.timeSeries).not.toBe(oldSeries);
+    expect(state.timeSeries.speedSuperHeavy).toHaveLength(2);
+    expect(state.latestTelemetry?.sequence_number).toBe(6);
+  });
+
+  it('an empty chunk 0 (a new Run) leaves no live data', () => {
+    const manager = new StateManager();
+    manager.handleMessage({ type: 'telemetry', payload: rec(1) });
+    manager.handleMessage(replay(0, []));
+
+    const state = manager.getState();
+    expect(state.telemetryRecords).toEqual([]);
+    expect(state.latestTelemetry).toBeNull();
+    expect(state.timeSeries.speedSuperHeavy).toHaveLength(0);
+    expect(state.separationMetSeconds).toBeNull();
+  });
+
+  it('later chunks append, and live telemetry continues after them', () => {
+    const manager = new StateManager();
+    manager.handleMessage(replay(0, [rec(1), rec(2)]));
+    manager.handleMessage(replay(1, [rec(3)]));
+    manager.handleMessage({ type: 'telemetry', payload: rec(4) });
+
+    const state = manager.getState();
+    expect(state.telemetryRecords.map((r) => r.sequence_number)).toEqual([1, 2, 3, 4]);
+    expect(state.timeSeries.speedStarship.map((p) => p.metSeconds)).toEqual([91, 92, 93, 94]);
+  });
+
+  it('notifies once per chunk and does not tick the FPS meter', () => {
+    const manager = new StateManager();
+    let calls = 0;
+    manager.subscribe(() => calls++);
+
+    manager.handleMessage(replay(0, [rec(1), rec(2), rec(3)]));
+    expect(calls).toBe(1);
+    manager.handleMessage(replay(1, [rec(4), rec(5)]));
+    expect(calls).toBe(2);
+    expect(manager.getState().processingFps).toBe(0);
+  });
+
+  it('gives the same data as live delivery', () => {
+    const records = [1, 2, 3, 4, 5].map(rec);
+    const live = new StateManager();
+    for (const r of records) live.handleMessage({ type: 'telemetry', payload: r });
+    const replayed = new StateManager();
+    replayed.handleMessage(replay(0, records.slice(0, 2)));
+    replayed.handleMessage(replay(1, records.slice(2)));
+
+    const a = live.getState();
+    const b = replayed.getState();
+    expect(b.timeSeries).toEqual(a.timeSeries);
+    expect(b.telemetryRecords).toEqual(a.telemetryRecords);
+    expect(b.engineEvents).toEqual(a.engineEvents);
+    expect(b.separationMetSeconds).toEqual(a.separationMetSeconds);
+    expect(b.latestTelemetry).toEqual(a.latestTelemetry);
+  });
+});
