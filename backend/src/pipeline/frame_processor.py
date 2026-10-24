@@ -9,17 +9,19 @@ import asyncio
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from typing import Awaitable, Callable
 
 import numpy as np
 
 from src.core.enums import SeparationState
 from src.core.gpu import GPUCapabilities
 from src.core.logging_context import frame_seq_var
-from src.core.models import ROIConfiguration
+from src.core.models import ROIConfiguration, ROIRect
 from src.ocr.engine import EasyOCREngine
 from src.ocr.results import OCRResult
 from src.pipeline.ordering import ReorderCoordinator
 from src.pipeline.parallel_config import ParallelPipelineConfig
+from src.pipeline.region_schedule import OPTIONAL_ROIS, RegionSchedule
 from src.pipeline.stages import encode_preview, run_timed, unpack_stage_results
 from src.pipeline.state import PipelineState
 from src.telemetry.record_assembler import RecordAssembler
@@ -72,6 +74,15 @@ class FrameProcessor:
         self.ocr_executor: ThreadPoolExecutor | None = None
 
         self.t_zero_detected: bool = False
+
+        # Which ROIs each frame reads (the optional ones at reduced rates)
+        self.region_schedule = RegionSchedule(
+            parallel_config.hud_read_interval_s,
+            parallel_config.countdown_read_interval_s,
+        )
+        # Awaited before T-0 with each frame's OCR result that read the
+        # countdown ROIs, and the frame's position in the video (seconds)
+        self.on_countdown: Callable[[OCRResult, float | None], Awaitable[None]] | None = None
 
     def ensure_ocr_engine(self) -> EasyOCREngine:
         """Lazily initialize the OCR engine (expensive neural net load).
@@ -179,7 +190,9 @@ class FrameProcessor:
             )
             return EngineAnalysisResult.empty()
 
-    async def run_ocr_extraction(self, frame: np.ndarray) -> OCRResult:
+    async def run_ocr_extraction(
+        self, frame: np.ndarray, text_regions: dict[str, ROIRect] | None = None
+    ) -> OCRResult:
         """Run OCR text extraction in the thread pool executor.
 
         Offloads the CPU-bound EasyOCR/PyTorch inference to the thread
@@ -187,6 +200,8 @@ class FrameProcessor:
 
         Args:
             frame: BGR numpy array (1920x1080).
+            text_regions: The ROIs to read (see ``RegionSchedule``); by
+                default the template's, without its optional ROIs.
 
         Returns:
             OCRResult with extracted text fields.
@@ -194,11 +209,9 @@ class FrameProcessor:
         """
         ocr_engine = self.ensure_ocr_engine()
 
-        # After stage separation, skip the stage_sep_text ROI
-        text_regions = self.roi_config.text_regions
-        if self._state.separation_state == SeparationState.POST_SEPARATION:
+        if text_regions is None:
             text_regions = {
-                k: v for k, v in text_regions.items() if k != "stage_sep_text"
+                k: v for k, v in self.roi_config.text_regions.items() if k not in OPTIONAL_ROIS
             }
 
         try:
@@ -323,10 +336,19 @@ class FrameProcessor:
         frame_start = time.monotonic()
         try:
             # Step 1: Run engine analysis and OCR extraction concurrently
-            # (intra-frame parallelism), plus JPEG encoding
+            # (intra-frame parallelism), plus JPEG encoding. The ROIs are
+            # picked first, on the event loop, so the reduced-rate ones are
+            # spread over the frames in video order.
+            video_s = frame_number / source_fps if source_fps > 0 else None
+            text_regions, read_countdown = self.region_schedule.regions(
+                self.roi_config.text_regions,
+                video_s,
+                t_zero=self.ensure_ocr_engine().t_zero_detected,
+                post_separation=self._state.separation_state == SeparationState.POST_SEPARATION,
+            )
             engine_result_or_exc, ocr_result_or_exc, frame_b64 = await asyncio.gather(
                 self.run_engine_analysis(frame),
-                self.run_ocr_extraction(frame),
+                self.run_ocr_extraction(frame, text_regions),
                 self.run_jpeg_encoding(frame),
                 return_exceptions=True,
             )
@@ -350,6 +372,16 @@ class FrameProcessor:
                     "enabling parallel frame processing mode.",
                     seq,
                 )
+
+            # Countdown mode: before T-0 frames are processed one at a time,
+            # in video order, so the countdown clock can follow them here
+            if (
+                detect_t_zero
+                and read_countdown
+                and not ocr_engine.t_zero_detected
+                and self.on_countdown is not None
+            ):
+                await self.on_countdown(ocr_result, video_s)
 
             # Step 4: Stage assignment runs when the result leaves the reorder
             # buffer (see ReorderCoordinator.drain), in video order; the record

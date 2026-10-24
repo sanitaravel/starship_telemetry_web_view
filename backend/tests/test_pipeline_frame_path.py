@@ -56,7 +56,7 @@ def orchestrator() -> PipelineOrchestrator:
     # A stand-in OCR engine: ensure_ocr_engine returns it without loading EasyOCR
     orch._frames.ocr_engine = SimpleNamespace(t_zero_detected=False)
     orch._frames.run_engine_analysis = AsyncMock(side_effect=lambda frame: _engine_result())
-    orch._frames.run_ocr_extraction = AsyncMock(side_effect=lambda frame: _ocr_result())
+    orch._frames.run_ocr_extraction = AsyncMock(side_effect=lambda frame, *regions: _ocr_result())
     orch._frames.run_jpeg_encoding = AsyncMock(return_value="anBlZw==")
     return orch
 

@@ -32,6 +32,13 @@ class ParallelPipelineConfig:
     stale_gap_timeout_seconds: float = 5.0  # Time before advancing past a gap
     shutdown_timeout_seconds: float = 10.0  # Max wait for executor shutdown
     buffer_overflow_threshold: float = 2.0  # Buffer size / concurrency_limit triggers trim
+    # Seconds of video between reads of the HUD milestone arc's label spots
+    # after T-0 (timeline_below, and stage_sep_text once separation is
+    # known): labels stay readable there for 10 s or more, so reading them on
+    # every frame would only cost throughput
+    hud_read_interval_s: float = 2.0
+    # Seconds of video between reads of the countdown clocks before T-0
+    countdown_read_interval_s: float = 1.0
 
     def validate(self) -> list[str]:
         """Validate configuration values.
