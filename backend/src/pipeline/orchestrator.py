@@ -16,9 +16,10 @@ from typing import Any, Callable, Awaitable
 import numpy as np
 
 from src.capture import FrameExtractor, FrameExtractorConfig
-from src.core.enums import PipelineStatus, SeparationState
+from src.core.enums import OCRFieldStatus, PipelineStatus, SeparationState
 from src.core.gpu import GPUCapabilities
 from src.core.logging_context import frame_seq_var
+from src.ocr.results import OCRFieldResult, OCRResult
 from src.pipeline.broadcast import Broadcaster
 from src.pipeline.concurrency_controller import ConcurrencyController
 from src.pipeline.frame_processor import FrameProcessor
@@ -31,6 +32,8 @@ from src.pipeline.status_payload import build_status_payload
 from src.telemetry.record_assembler import RecordAssembler
 from src.telemetry.stage_assignment import StageAssigner
 from src.templates.template_registry import TemplateRegistry
+from src.timeline.countdown import CountdownTracker, clock_reading
+from src.timeline.service import TimelineService
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +53,7 @@ class PipelineOrchestrator:
         template_registry: TemplateRegistry,
         broadcast: Callable[[dict[str, Any]], Awaitable[None]],
         parallel_config: ParallelPipelineConfig | None = None,
+        timeline: TimelineService | None = None,
     ) -> None:
         """Initialize the pipeline orchestrator.
 
@@ -60,6 +64,8 @@ class PipelineOrchestrator:
                 connected WebSocket clients.
             parallel_config: Configuration for parallel pipeline execution.
                 Uses default values if not provided.
+            timeline: The mission timeline's statuses, fed every broadcast
+                record and reset on every start. A new one if not provided.
         """
         self._gpu_capabilities = gpu_capabilities
         self._template_registry = template_registry
@@ -78,7 +84,13 @@ class PipelineOrchestrator:
         # clients never holds up frame processing or its concurrency slot.
         # It feeds the Run's history, replayed to clients that connect later.
         self._history = TelemetryHistory()
-        self._broadcaster = Broadcaster(broadcast, self._history)
+        self._timeline = timeline or TimelineService()
+        self._timeline.reset_run(self._history.run_id)
+        self._broadcaster = Broadcaster(broadcast, self._history, self._on_telemetry_sent)
+        # The countdown clock before T-0, and the HUD milestone labels read
+        # with each drained record, by broadcast sequence, until it is sent
+        self._countdown = CountdownTracker()
+        self._hud_labels: dict[int, tuple[str, ...]] = {}
 
         # Reorder buffer for sequential broadcasting
         self._ordering = ReorderCoordinator(
@@ -87,6 +99,7 @@ class PipelineOrchestrator:
             self._stage_assigner,
             self._broadcaster,
             self._concurrency_limit,
+            on_drained=self._on_record_drained,
         )
 
         # Per-frame work: OCR engine, ROI config, thread pools, T-0 flag
@@ -97,6 +110,7 @@ class PipelineOrchestrator:
             self._record_assembler,
             self._ordering,
         )
+        self._frames.on_countdown = self._on_countdown_read
 
         # Inter-frame concurrency control
         self._concurrency_controller: ConcurrencyController | None = None
@@ -121,6 +135,11 @@ class PipelineOrchestrator:
     def history(self) -> TelemetryHistory:
         """Return the current Run's telemetry history (kept after stop)."""
         return self._history
+
+    @property
+    def timeline(self) -> TimelineService:
+        """Return the mission timeline's statuses for the current Run."""
+        return self._timeline
 
     @property
     def frame_extractor(self) -> FrameExtractor:
@@ -187,6 +206,9 @@ class PipelineOrchestrator:
 
         # Reset per-session state
         self._stage_assigner.reset()
+        self._countdown.reset()
+        self._hud_labels.clear()
+        self._frames.region_schedule.reset()
         self._record_assembler.reset()
         self._state.source_url = source_url
         self._state.skip_frames = skip_frames
@@ -198,6 +220,9 @@ class PipelineOrchestrator:
         # every telemetry message of this Run on every connection
         run_id = self._history.clear()
         await self._broadcast(empty_replay_message(run_id))
+        # Timeline statuses belong to the Run too: back to not yet
+        self._timeline.reset_run(run_id)
+        await self._broadcast(self._timeline.message())
 
         # Ensure OCR engine is loaded, with T-0 detection cleared from any
         # previous run so the time gate applies again
@@ -269,6 +294,8 @@ class PipelineOrchestrator:
 
         # Step 7: Reset components and parallel state
         self._stage_assigner.reset()
+        self._countdown.reset()
+        self._hud_labels.clear()
         self._record_assembler.reset()
         self._frame_sequence_counter = 0
         self._frames.t_zero_detected = False
@@ -383,6 +410,57 @@ class PipelineOrchestrator:
                         self._concurrency_controller.limit,
                     )
 
+    async def _on_telemetry_sent(self, payload: dict[str, Any]) -> None:
+        """Feed a broadcast record, and the HUD labels read with it, to the timeline.
+
+        Broadcasts the statuses if they changed. The labels are taken at the
+        MET the timeline holds after the record (checked against the video
+        clock), so a misread clock never places them.
+        """
+        changed = self._timeline.on_record(payload)
+        labels = self._hud_labels.pop(payload.get("sequence_number"), ())
+        if labels and self._timeline.machine.clock_source == "telemetry":
+            for text in labels:
+                changed = self._timeline.on_hud_label(text) or changed
+        if changed:
+            await self._broadcast(self._timeline.message())
+
+    def _on_record_drained(self, record: Any, ocr_result: OCRResult) -> None:
+        """Keep the HUD milestone labels read with a record after T-0, until it is broadcast."""
+        if not getattr(record, "mission_elapsed_time", None):
+            return
+        labels = tuple(
+            text
+            for text in (_field_text(ocr_result.stage_sep_text), _field_text(ocr_result.timeline_below))
+            if text
+        )
+        if labels:
+            self._hud_labels[record.sequence_number] = labels
+
+    async def _on_countdown_read(self, ocr_result: OCRResult, video_s: float | None) -> None:
+        """Before T-0: follow the countdown clocks and broadcast the timeline when it ticks."""
+        if video_s is None:
+            return
+        try:
+            reading = clock_reading(
+                _field_text(ocr_result.countdown_clock),
+                _field_text(ocr_result.time_sign),
+                _field_text(ocr_result.countdown_time),
+            )
+            if reading is None:
+                tick = self._countdown.push(video_s, None)
+            else:
+                tick = self._countdown.push(video_s, reading[0], reading[1])
+            if tick is None:
+                return
+            logger.debug(
+                "Countdown %.1f s (%s%s)", tick.met, tick.source_roi, ", hold" if tick.hold else ""
+            )
+            if self._timeline.on_countdown(tick.met, tick.hold):
+                await self._broadcast(self._timeline.message())
+        except Exception as e:
+            logger.warning("Countdown clock update failed: %s", e)
+
     # --- Status ---
 
     async def _on_status_change(self, new_status: PipelineStatus) -> None:
@@ -422,3 +500,11 @@ class PipelineOrchestrator:
                 else 0
             ),
         )
+
+
+def _field_text(field: OCRFieldResult) -> str | None:
+    """An OCR field's parsed text, or None when it was not read."""
+    if field.status != OCRFieldStatus.AVAILABLE:
+        return None
+    value = field.parsed_value if field.parsed_value is not None else field.raw_text
+    return str(value) if value is not None else None

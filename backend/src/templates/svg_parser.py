@@ -23,6 +23,12 @@ NS_MAP = {"svg": SVG_NS}
 # Required top-level text regions that must exist as direct rects
 REQUIRED_TOP_LEVEL_RECTS = ["time", "stage_r", "stage_l", "stage_sep_text"]
 
+# Optional top-level text regions, read when the template has them: the HUD
+# milestone arc's label spot below the line (above it is stage_sep_text), the
+# T-/T+ sign left of the HUD clock, and the pre-launch countdown clock in the
+# top-left corner. Templates without them still parse.
+OPTIONAL_TOP_LEVEL_RECTS = ["timeline_below", "time_sign", "countdown_time"]
+
 # Required text region groups (contain value and unit rects)
 REQUIRED_TEXT_GROUPS = ["altitude_r", "speed_r", "altitude_l", "speed_l"]
 
@@ -235,6 +241,17 @@ def parse_roi_template(
                 missing_regions.append(rect_id)
         else:
             missing_regions.append(rect_id)
+
+    # Optional top-level rects: absent is fine, malformed is not
+    for rect_id in OPTIONAL_TOP_LEVEL_RECTS:
+        elem = children_by_id.get(rect_id)
+        if elem is None or _strip_ns(elem.tag) != "rect":
+            continue
+        roi = _parse_rect(elem)
+        if roi is not None:
+            text_regions[rect_id] = roi
+        else:
+            malformed_elements.append(rect_id)
 
     # Process text region groups (altitude_r, speed_r, altitude_l, speed_l)
     for group_id in REQUIRED_TEXT_GROUPS:

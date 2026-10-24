@@ -34,13 +34,14 @@ async def client(app):
 
 
 def _receive_replay(ws) -> list[dict]:
-    """Read the replay a new connection gets first; return its records."""
+    """Read the replay a new connection gets first, and the timeline statuses after it; return its records."""
     records = []
     while True:
         message = ws.receive_json()
         assert message["type"] == "replay"
         records.extend(message["payload"]["records"])
         if message["payload"]["final"]:
+            assert ws.receive_json()["type"] == "timeline_status"
             return records
 
 
@@ -327,6 +328,16 @@ class TestWebSocketEndpoint:
             assert [r["sequence_number"] for r in records] == [1, 2]
         finally:
             orchestrator.history.clear()
+
+    def test_replay_ends_with_the_latest_timeline_statuses(self, app):
+        """After the records, a new client gets one timeline_status snapshot, the current one."""
+        from src.api.runtime import orchestrator
+
+        with TestClient(app) as client, client.websocket_connect("/ws/telemetry") as ws:
+            while not ws.receive_json()["payload"].get("final"):
+                pass
+            message = ws.receive_json()
+        assert message == orchestrator.timeline.message()
 
 
 class TestWebSocketDispatch:

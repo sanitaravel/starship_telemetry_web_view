@@ -20,6 +20,7 @@ LAYERS: list[tuple[str, ...]] = [
     ("vision", "ocr", "capture"),
     ("telemetry",),
     ("storage",),
+    ("timeline",),
     ("pipeline",),
     ("api",),
     ("server",),

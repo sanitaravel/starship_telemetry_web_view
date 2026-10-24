@@ -1,4 +1,6 @@
 import type { StateManager } from '../state/state-manager';
+import type { MissionTimeline } from '../state/mission-timeline';
+import { TimelinePanel } from '../features/timeline';
 import { EngineSerials } from '../state/engine-serials';
 import { FlightColors } from '../state/flight-colors';
 import { ShipTracker } from '../state/ship-tracker';
@@ -16,6 +18,8 @@ import { ShipGlobe } from '../features/ship-globe';
 export interface OverlayDeps {
   stateManager: StateManager;
   snapshot: OverlaySnapshot;
+  /** The mission timeline, read-only: events from the active mission's file, statuses from the socket. */
+  timeline: MissionTimeline;
 }
 
 export type OverlayMount = (container: HTMLElement, deps: OverlayDeps) => void;
@@ -65,11 +69,18 @@ export const OVERLAY_REGISTRY: Record<OverlayWidgetId, OverlayMount> = {
   'engines-superheavy': mountEngines('superheavy'),
   'engines-starship': mountEngines('starship'),
   globe: mountGlobe,
+  // No chrome: no menu and no buttons, so nothing can change a status
+  timeline: (container, { stateManager, timeline }) => {
+    new TimelinePanel(container, timeline, stateManager, { chrome: false });
+  },
+  'timeline-next': (container, { stateManager, timeline }) => {
+    new TimelinePanel(container, timeline, stateManager, { chrome: false, compact: true });
+  },
   ...(Object.fromEntries(
     GRAPH_SERIES.map(({ key }): [OverlayWidgetId, OverlayMount] => [
       graphWidgetId(key),
-      (container, { stateManager, snapshot }) => {
-        new TimeSeriesGraphs(container, stateManager, { chrome: false, series: key, comparisons: snapshot.x ?? [] });
+      (container, { stateManager, snapshot, timeline }) => {
+        new TimeSeriesGraphs(container, stateManager, { chrome: false, series: key, comparisons: snapshot.x ?? [], timeline });
       },
     ]),
   ) as Record<`graph-${(typeof GRAPH_SERIES)[number]['key']}`, OverlayMount>),

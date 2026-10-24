@@ -23,6 +23,9 @@ export function renderLayout(app: HTMLElement): void {
     <section class="dashboard-engines" aria-label="Engine Status">
       <div id="engine-visualizer"></div>
     </section>
+    <section class="dashboard-timeline" aria-label="Mission Timeline">
+      <div id="mission-timeline"></div>
+    </section>
     <section class="dashboard-globe" aria-label="Ship Position">
       <div id="ship-globe"></div>
     </section>

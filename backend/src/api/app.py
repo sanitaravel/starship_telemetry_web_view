@@ -9,6 +9,8 @@ Provides:
 - /api/trajectories: GET endpoint listing recorded ship trajectories
 - /api/trajectories/{name}: GET endpoint serving one ship's trajectory points
 - /api/missions, /api/missions/{mission_id}: GET/PUT mission settings
+- /api/timeline/status, /api/timeline/active, /api/timeline/{event_id}/status:
+  the mission timeline's live statuses
 - /static: Mounted frontend static files
 """
 
@@ -17,7 +19,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from src.api import websocket
-from src.api.routes import flights, missions, pipeline, trajectories
+from src.api.routes import flights, missions, pipeline, timeline, trajectories
 from src.core.paths import REPO_ROOT
 from src.core.version import get_version
 
@@ -48,5 +50,6 @@ def create_app() -> FastAPI:
     app.include_router(trajectories.router)
     app.include_router(missions.router)
     app.include_router(pipeline.router)
+    app.include_router(timeline.router)
 
     return app

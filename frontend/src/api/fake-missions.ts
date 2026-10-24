@@ -46,6 +46,14 @@ export class FakeMissionsApi implements MissionsApi {
     return record;
   }
 
+  /** Every mission made active, in order. */
+  readonly activations: (string | null)[] = [];
+
+  async activate(id: string | null): Promise<void> {
+    if (this.offline) throw new TypeError('Failed to fetch');
+    this.activations.push(id);
+  }
+
   hold(): void {
     this.held = [];
   }

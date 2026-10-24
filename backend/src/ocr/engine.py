@@ -4,6 +4,7 @@ Uses EasyOCR with GPU acceleration (when available) to read text values
 (time, speed, altitude, stage labels) from ROI regions.
 """
 
+import dataclasses
 import os
 import threading
 
@@ -17,7 +18,10 @@ from src.core.models import ROIRect
 from src.ocr.batcher import BatchedRecognizer
 from src.ocr.cache import CACHEABLE_FIELDS, FieldCache, roi_signature
 from src.ocr.parsing import (
+    COUNTDOWN_FIELD,
+    TIME_SIGN_FIELD,
     get_allowlist,
+    is_signed_time_field,
     is_numeric_field,
     is_time_field,
     is_unit_field,
@@ -29,6 +33,10 @@ from src.ocr.results import OCRFieldResult, OCRResult
 
 # Confidence threshold below which OCR results are marked UNAVAILABLE
 _CONFIDENCE_THRESHOLD = 0.3
+
+# Read together with the time ROI before T-0 when the caller asks for them
+# (countdown mode); they are reported apart from the telemetry fields
+_COUNTDOWN_FIELDS = (COUNTDOWN_FIELD, TIME_SIGN_FIELD)
 
 
 def configure_torch_threads() -> None:
@@ -107,7 +115,10 @@ class EasyOCREngine:
         """Extract text from ROI regions.
 
         Before T-0 only the time ROI is read, since nothing is emitted until it
-        reads 00:00:00. After T-0 every ROI goes to the recogniser in a single
+        reads 00:00:00, together with the countdown ROIs (``countdown_time``,
+        ``time_sign``) when the caller asks for them; those reads, and the
+        time ROI's as ``countdown_clock``, come back in an otherwise
+        unavailable result for the countdown clock. After T-0 every ROI goes to the recogniser in a single
         batched pass: with the batcher, carrying the value ROIs along costs
         almost nothing, while a second pass per frame costs a whole recogniser
         invocation. A frame whose time ROI holds no text still reports nothing,
@@ -133,20 +144,33 @@ class EasyOCREngine:
 
         # Nothing to gate on when the caller did not ask for the time ROI
         if not t_zero_was_detected and "time" in text_regions:
-            gate = self._recognize_fields(
-                gray, {"time": text_regions["time"]}, frame_index
-            )["time"]
+            # The countdown ROIs, when asked for, go in the same batch
+            gate_regions = {
+                k: v for k, v in text_regions.items()
+                if k == "time" or k in _COUNTDOWN_FIELDS
+            }
+            read = self._recognize_fields(gray, gate_regions, frame_index)
+            gate = read["time"]
             if not (
                 gate.status == OCRFieldStatus.AVAILABLE
                 and gate.parsed_value == "00:00:00"
             ):
-                # T-0 not yet seen — nothing is emitted from this frame
-                return OCRResult.unavailable()
+                # T-0 not yet seen — nothing is emitted from this frame. The
+                # countdown reads go along apart from the telemetry fields:
+                # the HUD clock counting down (T-) must never become a MET.
+                return dataclasses.replace(
+                    OCRResult.unavailable(),
+                    countdown_clock=gate,
+                    **{k: v for k, v in read.items() if k != "time"},
+                )
             with self._t_zero_lock:
                 self._t_zero_detected = True
             # This is the T-0 frame: keep the 00:00:00 just read and read the
             # rest, rather than reading the time ROI again in another batch
-            others = {k: v for k, v in text_regions.items() if k != "time"}
+            others = {
+                k: v for k, v in text_regions.items()
+                if k != "time" and k not in _COUNTDOWN_FIELDS
+            }
             field_results = {**self._recognize_fields(gray, others, frame_index), "time": gate}
         else:
             field_results = self._recognize_fields(gray, text_regions, frame_index)
@@ -346,6 +370,7 @@ class EasyOCREngine:
 
         if parsed_value is None and (
             is_time_field(field_name)
+            or is_signed_time_field(field_name)
             or is_numeric_field(field_name)
             or is_unit_field(field_name)
         ):

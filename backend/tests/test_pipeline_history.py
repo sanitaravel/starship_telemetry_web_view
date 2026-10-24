@@ -141,8 +141,10 @@ async def test_start_broadcasts_empty_replay_before_any_telemetry(orchestrator_a
     old_run_id = orch.history.run_id
 
     def extractor_start(config):
-        # By the time capture starts, every client has been told to reset
-        assert [m["type"] for m in sent] == ["replay"]
+        # By the time capture starts, every client has been told to reset,
+        # and has the new Run's timeline statuses (all back to not yet)
+        assert [m["type"] for m in sent] == ["replay", "timeline_status"]
+        assert sent[1]["payload"]["run_id"] == sent[0]["payload"]["run_id"]
 
     orch._frame_extractor.start.side_effect = extractor_start
     await orch.start("http://example.invalid/stream.m3u8")

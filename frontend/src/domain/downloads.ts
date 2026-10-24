@@ -1,4 +1,4 @@
-import type { TelemetryRecord } from '../core/types';
+import type { TelemetryRecord, TimelineStatusPayload } from '../core/types';
 import type { ShipTrack } from '../core/ship-track';
 
 /**
@@ -121,6 +121,27 @@ export function toFlightRecords(records: readonly TelemetryRecord[]): FlightReco
         real_time: splitSeconds(realTimeSeconds),
       };
     });
+}
+
+/** A flight file saved with the mission timeline's final statuses (the backend reads both shapes). */
+export interface FlightFileWithTimeline {
+  records: FlightRecord[];
+  timeline_status: TimelineStatusPayload;
+}
+
+/**
+ * The content of a `results_previous/` flight file: the plain array of
+ * records, or, when the mission timeline has statuses, the records together
+ * with the final snapshot (statuses, sources and evidence). Engine events are
+ * never written: they are derived from the engine statuses when loaded.
+ */
+export function toFlightFile(
+  records: readonly TelemetryRecord[],
+  timelineStatus: TimelineStatusPayload | null = null
+): FlightRecord[] | FlightFileWithTimeline {
+  const flight = toFlightRecords(records);
+  if (!timelineStatus || timelineStatus.events.length === 0) return flight;
+  return { records: flight, timeline_status: structuredClone(timelineStatus) };
 }
 
 export const TRAJECTORY_CSV_COLUMNS = [

@@ -12,6 +12,10 @@ Writes to --out (default: <tmp>/starship-headless/<timestamp>/):
     records.jsonl   every telemetry record, with its arrival time
     frames/         frame previews named by the record sequence they follow
     summary.json    the evaluation printed at the end
+    timeline.jsonl  every timeline_status message, with --timeline
+
+--timeline FILE follows the timeline of a mission file (missions/ format, or
+any JSON with a "timeline" list), so the run reports each event's status.
 """
 
 from __future__ import annotations
@@ -96,6 +100,8 @@ class RunCapture:
     frames_discarded: int = 0
     # Frames still being processed when the run stopped (never broadcast)
     in_flight_at_stop: int = 0
+    # Every timeline_status payload, with its arrival time
+    timeline: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _configure_logging(log_path: Path) -> _CaptureHandler:
@@ -136,7 +142,7 @@ class _ExtrasFormatter(logging.Formatter):
 
 
 async def run_pipeline(
-    url: str, seconds: float, skip_frames: int, out_dir: Path
+    url: str, seconds: float, skip_frames: int, out_dir: Path, timeline_file: Path | None = None
 ) -> RunCapture:
     """Run the pipeline against ``url`` for ``seconds`` and capture its output."""
     from src.pipeline import PipelineOrchestrator
@@ -156,6 +162,7 @@ async def run_pipeline(
     capture = RunCapture(started_at=time.time())
     last_sequence: int | None = None
     records_file = open(out_dir / "records.jsonl", "w", encoding="utf-8")
+    timeline_out = open(out_dir / "timeline.jsonl", "w", encoding="utf-8") if timeline_file else None
 
     async def broadcast(message: dict[str, Any]) -> None:
         nonlocal last_sequence
@@ -174,8 +181,19 @@ async def run_pipeline(
             capture.statuses.append(payload.get("status"))
         elif kind == "error":
             capture.errors.append(payload)
+        elif kind == "timeline_status" and timeline_out is not None:
+            entry = {"received_at": time.time(), **payload}
+            capture.timeline.append(entry)
+            timeline_out.write(json.dumps(entry) + "\n")
 
     orchestrator = PipelineOrchestrator(gpu, registry, broadcast)
+    if timeline_file is not None:
+        from src.storage.missions import TimelineEvent
+
+        data = json.loads(timeline_file.read_text(encoding="utf-8"))
+        events = [TimelineEvent.model_validate(e) for e in data.get("timeline") or []]
+        orchestrator.timeline.set_mission(timeline_file.stem, events)
+        log.info("Following %d timeline events from %s", len(events), timeline_file)
     # Load the OCR model before the clock starts, as the server does at startup
     orchestrator.load_ocr_engine()
 
@@ -192,6 +210,8 @@ async def run_pipeline(
         capture.in_flight_at_stop = status["in_flight_frames"]
         await orchestrator.stop()
         records_file.close()
+        if timeline_out is not None:
+            timeline_out.close()
         capture.logs = capture_handler.records
     return capture
 
@@ -290,7 +310,27 @@ def evaluate(capture: RunCapture) -> dict[str, Any]:
         if l["level"] in ("WARNING", "ERROR", "CRITICAL")
     )
     summary["warnings_and_errors"] = dict(problems.most_common(20))
+    if capture.timeline:
+        summary["timeline"] = _evaluate_timeline(capture.timeline)
     return summary
+
+
+def _evaluate_timeline(messages: list[dict[str, Any]]) -> dict[str, Any]:
+    """The last timeline snapshot's statuses, and how the countdown clock went before T-0."""
+    final = messages[-1]
+    countdown = [m for m in messages if m.get("clock_source") == "countdown"]
+    return {
+        "messages": len(messages),
+        "met": final.get("met"),
+        "clock_source": final.get("clock_source"),
+        "countdown_ticks": len(countdown),
+        "countdown_met": [countdown[0]["met"], countdown[-1]["met"]] if countdown else None,
+        "countdown_holds": sum(1 for m in countdown if m.get("hold")),
+        "events": [
+            {k: e.get(k) for k in ("event_id", "status", "source", "evidence", "met")}
+            for e in final.get("events", [])
+        ],
+    }
 
 
 def _evaluate_dropped_frames(capture: RunCapture) -> dict[str, Any]:
@@ -506,6 +546,13 @@ def print_summary(summary: dict[str, Any]) -> None:
         if t["duration"]:
             print(f"  {name:28s} duration {t['duration']}  queue {t['queue']}")
     print("Logged processing FPS:", summary["logged_processing_fps"])
+    if "timeline" in summary:
+        tl = summary["timeline"]
+        print(f"\nTimeline: {tl['messages']} messages | MET {tl['met']} ({tl['clock_source']}) | "
+              f"countdown ticks {tl['countdown_ticks']} {tl['countdown_met']} holds {tl['countdown_holds']}")
+        for e in tl["events"]:
+            met = "" if e["met"] is None else f" @ {e['met']:.1f}"
+            print(f"  {e['event_id']:5s} {e['status']:8s} {e['source']:5s}{met}  {e['evidence'] or ''}")
     print("\nWarnings/errors:")
     for message, count in summary["warnings_and_errors"].items():
         print(f"  {count:4d} x {message}")
@@ -517,13 +564,17 @@ def main() -> None:
     parser.add_argument("--seconds", type=float, default=60.0)
     parser.add_argument("--skip-frames", type=int, default=30)
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument("--timeline", type=Path, default=None,
+                        help="mission file whose timeline the run follows")
     args = parser.parse_args()
 
     out_dir = args.out or (
         Path(tempfile.gettempdir()) / "starship-headless" / datetime.now().strftime("%Y%m%d-%H%M%S")
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    capture = asyncio.run(run_pipeline(args.url, args.seconds, args.skip_frames, out_dir))
+    capture = asyncio.run(
+        run_pipeline(args.url, args.seconds, args.skip_frames, out_dir, args.timeline)
+    )
     summary = evaluate(capture)
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print_summary(summary)

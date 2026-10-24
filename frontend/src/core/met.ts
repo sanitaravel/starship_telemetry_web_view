@@ -1,11 +1,13 @@
 import type { TimeSeriesPoint } from './time-series';
 
 /**
- * Parse a MET string like "+00:01:23" or "-00:00:05" into seconds from T-0.
+ * Parse a MET string like "+00:01:23", "-00:00:05", "T+00:01:23" or
+ * "T-00:12:31" into seconds from T-0 (negative before it). Unsigned is positive.
  */
 export function parseMETToSeconds(met: string): number {
-  const sign = met.startsWith('-') ? -1 : 1;
-  const stripped = met.replace(/^[+\-T]/, '');
+  const match = /^\s*T?\s*([+\-−])?\s*/i.exec(met);
+  const sign = match?.[1] === '-' || match?.[1] === '−' ? -1 : 1;
+  const stripped = met.slice(match?.[0].length ?? 0);
   const parts = stripped.split(':');
   const hours = parseInt(parts[0], 10) || 0;
   const minutes = parseInt(parts[1], 10) || 0;

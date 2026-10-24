@@ -33,6 +33,7 @@ class ReorderCoordinator:
         stage_assigner: StageAssigner,
         broadcaster: Broadcaster,
         concurrency_limit: Callable[[], int],
+        on_drained: Callable[[Any, OCRResult], None] | None = None,
     ) -> None:
         """Initialize the coordinator.
 
@@ -42,12 +43,16 @@ class ReorderCoordinator:
             stage_assigner: Stateful stage assigner, fed results in video order.
             broadcaster: Queue that drained results are sent through.
             concurrency_limit: Returns the current inter-frame concurrency limit.
+            on_drained: Called with each record (its broadcast sequence
+                number set) and its OCR result as it leaves the buffer, in
+                video order, right before it is queued for broadcast.
         """
         self._parallel_config = parallel_config
         self._state = state
         self._stage_assigner = stage_assigner
         self._broadcaster = broadcaster
         self._concurrency_limit = concurrency_limit
+        self._on_drained = on_drained
 
         # Reorder buffer for sequential broadcasting (created on start)
         self.buffer: ReorderBuffer | None = None
@@ -272,6 +277,9 @@ class ReorderCoordinator:
                     if delta > 0.10:
                         logger.info("Processing FPS: %.1f", current_fps, extra={"fps": current_fps})
                         self._last_logged_fps = current_fps
+
+            if self._on_drained is not None and result.ocr_result is not None:
+                self._on_drained(result.record, result.ocr_result)
 
             # Queue the telemetry record (always) and the frame preview (only
             # while the queue is short) for the broadcaster task

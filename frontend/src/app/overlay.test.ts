@@ -67,6 +67,9 @@ class FakeWebSocket {
 }
 
 const requests: { url: string; method: string }[] = [];
+/** What the fake backend answers for the timeline; null is a 404. */
+let timelineStatusBody: unknown = null;
+let missionFileBody: unknown = null;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -77,6 +80,8 @@ const fakeFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Pr
   requests.push({ url, method: (init?.method ?? 'GET').toUpperCase() });
   if (url.startsWith('https://content.spacex.com/')) return json({});
   if (url === '/api/previous-flights' || url === '/api/trajectories' || url === '/api/missions') return json([]);
+  if (url === '/api/timeline/status' && timelineStatusBody) return json(timelineStatusBody);
+  if (url === '/api/missions/ift-14' && missionFileBody) return json(missionFileBody);
   return json({ detail: 'Not Found' }, 404);
 });
 
@@ -180,6 +185,8 @@ afterAll(() => {
 beforeEach(async () => {
   sockets.length = 0;
   requests.length = 0;
+  timelineStatusBody = null;
+  missionFileBody = null;
   localStorage.clear();
   document.body.innerHTML = '<div id="app"></div>';
   app = document.getElementById('app')!;
@@ -272,6 +279,83 @@ describe('mountOverlay', () => {
     expect(serials).toEqual(['R576']);
     expect(getItem.mock.calls.map((c) => c[0]).filter((k) => /^(engine-serials|engine-mission|flight-colors)/.test(k))).toEqual([]);
     getItem.mockRestore();
+  });
+
+  describe('timeline widgets', () => {
+    const planned = [
+      { id: 'liftoff', t: 0, event: 'Liftoff', vehicle: 'both', auto: { kind: 'clock' } },
+      { id: 'maxq', t: 120, event: 'Max Q', vehicle: 'starship', auto: { kind: 'manual' } },
+    ];
+    const status = (id: string, value: string, source = 'auto') => ({
+      event_id: id,
+      status: value,
+      source,
+      evidence: id === 'liftoff' ? 'Liftoff at T+00:00:00' : null,
+      met: null,
+      updated_at: '2026-10-24T00:00:00Z',
+    });
+    const statusPayload = (revision: number, events: unknown[], extra: Record<string, unknown> = {}) => ({
+      mission_id: 'ift-14',
+      run_id: 'run-1',
+      revision,
+      met: 30,
+      clock_source: 'telemetry',
+      pending: 1,
+      events,
+      ...extra,
+    });
+
+    it('renders the full list from the status snapshot and the mission file, read-only', async () => {
+      timelineStatusBody = statusPayload(1, [status('liftoff', 'success'), status('maxq', 'pending')]);
+      missionFileBody = { id: 'ift-14', mission: 'IFT 14', ship: '', booster: '', starship_engines: {}, updated_at: null, timeline: planned };
+      overlay.mountOverlay(app, { widget: 'timeline', snapshot: { v: 1 } });
+      await settle();
+
+      const rows = [...app.querySelectorAll<HTMLElement>('.timeline-row')];
+      expect(rows.map((r) => r.dataset.eventId)).toEqual(['liftoff', 'maxq']);
+      expect(rows.map((r) => r.dataset.status)).toEqual(['success', 'pending']);
+      expect(app.querySelector('.timeline-panel__clock')!.textContent).toBe('T+00:00:30');
+      expect(app.querySelector('.timeline-panel__pending')!.textContent).toBe('1 needs confirmation');
+      expect(app.querySelectorAll('button, select, input')).toHaveLength(0);
+      expect(requests.map((r) => r.url)).toEqual(expect.arrayContaining(['/api/timeline/status', '/api/missions/ift-14']));
+      expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
+
+      // A snapshot over the socket updates it, the page reading no mission file again
+      sockets[0].emit('open');
+      sockets[0].message({ type: 'timeline_status', payload: statusPayload(2, [status('liftoff', 'success'), status('maxq', 'failure', 'human')], { pending: 0 }) });
+      expect([...app.querySelectorAll<HTMLElement>('.timeline-row')].map((r) => r.dataset.status)).toEqual(['success', 'failure']);
+      expect(app.querySelector('.timeline-circle__badge')).not.toBeNull();
+      expect(requests.filter((r) => r.url === '/api/missions/ift-14')).toHaveLength(1);
+    });
+
+    it('renders the current and next event from the replayed MET in the ticker', async () => {
+      timelineStatusBody = statusPayload(1, [status('liftoff', 'success'), status('maxq', 'not_yet')], { met: null });
+      missionFileBody = { id: 'ift-14', mission: 'IFT 14', ship: '', booster: '', starship_engines: {}, updated_at: null, timeline: planned };
+      overlay.mountOverlay(app, { widget: 'timeline-next', snapshot: { v: 1 } });
+      await settle();
+      sockets[0].emit('open');
+      sockets[0].message(replay(0, [record(1)]));
+
+      expect([...app.querySelectorAll<HTMLElement>('.timeline-row')].map((r) => r.dataset.eventId)).toEqual(['liftoff', 'maxq']);
+      expect(app.querySelector('.timeline-row--current')!.getAttribute('data-event-id')).toBe('liftoff');
+      expect(app.querySelector('.timeline-row__eta:not(:empty)')!.textContent).toBe('in 0:29');
+      expect(app.querySelectorAll('button, select, input')).toHaveLength(0);
+    });
+
+    it('shows the empty state when no timeline is followed', async () => {
+      timelineStatusBody = statusPayload(1, [], { mission_id: null, pending: 0 });
+      overlay.mountOverlay(app, { widget: 'timeline', snapshot: { v: 1 } });
+      await settle();
+      expect(app.querySelector<HTMLElement>('.timeline-panel__empty')!.hidden).toBe(false);
+      expect(app.querySelectorAll('.timeline-row')).toHaveLength(0);
+      expect(requests.some((r) => r.url.startsWith('/api/missions/'))).toBe(false);
+    });
+
+    it('does not load the timeline for widgets that do not show it', async () => {
+      overlay.mountOverlay(app, { widget: 'met', snapshot: { v: 1 } });
+      await settle();
+      expect(requests.some((r) => r.url.includes('timeline'))).toBe(false);
+    });
   });
 
   it('is what main.ts mounts for ?overlay=', async () => {

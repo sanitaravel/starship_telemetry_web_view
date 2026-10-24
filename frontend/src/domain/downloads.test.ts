@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { telemetryFilename, toFlightRecords, trackFilename, trackToCsv } from './downloads';
-import type { TelemetryRecord } from '../core/types';
+import { telemetryFilename, toFlightFile, toFlightRecords, trackFilename, trackToCsv } from './downloads';
+import type { TelemetryRecord, TimelineStatusPayload } from '../core/types';
 import type { ShipTrack } from '../core/ship-track';
 
 function record(overrides: Partial<TelemetryRecord> = {}): TelemetryRecord {
@@ -113,6 +113,29 @@ describe('toFlightRecords', () => {
       record({ sequence_number: 1, timestamp: 1000 }),
     ]);
     expect(flights.map((f) => f.real_time_seconds)).toEqual([1, 2]);
+  });
+});
+
+describe('toFlightFile', () => {
+  const statuses: TimelineStatusPayload = {
+    mission_id: 'ift-14',
+    run_id: 'r',
+    revision: 1,
+    met: 10,
+    clock_source: 'telemetry',
+    pending: 0,
+    events: [
+      { event_id: 'liftoff', status: 'success', source: 'auto', evidence: 'T-0 detected', met: 0, updated_at: 'x' },
+    ],
+  };
+
+  it('is the plain array of records without timeline statuses', () => {
+    expect(toFlightFile([record()])).toEqual(toFlightRecords([record()]));
+    expect(toFlightFile([record()], { ...statuses, events: [] })).toEqual(toFlightRecords([record()]));
+  });
+
+  it('wraps the records with the final timeline statuses when there are any', () => {
+    expect(toFlightFile([record()], statuses)).toEqual({ records: toFlightRecords([record()]), timeline_status: statuses });
   });
 });
 

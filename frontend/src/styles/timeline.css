@@ -1,0 +1,320 @@
+/* Mission timeline panel (features/timeline/) and its overlays */
+.dashboard-timeline {
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.timeline-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.timeline-panel[hidden],
+.timeline-panel [hidden] {
+  display: none;
+}
+
+.timeline-panel__top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.timeline-panel__title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-accent);
+}
+
+.timeline-panel__clock {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-left: auto;
+}
+
+.timeline-panel__obs {
+  align-self: center;
+}
+
+.timeline-panel__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  min-height: 1.25rem;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.timeline-panel__next {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-panel__pending {
+  margin-left: auto;
+  font-weight: 700;
+  color: #ffb020;
+}
+
+.timeline-panel__error {
+  font-size: 0.75rem;
+  color: #ff3b30;
+}
+
+.timeline-panel__empty {
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+/* Scrolls inside the panel, so the dashboard keeps its height */
+.timeline-panel__list {
+  position: relative;
+  list-style: none;
+  max-height: 18rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.timeline-panel__list:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: 1.5rem 10.5ch minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  border-left: 3px solid transparent;
+  font-size: 0.8125rem;
+}
+
+.timeline-row--current {
+  background-color: rgba(255, 128, 20, 0.14);
+  border-left-color: var(--color-accent);
+}
+
+.timeline-row--saving {
+  opacity: 0.6;
+}
+
+.timeline-row__time {
+  white-space: nowrap;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-row--current .timeline-row__time {
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.timeline-row__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-row__vehicle {
+  padding: 0 0.3rem;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
+
+.timeline-row__eta {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-row__eta:empty {
+  display: none;
+}
+
+/* Status circle */
+.timeline-circle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: inherit;
+  line-height: 0;
+}
+
+button.timeline-circle {
+  cursor: pointer;
+}
+
+button.timeline-circle:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+button.timeline-circle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.timeline-circle__icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* Amber ring with a slowly pulsing dot: someone has to confirm */
+.timeline-circle__icon--pending circle:last-child {
+  animation: timeline-pulse 2.4s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+@keyframes timeline-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(1.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-circle__icon--pending circle:last-child {
+    animation: none;
+  }
+}
+
+/* A person set this status */
+.timeline-circle__badge {
+  position: absolute;
+  right: -0.15rem;
+  bottom: -0.2rem;
+  min-width: 0.85rem;
+  padding: 0 0.15rem;
+  border-radius: 0.45rem;
+  border: 1px solid var(--color-background);
+  background-color: var(--color-text);
+  color: var(--color-background);
+  font-size: 0.625rem;
+  font-weight: 800;
+  line-height: 0.85rem;
+  text-align: center;
+}
+
+/* Status menu */
+.timeline-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.25rem;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.timeline-menu[hidden] {
+  display: none;
+}
+
+.timeline-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border: none;
+  background: none;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.timeline-menu__item .timeline-circle__icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.timeline-menu__item:hover,
+.timeline-menu__item:focus-visible {
+  background-color: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
+.timeline-menu__item[aria-checked="true"] {
+  font-weight: 700;
+}
+
+.timeline-menu__item--auto {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-accent);
+}
+
+/* Overlays: no card, the list fills the page, larger text for a stream */
+.timeline-panel--overlay {
+  height: calc(100vh - 8px);
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 1.125rem;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+}
+
+.timeline-panel--overlay .timeline-panel__list {
+  scrollbar-width: none;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+.timeline-panel--overlay .timeline-row {
+  font-size: 1em;
+  padding: 0.3rem 0.5rem;
+}
+
+.timeline-panel--overlay .timeline-panel__clock {
+  font-size: 1.25em;
+}
+
+.timeline-panel--overlay .timeline-panel__summary {
+  font-size: 0.8em;
+}
+
+/* Current and next only: sized by its rows, not the page */
+.timeline-panel--compact {
+  height: auto;
+}
+
+.timeline-panel--compact .timeline-panel__list {
+  flex: none;
+  overflow: hidden;
+}
+
+.timeline-panel--overlay .timeline-panel__list::-webkit-scrollbar {
+  display: none;
+}

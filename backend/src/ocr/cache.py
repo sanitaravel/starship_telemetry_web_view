@@ -13,9 +13,9 @@ from src.ocr.regions import ink_level
 from src.ocr.results import OCRFieldResult
 
 
-# Fields whose text is static for long stretches of a flight: the unit labels
-# and the stage names. Their ROIs are also the widest, and the recogniser's
-# cost scales with ROI width rather than with how many ROIs are in the batch,
+# Fields whose text is static for long stretches of a flight: the unit labels,
+# the stage names and the HUD milestone arc's label spots (empty for minutes
+# at a time). Their ROIs are also the widest, and the recogniser's cost scales with ROI width rather than with how many ROIs are in the batch,
 # so re-reading them on every frame is where most of the OCR time went. They
 # are read once and then reused until their pixels change.
 CACHEABLE_FIELDS = frozenset({
@@ -26,6 +26,7 @@ CACHEABLE_FIELDS = frozenset({
     "stage_l",
     "stage_r",
     "stage_sep_text",
+    "timeline_below",
 })
 
 # The change detector reduces an ROI to the fraction of ink in each cell of a

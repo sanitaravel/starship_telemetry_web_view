@@ -179,6 +179,7 @@ const MESSAGE_TYPES: ReadonlySet<string> = new Set<WebSocketMessage['type']>([
   'validation_result',
   'frame',
   'replay',
+  'timeline_status',
 ]);
 
 /**
@@ -209,6 +210,10 @@ function validateMessageStructure(parsed: unknown): WebSocketMessage | null {
     return null;
   }
 
+  if (type === 'timeline_status' && !isTimelineStatusShape(payload as Record<string, unknown>)) {
+    return null;
+  }
+
   return { type, payload } as WebSocketMessage;
 }
 
@@ -216,6 +221,11 @@ function validateMessageStructure(parsed: unknown): WebSocketMessage | null {
 function isReplayPayloadShape(payload: Record<string, unknown>): boolean {
   const { chunk, records } = payload;
   return Array.isArray(records) && typeof chunk === 'number' && Number.isInteger(chunk) && chunk >= 0;
+}
+
+/** A timeline status payload needs an `events` array and a numeric `revision`. */
+export function isTimelineStatusShape(payload: Record<string, unknown>): boolean {
+  return Array.isArray(payload.events) && typeof payload.revision === 'number';
 }
 
 /**

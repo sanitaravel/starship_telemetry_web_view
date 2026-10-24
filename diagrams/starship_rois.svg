@@ -24,6 +24,9 @@
 </g>
 <rect id="stage_r" x="1624.5" y="1039.5" width="109" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 <rect id="stage_sep_text" x="914.5" y="904.5" width="85" height="15" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="timeline_below" x="914.5" y="936.5" width="85" height="21" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="time_sign" x="830" y="965" width="36" height="47" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
+<rect id="countdown_time" x="30" y="64" width="202" height="46" fill="#D9D9D9" fill-opacity="0.25" stroke="white"/>
 <g id="engines_superheavy">
 <g id="engines_outer">
 <circle id="sh_e33" cx="148" cy="948" r="5.5" fill="#1100FF" fill-opacity="0.25" stroke="white"/>
