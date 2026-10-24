@@ -433,6 +433,32 @@ exports[`app smoke test > renders the same DOM as before 1`] = `
       </div>
     </div>
   </section>
+  <section class="dashboard-timeline" aria-label="Mission Timeline">
+    <div id="mission-timeline" class="timeline-panel">
+      <div class="timeline-panel__header">
+        <div class="timeline-panel__top">
+          <h2 class="timeline-panel__title">
+            Mission timeline
+          </h2>
+          <span class="timeline-panel__clock" aria-label="Mission elapsed time">
+            —
+          </span>
+          <button type="button" class="obs-btn timeline-panel__obs" title="OBS Browser Source URL for Mission timeline" aria-label="OBS Browser Source URL for Mission timeline" aria-haspopup="dialog" aria-expanded="false">
+            OBS
+          </button>
+        </div>
+        <div class="timeline-panel__summary">
+          <span class="timeline-panel__next"></span>
+          <span class="timeline-panel__pending" hidden=""></span>
+        </div>
+      </div>
+      <p class="timeline-panel__error" role="alert" hidden=""></p>
+      <ol class="timeline-panel__list" tabindex="0" aria-label="Timeline events" hidden=""></ol>
+      <p class="timeline-panel__empty">
+        No timeline. Add one with the Timeline button in the engine settings.
+      </p>
+    </div>
+  </section>
   <section class="dashboard-globe" aria-label="Ship Position">
     <div id="ship-globe" class="ship-globe">
       <div class="ship-globe__header">

@@ -18,6 +18,8 @@ export type OverlayWidgetId =
   | 'engines-superheavy'
   | 'engines-starship'
   | 'globe'
+  | 'timeline'
+  | 'timeline-next'
   | `graph-${GraphSeriesId}`;
 
 export interface OverlayWidgetInfo {
@@ -50,6 +52,8 @@ export const OVERLAY_WIDGETS: readonly OverlayWidgetInfo[] = [
   { id: 'engines-superheavy', label: 'Super Heavy engines', size: { width: 380, height: 290 } },
   { id: 'engines-starship', label: 'Starship engines', size: { width: 260, height: 240 } },
   { id: 'globe', label: 'Ship position', size: { width: 640, height: 400 } },
+  { id: 'timeline', label: 'Mission timeline', size: { width: 460, height: 600 } },
+  { id: 'timeline-next', label: 'Mission timeline: current and next event', size: { width: 460, height: 110 } },
   ...GRAPH_SERIES.map(({ key, label }) => ({ id: graphWidgetId(key), label: `Graph: ${label}`, size: GRAPH_SIZE })),
 ];
 

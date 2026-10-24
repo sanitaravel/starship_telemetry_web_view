@@ -2,9 +2,14 @@ import '../styles/index.css';
 import { createTelemetryWebSocket, getWebSocketUrl } from '../api/websocket';
 import { StateManager } from '../state/state-manager';
 import { TimelineStatusStore } from '../state/timeline-status';
+import { MissionTimeline } from '../state/mission-timeline';
+import { CurrentMission } from '../state/current-mission';
+import { EngineSerials } from '../state/engine-serials';
+import type { Vehicle } from '../domain/engines/layout';
 import { PipelineControls } from '../features/pipeline-controls';
 import { TelemetryDisplay } from '../features/telemetry-display';
 import { EngineVisualizer } from '../features/engines/visualizer';
+import { TimelinePanel } from '../features/timeline';
 import { TimeSeriesGraphs } from '../features/graphs';
 import { FramePreview } from '../features/frame-preview';
 import { TelemetryDownloads } from '../features/telemetry-downloads';
@@ -36,6 +41,15 @@ if (app && overlayRoute) {
   // The mission timeline's statuses, decided by the backend
   const timelineStatus = new TimelineStatusStore();
 
+  // The mission the engine panels and the timeline share: its serials, names and planned events
+  const serials: Record<Vehicle, EngineSerials> = {
+    starship: new EngineSerials('starship'),
+    superheavy: new EngineSerials('superheavy'),
+  };
+  const mission = new CurrentMission(serials);
+  const timeline = new MissionTimeline(timelineStatus);
+  timeline.followMission(mission);
+
   // Initialize WebSocket client
   const ws = createTelemetryWebSocket();
   ws.onMessage((message) => stateManager.handleMessage(message));
@@ -64,7 +78,13 @@ if (app && overlayRoute) {
   // Initialize Engine Visualizer UI
   const engineContainer = document.getElementById('engine-visualizer');
   if (engineContainer) {
-    new EngineVisualizer(engineContainer, stateManager);
+    new EngineVisualizer(engineContainer, stateManager, { serials, mission });
+  }
+
+  // Mission timeline with the status of each event
+  const timelineContainer = document.getElementById('mission-timeline');
+  if (timelineContainer) {
+    new TimelinePanel(timelineContainer, timeline, stateManager);
   }
 
   // Initialize Frame Preview UI
@@ -85,6 +105,6 @@ if (app && overlayRoute) {
   // Initialize Time-Series Graphs UI
   const graphsContainer = document.getElementById('time-series-graphs');
   if (graphsContainer) {
-    new TimeSeriesGraphs(graphsContainer, stateManager);
+    new TimeSeriesGraphs(graphsContainer, stateManager, { timeline });
   }
 }
