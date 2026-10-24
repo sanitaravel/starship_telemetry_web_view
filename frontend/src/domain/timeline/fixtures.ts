@@ -1,0 +1,42 @@
+/** The SpaceX mission page's two tables, as pasted (tab-separated), for tests. */
+
+export const COUNTDOWN_PASTE = [
+  'Hr/Min/Sec\tEvent',
+  '00:50:00\tSpaceX Flight Director conducts poll and verifies GO for propellant load',
+  '00:37:30\tShip LOX (liquid oxygen) load underway',
+  '00:37:00\tBooster LOX load underway',
+  '00:35:25\tBooster fuel (liquid methane) load underway',
+  '00:34:48\tShip fuel load underway',
+  '00:21:30\tRaptor begins engine chill on booster and ship',
+  '00:02:50\tBooster propellant load complete',
+  '00:02:10\tShip propellant load complete',
+  '00:00:30\tSpaceX flight director verifies GO for launch',
+  '00:00:17\tFlame diverter activation',
+  '00:00:03\tBooster engine startup command',
+  '00:00:00\tExcitement guaranteed',
+].join('\n');
+
+export const FLIGHT_PASTE = [
+  'FLIGHT TEST TIMELINE',
+  'Hr/Min/Sec\tEvent',
+  '00:00:00\tLiftoff',
+  '00:00:58\tMax Q (moment of peak aerodynamic stress on the rocket)',
+  '00:02:18\tSuper Heavy MECO (most engines cut off)',
+  '00:02:21\tHot-staging (Starship Raptor ignition and stage separation)',
+  '00:02:25\tSuper Heavy boostback burn start',
+  '00:03:03\tSuper Heavy boostback burn shutdown',
+  '00:06:27\tSuper Heavy landing burn start',
+  '00:06:53\tSuper Heavy landing burn shutdown',
+  '00:08:05\tStarship engine cutoff',
+  '00:16:40\tPayload deploy demo start',
+  '00:27:39\tPayload deploy demo complete',
+  '00:38:58\tRaptor in-space relight demo',
+  '00:47:30\tStarship entry',
+  '01:02:23\tStarship is transonic',
+  '01:03:01\tStarship is subsonic',
+  '01:05:01\tLanding burn start',
+  '01:05:03\tLanding flip',
+  '01:05:12\tLanding burn 3 to 2 engines',
+  '01:05:19\tLanding burn 2 to 1 engine',
+  '01:05:21\tAn exciting landing!',
+].join('\n');
