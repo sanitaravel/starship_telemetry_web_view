@@ -89,14 +89,40 @@ function eventId(index: number, text: string): string {
   return slug ? `${index}-${slug}` : String(index);
 }
 
+/** Event text for recognising the same row in a new paste: case and spacing ignored. */
+function sameEventKey(t: number, text: string): string {
+  return `${t}|${text.trim().toLowerCase().replace(/\s+/g, ' ')}`;
+}
+
 /**
  * The timeline for a mission file: the rows of both pastes in time order
  * (rows at the same time keep their order, so both T-0 rows survive), each with an id.
+ *
+ * A row with the same time and text as an event of `existing` (the mission's
+ * saved timeline) keeps that event's id, so statuses and overrides the
+ * backend keeps by id survive pasting the tables again. Each existing id is
+ * reused at most once (identical rows match in order); every other row gets
+ * a new id that is none of the existing ones, reused or not.
  */
-export function buildTimeline(drafts: readonly TimelineDraft[]): TimelineEvent[] {
-  return [...drafts]
-    .sort((a, b) => a.t - b.t) // stable
-    .map((draft, index) => ({ id: eventId(index, draft.event), ...draft }));
+export function buildTimeline(drafts: readonly TimelineDraft[], existing: readonly TimelineEvent[] = []): TimelineEvent[] {
+  const reusable = new Map<string, string[]>();
+  for (const event of existing) {
+    const key = sameEventKey(event.t, event.event);
+    reusable.set(key, [...(reusable.get(key) ?? []), event.id]);
+  }
+  const sorted = [...drafts].sort((a, b) => a.t - b.t); // stable
+  const ids: (string | undefined)[] = sorted.map((draft) => reusable.get(sameEventKey(draft.t, draft.event))?.shift());
+  // A new row never takes an existing event's id: that event's status is not its own
+  const taken = new Set(existing.map((e) => e.id));
+  return sorted.map((draft, index) => {
+    let id = ids[index];
+    if (id === undefined) {
+      id = eventId(index, draft.event);
+      for (let n = sorted.length; taken.has(id); n++) id = eventId(n, draft.event);
+      taken.add(id);
+    }
+    return { id, ...draft };
+  });
 }
 
 /** An id for an event added to an existing timeline, different from every id in it. */

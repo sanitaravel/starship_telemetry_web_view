@@ -230,7 +230,8 @@ class TimelineEditorPopover {
       })
     );
     if (pasted) {
-      this.rows = buildTimeline(drafts);
+      // Rows already in the saved timeline keep their ids, and with them their statuses
+      this.rows = buildTimeline(drafts, this.mission?.timeline ?? []);
       this.renderTable();
     }
   }

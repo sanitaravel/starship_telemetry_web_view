@@ -5,7 +5,7 @@ import fc from 'fast-check';
 import { buildTimeline, formatTimelineTime, nextEventId, parseTimelinePaste, type TimelineDraft, type TimelineSection } from './parse';
 import { guessAuto, guessVehicle } from './guess';
 import { COUNTDOWN_PASTE, FLIGHT_PASTE } from './fixtures';
-import { MAX_TIMELINE_SECONDS, TIMELINE_RULES } from './types';
+import { MAX_TIMELINE_SECONDS, TIMELINE_RULES, TIMELINE_STATUSES } from './types';
 
 const byText = (events: TimelineDraft[], start: string) => {
   const found = events.find((e) => e.event.startsWith(start));
@@ -179,6 +179,65 @@ describe('rule ids', () => {
     const block = /TIMELINE_RULES = \(([^)]*)\)/.exec(source)![1];
     const backend = [...block.matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]);
     expect([...TIMELINE_RULES]).toEqual(backend);
+  });
+
+  it('statuses match the backend list', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('../../../../backend/src/timeline/status.py', import.meta.url)),
+      'utf-8'
+    );
+    const block = /STATUSES: tuple\[str, \.\.\.\] = \(([^)]*)\)/.exec(source)![1];
+    expect([...TIMELINE_STATUSES]).toEqual([...block.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]));
+  });
+});
+
+describe('buildTimeline: ids survive a re-paste', () => {
+  const draft = (t: number, event: string): TimelineDraft => ({ t, event, vehicle: 'both', auto: { kind: 'manual' } });
+
+  it('reuses the id of an event with the same time and text, ignoring case and spacing', () => {
+    const saved = buildTimeline([draft(-60, 'GO for launch'), draft(0, 'Liftoff')]);
+    const renamed = saved.map((e, i) => ({ ...e, id: `custom-${i}` }));
+    const again = buildTimeline([draft(0, '  liftoff '), draft(-60, 'GO  for launch'), draft(10, 'New row')], renamed);
+    expect(again.map((e) => e.id)).toEqual(['custom-0', 'custom-1', expect.any(String)]);
+    expect(new Set(again.map((e) => e.id)).size).toBe(3);
+  });
+
+  it('a row whose time changed gets a new id', () => {
+    const saved = buildTimeline([draft(0, 'Liftoff')]);
+    const again = buildTimeline([draft(1, 'Liftoff')], saved);
+    expect(again[0].id).not.toBe(saved[0].id);
+  });
+
+  it('identical rows (both T-0 rows) each keep their own id, in order', () => {
+    const saved = [
+      { ...draft(0, 'Liftoff'), id: 'first' },
+      { ...draft(0, 'Liftoff'), id: 'second' },
+    ];
+    expect(buildTimeline([draft(0, 'Liftoff'), draft(0, 'Liftoff'), draft(0, 'Liftoff')], saved).map((e) => e.id)).toEqual([
+      'first',
+      'second',
+      expect.any(String),
+    ]);
+  });
+
+  it('a new id never collides with a reused one', () => {
+    // The new row at index 0 would get "0-liftoff", which an existing row already holds
+    const saved = [{ ...draft(5, 'Liftoff'), id: '0-liftoff' }];
+    const again = buildTimeline([draft(0, 'Liftoff'), draft(5, 'Liftoff')], saved);
+    expect(again.map((e) => e.id)[1]).toBe('0-liftoff');
+    expect(again[0].id).not.toBe('0-liftoff');
+  });
+
+  it('pasting the same tables again keeps every id', () => {
+    const rowArb = fc.tuple(fc.integer({ min: -3600, max: 3600 }), fc.constantFrom('Liftoff', 'MECO', 'Max Q', 'Landing burn'));
+    fc.assert(
+      fc.property(fc.array(rowArb, { maxLength: 20 }), fc.array(rowArb, { maxLength: 5 }), (rows, extra) => {
+        const saved = buildTimeline(rows.map(([t, e]) => draft(t, e)));
+        const again = buildTimeline([...rows, ...extra].map(([t, e]) => draft(t, e)), saved);
+        expect(new Set(again.map((e) => e.id)).size).toBe(again.length);
+        for (const event of saved) expect(again.map((e) => e.id)).toContain(event.id);
+      })
+    );
   });
 });
 
