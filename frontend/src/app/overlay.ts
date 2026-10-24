@@ -1,6 +1,8 @@
 import { TelemetryWebSocket, getWebSocketUrl } from '../api/websocket';
 import { createLogger } from '../core/logger';
 import { StateManager } from '../state/state-manager';
+import { TimelineStatusStore } from '../state/timeline-status';
+import { MissionTimeline } from '../state/mission-timeline';
 import type { OverlaySnapshot } from '../domain/overlay/snapshot';
 import { isOverlayWidgetId, OVERLAY_WIDGETS } from '../domain/overlay/widgets';
 import { OVERLAY_REGISTRY } from './overlay-registry';
@@ -11,6 +13,12 @@ const logger = createLogger('overlay');
 export interface MountedOverlay {
   stateManager: StateManager;
   socket: TelemetryWebSocket;
+  timeline: MissionTimeline;
+}
+
+/** The widgets that show the mission timeline, which the others do not load. */
+function usesTimeline(widget: string): boolean {
+  return widget.startsWith('timeline') || widget.startsWith('graph-');
 }
 
 /**
@@ -36,9 +44,17 @@ export function mountOverlay(app: HTMLElement, route: { widget: string; snapshot
   const socket = new TelemetryWebSocket({ readOnly: true });
   socket.onMessage((message) => stateManager.handleMessage(message));
 
-  OVERLAY_REGISTRY[route.widget](container, { stateManager, snapshot: route.snapshot });
+  // The timeline's statuses come over the same socket; its events from the active mission's file
+  const timeline = new MissionTimeline(new TimelineStatusStore());
+  socket.onMessage((message) => timeline.statuses.handleMessage(message));
+  if (usesTimeline(route.widget)) {
+    timeline.followStatuses();
+    void timeline.statuses.load();
+  }
+
+  OVERLAY_REGISTRY[route.widget](container, { stateManager, snapshot: route.snapshot, timeline });
   socket.connect(getWebSocketUrl());
-  return { stateManager, socket };
+  return { stateManager, socket, timeline };
 }
 
 /** "Unknown overlay" with the valid ids; no socket is opened. */
