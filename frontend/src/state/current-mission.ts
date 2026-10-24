@@ -1,4 +1,5 @@
 import type { Vehicle } from '../domain/engines/layout';
+import type { TimelineEvent } from '../domain/timeline/types';
 import type { EngineSerials } from './engine-serials';
 import {
   missionFile,
@@ -43,13 +44,18 @@ const SAVE_DELAY_MS = 400;
  * so choosing a mission in either vehicle's panel switches both. The browser
  * keeps all of it across page loads; once the mission has a name, every
  * change is also written to that mission's own file through the backend
- * (missions/engines_<id>.json).
+ * (missions/engines_<id>.json). The mission's timeline travels with it: it is
+ * read from the file and written back with every save.
  */
 export class CurrentMission {
   private missionName = '';
   private names: Record<Vehicle, string> = { starship: '', superheavy: '' };
   private statusValue: SaveStatus = { kind: 'unnamed' };
   private listeners = new Set<() => void>();
+  private timelineValue: readonly TimelineEvent[] = [];
+  private timelineListeners = new Set<() => void>();
+  /** The remembered mission's file being read at start-up; a save waits for it so it cannot overwrite the timeline. */
+  private startupRead: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setTimeout> | null = null;
   /** Set while a loaded mission's serials are applied, so they are not saved back. */
   private applying = false;
@@ -62,6 +68,7 @@ export class CurrentMission {
     private readonly saveDelayMs = SAVE_DELAY_MS
   ) {
     this.restore();
+    this.readTimelineOfRememberedMission();
     for (const vehicle of VEHICLES) {
       serials[vehicle].subscribe(() => {
         if (!this.applying) this.saveSoon();
@@ -75,6 +82,28 @@ export class CurrentMission {
 
   get status(): SaveStatus {
     return this.statusValue;
+  }
+
+  /** The mission's timeline, in time order; empty when it has none. */
+  get timeline(): readonly TimelineEvent[] {
+    return this.timelineValue;
+  }
+
+  /**
+   * Replaces the mission's timeline and saves it with the mission's file.
+   * The caller supplies valid events in time order (see the timeline editor);
+   * the backend validates and sorts again.
+   */
+  setTimeline(events: readonly TimelineEvent[]): void {
+    this.timelineValue = structuredClone([...events]);
+    this.notifyTimeline();
+    this.saveSoon(0);
+  }
+
+  /** Called whenever the timeline changes, including when a mission's file is loaded; returns an unsubscribe function. */
+  subscribeTimeline(listener: () => void): () => void {
+    this.timelineListeners.add(listener);
+    return () => this.timelineListeners.delete(listener);
   }
 
   /** The vehicle's name in this mission, e.g. "S41" for the ship or "B15" for the booster. */
@@ -161,8 +190,9 @@ export class CurrentMission {
     return () => this.listeners.delete(listener);
   }
 
-  /** Puts a mission's names and serials in place (or empties them) without saving them back. */
+  /** Puts a mission's names, serials and timeline in place (or empties them) without saving them back. */
   private load(saved: SavedMission | null): void {
+    this.setTimelineSilently(saved?.timeline ?? []);
     for (const vehicle of VEHICLES) {
       this.names[vehicle] = saved?.[FIELDS[vehicle].name] ?? '';
     }
@@ -176,6 +206,33 @@ export class CurrentMission {
     } finally {
       this.applying = false;
     }
+  }
+
+  private setTimelineSilently(events: readonly TimelineEvent[]): void {
+    this.timelineValue = events;
+    this.notifyTimeline();
+  }
+
+  private notifyTimeline(): void {
+    for (const listener of this.timelineListeners) listener();
+  }
+
+  /**
+   * Only the names are remembered by the browser, so a page load reads the
+   * timeline from the mission's file. Anything set in the meantime wins.
+   */
+  private readTimelineOfRememberedMission(): void {
+    const id = missionId(this.missionName);
+    if (!id) return;
+    const before = this.timelineValue;
+    this.startupRead = this.api
+      .load(id)
+      .then((saved) => {
+        if (saved?.timeline && this.timelineValue === before && missionId(this.missionName) === id) {
+          this.setTimelineSilently(saved.timeline);
+        }
+      })
+      .catch(() => undefined); // unreachable backend: the status line shows it on the next save
   }
 
   private saveSoon(delay = this.saveDelayMs): void {
@@ -192,14 +249,17 @@ export class CurrentMission {
   }
 
   private write(): Promise<void> {
-    const settings: MissionSettings = {
-      mission: this.missionName,
-      ship: this.names.starship,
-      booster: this.names.superheavy,
-      starship_engines: this.serials.starship.snapshot(),
-      superheavy_engines: this.serials.superheavy.snapshot(),
-    };
     this.writing = this.writing.then(async () => {
+      await this.startupRead;
+      // Read what to save only now, after the start-up read may have filled in the timeline
+      const settings: MissionSettings = {
+        mission: this.missionName,
+        ship: this.names.starship,
+        booster: this.names.superheavy,
+        starship_engines: this.serials.starship.snapshot(),
+        superheavy_engines: this.serials.superheavy.snapshot(),
+        timeline: structuredClone([...this.timelineValue]),
+      };
       this.setStatus({ kind: 'saving' });
       try {
         const saved = await this.api.save(settings);

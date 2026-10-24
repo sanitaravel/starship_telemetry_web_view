@@ -1,4 +1,5 @@
 import { fetchPreviousFlightList } from './previous-flights';
+import type { TimelineEvent } from '../domain/timeline/types';
 
 /** What a mission file holds (see backend/src/storage/missions.py). */
 export interface MissionSettings {
@@ -9,6 +10,8 @@ export interface MissionSettings {
   starship_engines: Record<string, string>;
   /** Engine id -> serial, e.g. { sh_e1: 'R301' }; absent in files saved before Super Heavy had settings. */
   superheavy_engines?: Record<string, string>;
+  /** Planned events in time order; absent in files saved before timelines existed. */
+  timeline?: TimelineEvent[];
 }
 
 export interface SavedMission extends MissionSettings {

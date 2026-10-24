@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import fc from 'fast-check';
-import { buildTimeline, formatTimelineTime, nextEventId, parseTimelinePaste } from './parse';
+import { buildTimeline, formatTimelineTime, nextEventId, parseTimelinePaste, type TimelineDraft, type TimelineSection } from './parse';
 import { guessAuto, guessVehicle } from './guess';
 import { COUNTDOWN_PASTE, FLIGHT_PASTE } from './fixtures';
-import { MAX_TIMELINE_SECONDS, TIMELINE_RULES, type TimelineDraft } from './types';
+import { MAX_TIMELINE_SECONDS, TIMELINE_RULES } from './types';
 
 const byText = (events: TimelineDraft[], start: string) => {
   const found = events.find((e) => e.event.startsWith(start));
@@ -193,7 +193,7 @@ describe('properties', () => {
     fc.assert(
       fc.property(
         fc.array(fc.tuple(secondsArb, fc.boolean(), textArb), { maxLength: 30 }),
-        fc.constantFrom('countdown', 'flight'),
+        fc.constantFrom<TimelineSection>('countdown', 'flight'),
         (rows, section) => {
           const lines = rows.map(([s, negative, text]) => `${formatTimelineTime(negative && s ? -s : s)}\t${text}`);
           const { events, warnings } = parseTimelinePaste(lines.join('\n'), section);
@@ -208,7 +208,7 @@ describe('properties', () => {
 
   it('without a sign, the section decides', () => {
     fc.assert(
-      fc.property(secondsArb, textArb, fc.constantFrom('countdown', 'flight'), (s, text, section) => {
+      fc.property(secondsArb, textArb, fc.constantFrom<TimelineSection>('countdown', 'flight'), (s, text, section) => {
         const clock = formatTimelineTime(s).slice(2);
         const { events } = parseTimelinePaste(`${clock}\t${text}`, section);
         expect(events[0].t).toBe(section === 'countdown' && s ? -s : s);
@@ -219,7 +219,7 @@ describe('properties', () => {
 
   it('never throws, and every line is a row, a warning or a skipped header', () => {
     fc.assert(
-      fc.property(fc.string({ maxLength: 400 }), fc.constantFrom('countdown', 'flight'), (text, section) => {
+      fc.property(fc.string({ maxLength: 400 }), fc.constantFrom<TimelineSection>('countdown', 'flight'), (text, section) => {
         const { events, warnings } = parseTimelinePaste(text, section);
         const nonBlank = text.split(/\r\n|\r|\n/).filter((l) => l.trim() !== '');
         expect(events.length + warnings.length).toBeLessThanOrEqual(nonBlank.length);

@@ -2,6 +2,7 @@ import type { CurrentMission } from '../../state/current-mission';
 import type { Vehicle } from '../../domain/engines/layout';
 import { MAX_SERIAL_LENGTH, normaliseSerial, type EngineSerials } from '../../state/engine-serials';
 import { MissionFields } from './mission-fields';
+import { toggleTimelineEditor } from './timeline-editor';
 import { anchorPanel, bindDismiss, type AnchoredPanel } from '../../ui/popover';
 import { svgEl } from '../../ui/svg';
 
@@ -96,12 +97,14 @@ class EngineSettingsPopover {
   private readonly body: HTMLElement;
   private readonly statusSlot: HTMLElement;
   private readonly clearButton: HTMLButtonElement;
+  private readonly timelineButton: HTMLButtonElement;
   private readonly anchored: AnchoredPanel;
   private missionFields: MissionFields | null = null;
   private inputs: HTMLInputElement[] = [];
   private anchor: HTMLElement | null = null;
   private serials: EngineSerials | null = null;
   private unsubscribe: (() => void) | null = null;
+  private mission: CurrentMission | null = null;
 
   constructor() {
     this.panel = document.createElement('div');
@@ -117,6 +120,17 @@ class EngineSettingsPopover {
     hint.textContent = 'Raptor serials for this mission, shown when hovering an engine.';
 
     this.missionSlot = document.createElement('div');
+    // Opens the mission's timeline editor in place of this panel
+    this.timelineButton = document.createElement('button');
+    this.timelineButton.type = 'button';
+    this.timelineButton.className = 'engine-settings__button engine-settings__timeline';
+    this.timelineButton.setAttribute('aria-haspopup', 'dialog');
+    this.timelineButton.addEventListener('click', () => {
+      const { anchor, mission } = this;
+      if (!anchor || !mission) return;
+      this.close(false);
+      toggleTimelineEditor(anchor, mission);
+    });
     this.body = document.createElement('div');
     this.body.className = 'engine-settings__groups';
     this.statusSlot = document.createElement('div');
@@ -173,7 +187,10 @@ class EngineSettingsPopover {
     this.build(groups, serials);
     if (mission) {
       this.missionFields = new MissionFields(mission, vehicle);
-      this.missionSlot.replaceChildren(this.missionFields.element);
+      this.mission = mission;
+      const count = mission.timeline.length;
+      this.timelineButton.textContent = count > 0 ? `Timeline (${count})` : 'Timeline';
+      this.missionSlot.replaceChildren(this.missionFields.element, this.timelineButton);
       this.statusSlot.replaceChildren(this.missionFields.statusLine);
     }
     this.unsubscribe = serials.subscribe(() => this.refresh());
@@ -198,6 +215,7 @@ class EngineSettingsPopover {
     if (restoreFocus) this.anchor?.focus();
     this.anchor = null;
     this.serials = null;
+    this.mission = null;
   }
 
   private build(groups: EngineGroup[], serials: EngineSerials): void {
