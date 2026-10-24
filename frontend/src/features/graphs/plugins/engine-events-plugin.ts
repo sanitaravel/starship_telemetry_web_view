@@ -85,6 +85,18 @@ function drawMarkers(chart: Chart, markers: readonly EngineMarker[]): void {
     const x = pixels[i];
     if (!Number.isFinite(x)) continue;
     const m = markers[i];
+    if (m.kind === 'timeline') {
+      // Mission timeline: a faint, finely dashed line; the text comes on hover
+      ctx.globalAlpha = 0.55;
+      ctx.strokeStyle = m.color;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x, area.top);
+      ctx.lineTo(x, area.bottom);
+      ctx.stroke();
+      continue;
+    }
     ctx.globalAlpha = 0.8;
     ctx.strokeStyle = m.color;
     ctx.fillStyle = m.color;

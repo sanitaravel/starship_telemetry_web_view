@@ -6,7 +6,9 @@ import type { SeriesKey, SeriesOption } from './types';
 import { SERIES_OPTIONS } from './panels';
 import type { ExportOptions } from './export/export-png';
 import { saveChartAsPng } from './export/save-chart';
-import type { EngineMarker } from './plugins/engine-markers';
+import { seriesVehicle, type EngineMarker } from './plugins/engine-markers';
+import { timelineMarkers } from './plugins/timeline-markers';
+import type { MissionTimeline } from '../../state/mission-timeline';
 import { createChartConfig } from './chart-config';
 import { buildDatasets, buildMarkers, ChartData } from './chart-data';
 import { Comparisons } from './comparisons';
@@ -25,6 +27,11 @@ export interface TimeSeriesGraphsOptions {
   series?: SeriesKey;
   /** Compared flights as [filename, colour], fixed and headless (overlays). */
   comparisons?: readonly [string, string][];
+  /**
+   * The mission timeline: its events from T+0 on are drawn as dashed lines
+   * in their status colour, next to the engine markers. Default none.
+   */
+  timeline?: MissionTimeline;
 }
 
 /**
@@ -61,6 +68,7 @@ export class TimeSeriesGraphs {
   private comparisons!: Comparisons;
   private readonly chrome: boolean;
   private readonly fixedComparisons: readonly [string, string][] | null;
+  private readonly timeline: MissionTimeline | null;
 
   constructor(container: HTMLElement, stateManager: StateManager, options: TimeSeriesGraphsOptions = {}) {
     this.container = container;
@@ -68,9 +76,12 @@ export class TimeSeriesGraphs {
     this.chrome = options.chrome ?? true;
     this.selectedKey = options.series ?? this.selectedKey;
     this.fixedComparisons = options.comparisons ?? null;
+    this.timeline = options.timeline ?? null;
     this.render();
     this.initChart();
     this.comparisons.start();
+    // A new event list or status redraws the markers
+    this.timeline?.subscribe(() => this.scheduleUpdate());
     this.stateManager.subscribe((state) => {
       // Most messages (frames, status) leave the series and events untouched
       if (
@@ -204,9 +215,19 @@ export class TimeSeriesGraphs {
       colorOf,
     );
 
-    this.setMarkers(
-      buildMarkers(option, this.latestEngineEvents, this.latestSeparationMet, comparisons, colorOf),
-    );
+    const markers = buildMarkers(option, this.latestEngineEvents, this.latestSeparationMet, comparisons, colorOf);
+    if (this.timeline) {
+      const statuses = this.timeline.statuses;
+      markers.push(
+        ...timelineMarkers(
+          this.timeline.events,
+          (id) => statuses.status(id),
+          seriesVehicle(option.derive?.from ?? option.key),
+          this.latestSeparationMet,
+        ),
+      );
+    }
+    this.setMarkers(markers);
     this.chart.data = { datasets };
     this.chart.update('none');
   }

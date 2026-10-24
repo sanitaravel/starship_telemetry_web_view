@@ -15,7 +15,8 @@ export interface EngineMarker {
   /** Set for events inside a panel gap: the gap's [start, end] MET. */
   range?: [number, number];
   color: string;
-  kind: EngineEventKind;
+  /** 'timeline' marks a mission timeline event (see timeline-markers.ts): a thin dashed line, no shape. */
+  kind: EngineEventKind | 'timeline';
   tooltipLines: string[];
 }
 
