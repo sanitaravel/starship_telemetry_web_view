@@ -72,11 +72,61 @@ export interface ReplayPayload {
 }
 
 /**
+ * Status of one mission timeline event (backend/src/timeline/status.py).
+ * `skipped` is only ever set by a person.
+ */
+export type TimelineStatusValue = 'not_yet' | 'pending' | 'success' | 'partial' | 'failure' | 'skipped';
+
+/** One timeline event's status: decided automatically or set by a person. */
+export interface TimelineEventStatus {
+  /** The event's id in the mission's timeline */
+  event_id: string;
+  status: TimelineStatusValue;
+  /** 'human' while a person's override stands; cleared overrides go back to 'auto' */
+  source: 'auto' | 'human';
+  /** Why, e.g. "HUD milestone MAX Q" or "Super Heavy MECO at T+00:02:41 (33 -> 3 engines)" */
+  evidence: string | null;
+  /** MET in seconds the status was decided at, when known */
+  met: number | null;
+  /** ISO 8601 UTC time of the last change */
+  updated_at: string;
+}
+
+/**
+ * The `timeline_status` payload: every event's status, sent whole on every
+ * change and after the replay (backend/src/timeline/service.py). Also what
+ * `GET /api/timeline/status` returns.
+ */
+export interface TimelineStatusPayload {
+  /** The mission whose timeline is followed (PUT /api/timeline/active), or null */
+  mission_id: string | null;
+  /** The Run the statuses belong to (as in ReplayPayload) */
+  run_id: string | null;
+  /** Grows with every change, also across backend restarts: a lower one is stale */
+  revision: number;
+  /** Furthest MET seen this Run, seconds */
+  met: number | null;
+  /** Where that MET came from: the HUD clock in the records, or the countdown clock */
+  clock_source: 'telemetry' | 'countdown' | null;
+  /** Events waiting for a person */
+  pending: number;
+  /** In timeline order */
+  events: TimelineEventStatus[];
+}
+
+/**
  * Message received over the WebSocket connection.
  */
 export interface WebSocketMessage {
-  type: 'telemetry' | 'status' | 'error' | 'validation_result' | 'frame' | 'replay';
-  payload: TelemetryRecord | PipelineStatus | ErrorPayload | ValidationResult | FramePayload | ReplayPayload;
+  type: 'telemetry' | 'status' | 'error' | 'validation_result' | 'frame' | 'replay' | 'timeline_status';
+  payload:
+    | TelemetryRecord
+    | PipelineStatus
+    | ErrorPayload
+    | ValidationResult
+    | FramePayload
+    | ReplayPayload
+    | TimelineStatusPayload;
 }
 
 /**
@@ -117,6 +167,8 @@ export interface PreviousFlightColumns {
   sh_alt: (number | null)[];
   /** Engine status changes; absent from older backends, empty when the file has no statuses. */
   engines?: EngineStatusChange[];
+  /** The mission timeline's final statuses, when the flight was saved with them. */
+  timeline_status?: TimelineStatusPayload;
 }
 
 /**

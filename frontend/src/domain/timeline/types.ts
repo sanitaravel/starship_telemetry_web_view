@@ -1,5 +1,7 @@
 /** The mission timeline as a mission file stores it (see backend/src/storage/missions.py). */
 
+import type { TimelineStatusValue } from '../../core/types';
+
 export type TimelineVehicle = 'starship' | 'superheavy' | 'both';
 
 export const TIMELINE_VEHICLES: readonly TimelineVehicle[] = ['starship', 'superheavy', 'both'];
@@ -63,6 +65,20 @@ export interface TimelineEvent {
   vehicle: TimelineVehicle;
   auto: TimelineAuto;
 }
+
+/**
+ * Every status an event can have, in display order. Mirrors STATUSES in
+ * backend/src/timeline/status.py (a test compares the two). `skipped` is
+ * only ever set by a person.
+ */
+export const TIMELINE_STATUSES: readonly TimelineStatusValue[] = [
+  'not_yet',
+  'pending',
+  'success',
+  'partial',
+  'failure',
+  'skipped',
+];
 
 /** Limits the backend enforces. */
 export const MAX_TIMELINE_EVENTS = 200;

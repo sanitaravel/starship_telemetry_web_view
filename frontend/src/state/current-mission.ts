@@ -45,7 +45,10 @@ const SAVE_DELAY_MS = 400;
  * keeps all of it across page loads; once the mission has a name, every
  * change is also written to that mission's own file through the backend
  * (missions/engines_<id>.json). The mission's timeline travels with it: it is
- * read from the file and written back with every save.
+ * read from the file and written back with every save. The backend is told
+ * which mission this is (`activate`), on page load, whenever another one is
+ * chosen and after the timeline was saved, so it follows that timeline's
+ * statuses (backend/src/timeline/service.py).
  */
 export class CurrentMission {
   private missionName = '';
@@ -61,6 +64,10 @@ export class CurrentMission {
   private applying = false;
   /** One write at a time, so an older one can never land after a newer one. */
   private writing: Promise<void> = Promise.resolve();
+  /** The mission the backend was last told to follow; undefined when unknown (not told yet, or that failed). */
+  private activeId: string | null | undefined = undefined;
+  /** The timeline changed since it was last written. */
+  private timelineDirty = false;
 
   constructor(
     private readonly serials: Record<Vehicle, EngineSerials>,
@@ -69,6 +76,7 @@ export class CurrentMission {
   ) {
     this.restore();
     this.readTimelineOfRememberedMission();
+    if (missionId(this.missionName)) this.activate(missionId(this.missionName));
     for (const vehicle of VEHICLES) {
       serials[vehicle].subscribe(() => {
         if (!this.applying) this.saveSoon();
@@ -96,6 +104,7 @@ export class CurrentMission {
    */
   setTimeline(events: readonly TimelineEvent[]): void {
     this.timelineValue = structuredClone([...events]);
+    this.timelineDirty = true;
     this.notifyTimeline();
     this.saveSoon(0);
   }
@@ -135,8 +144,10 @@ export class CurrentMission {
       this.missionName = '';
       this.persist();
       this.setStatus({ kind: 'unnamed' });
+      this.activate(null);
       return;
     }
+    this.activate(id);
 
     let saved: SavedMission | null;
     try {
@@ -260,16 +271,34 @@ export class CurrentMission {
         superheavy_engines: this.serials.superheavy.snapshot(),
         timeline: structuredClone([...this.timelineValue]),
       };
+      const timelineSaved = this.timelineDirty;
+      this.timelineDirty = false;
       this.setStatus({ kind: 'saving' });
       try {
         const saved = await this.api.save(settings);
+        // The backend re-reads the active mission's file itself; telling it
+        // again covers a backend that restarted and forgot which mission it was
+        if (timelineSaved) {
+          this.activeId = undefined;
+          this.activate(saved.id);
+        }
         // A newer edit may already be waiting; only report what is final
         if (this.timer === null) this.setStatus({ kind: 'saved', file: missionFile(saved.id) });
       } catch (error) {
+        if (timelineSaved) this.timelineDirty = true;
         this.setStatus({ kind: 'error', message: notSaved(error) });
       }
     });
     return this.writing;
+  }
+
+  /** Tells the backend to follow this mission's timeline, unless it already does. Failures are retried on the next change. */
+  private activate(id: string | null): void {
+    if (id === this.activeId) return;
+    this.activeId = id;
+    this.api.activate(id).catch(() => {
+      if (this.activeId === id) this.activeId = undefined;
+    });
   }
 
   private setStatus(status: SaveStatus): void {

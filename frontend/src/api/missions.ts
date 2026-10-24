@@ -1,4 +1,5 @@
 import { fetchPreviousFlightList } from './previous-flights';
+import { setActiveTimelineMission } from './timeline';
 import type { TimelineEvent } from '../domain/timeline/types';
 
 /** What a mission file holds (see backend/src/storage/missions.py). */
@@ -57,6 +58,8 @@ export interface MissionsApi {
   list(): Promise<MissionChoice[]>;
   load(id: string): Promise<SavedMission | null>;
   save(settings: MissionSettings): Promise<SavedMission>;
+  /** Makes this mission's timeline the one the backend follows (null: none). */
+  activate(id: string | null): Promise<void>;
 }
 
 export const missionsApi: MissionsApi = {
@@ -102,5 +105,9 @@ export const missionsApi: MissionsApi = {
     });
     if (!response.ok) throw new Error(`Saving mission failed (${response.status})`);
     return response.json();
+  },
+
+  async activate(id) {
+    await setActiveTimelineMission(id);
   },
 };

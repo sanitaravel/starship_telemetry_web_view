@@ -258,6 +258,7 @@ describe('app smoke test', () => {
       [
         '/api/previous-flights',
         '/api/status',
+        '/api/timeline/status',
         '/api/trajectories',
         TRACKER_PREFIX,
       ].sort(),

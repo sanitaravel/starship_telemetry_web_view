@@ -1,6 +1,7 @@
 import '../styles/index.css';
 import { createTelemetryWebSocket, getWebSocketUrl } from '../api/websocket';
 import { StateManager } from '../state/state-manager';
+import { TimelineStatusStore } from '../state/timeline-status';
 import { PipelineControls } from '../features/pipeline-controls';
 import { TelemetryDisplay } from '../features/telemetry-display';
 import { EngineVisualizer } from '../features/engines/visualizer';
@@ -32,10 +33,15 @@ if (app && overlayRoute) {
     new BackendVersion(backendVersionEl, stateManager);
   }
 
+  // The mission timeline's statuses, decided by the backend
+  const timelineStatus = new TimelineStatusStore();
+
   // Initialize WebSocket client
   const ws = createTelemetryWebSocket();
   ws.onMessage((message) => stateManager.handleMessage(message));
+  ws.onMessage((message) => timelineStatus.handleMessage(message));
   ws.connect(getWebSocketUrl());
+  void timelineStatus.load();
 
   // Initialize Pipeline Controls UI
   const controlsContainer = document.getElementById('pipeline-controls');
@@ -46,7 +52,7 @@ if (app && overlayRoute) {
   // Downloads of the OCR telemetry received this session
   const downloadsContainer = document.getElementById('telemetry-downloads');
   if (downloadsContainer) {
-    new TelemetryDownloads(downloadsContainer, stateManager);
+    new TelemetryDownloads(downloadsContainer, stateManager, () => timelineStatus.snapshot);
   }
 
   // Initialize Telemetry Display UI

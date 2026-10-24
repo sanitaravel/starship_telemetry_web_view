@@ -37,6 +37,43 @@ beforeEach(() => {
   mission = new CurrentMission(serials, api, 0);
 });
 
+describe('the mission the backend follows', () => {
+  it('is told on page load, when another mission is chosen and when it is cleared', async () => {
+    expect(api.activations).toEqual([]); // unnamed: nothing to follow
+    await mission.choose('IFT 15');
+    await mission.choose('IFT 15'); // same mission: told once
+    await mission.choose('IFT 16');
+    await mission.choose('');
+    expect(api.activations).toEqual(['ift-15', 'ift-16', null]);
+
+    await mission.choose('IFT 15');
+    const reloaded = new CurrentMission(bothSerials(), api, 0);
+    await settle();
+    expect(api.activations.at(-1)).toBe('ift-15');
+    expect(reloaded.mission).toBe('IFT 15');
+  });
+
+  it('is told again after the timeline was saved, but not after other edits', async () => {
+    await mission.choose('IFT 15');
+    mission.setVehicleName('starship', 'S40');
+    await mission.flush();
+    expect(api.activations).toEqual(['ift-15']);
+    mission.setTimeline([liftoff]);
+    await mission.flush();
+    expect(api.activations).toEqual(['ift-15', 'ift-15']);
+  });
+
+  it('retries after the backend could not be told', async () => {
+    api.offline = true;
+    await mission.choose('IFT 15').catch(() => undefined);
+    await settle();
+    api.offline = false;
+    mission.setTimeline([liftoff]);
+    await mission.flush();
+    expect(api.activations).toEqual(['ift-15']);
+  });
+});
+
 describe('the mission timeline', () => {
   it('starts empty and is saved with the mission file', async () => {
     expect(mission.timeline).toEqual([]);

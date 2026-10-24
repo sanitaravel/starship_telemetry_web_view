@@ -1,17 +1,23 @@
-import { downloadText, telemetryFilename, toFlightRecords } from '../domain/downloads';
+import type { TimelineStatusPayload } from '../core/types';
+import { downloadText, telemetryFilename, toFlightFile } from '../domain/downloads';
 import type { AppState, StateManager } from '../state/state-manager';
 
 /**
  * Download buttons for the OCR telemetry received this session: as a flight
  * file in the `results_previous/` format (loadable as a previous flight), or
- * as the raw records exactly as the backend sent them.
+ * as the raw records exactly as the backend sent them. The flight file also
+ * carries the mission timeline's final statuses, when there are any.
  */
 export class TelemetryDownloads {
   private readonly count: HTMLElement;
   private readonly buttons: HTMLButtonElement[];
   private shownCount = -1;
 
-  constructor(container: HTMLElement, private readonly stateManager: StateManager) {
+  constructor(
+    container: HTMLElement,
+    private readonly stateManager: StateManager,
+    private readonly timelineStatus: () => TimelineStatusPayload | null = () => null
+  ) {
     container.classList.add('telemetry-downloads');
     container.innerHTML = `
       <span class="telemetry-downloads__label">OCR data:</span>
@@ -37,7 +43,7 @@ export class TelemetryDownloads {
     if (records.length === 0) return;
     const content =
       format === 'flight'
-        ? JSON.stringify(toFlightRecords(records), null, 4)
+        ? JSON.stringify(toFlightFile(records, this.timelineStatus()), null, 4)
         : JSON.stringify(records, null, 2);
     downloadText(telemetryFilename(new Date(), format === 'raw' ? '-raw' : ''), content, 'application/json');
   }
