@@ -25,6 +25,7 @@ class Broadcaster:
         self,
         broadcast: Callable[[dict[str, Any]], Awaitable[None]],
         history: TelemetryHistory | None = None,
+        after_telemetry: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
     ) -> None:
         """Initialize the broadcaster.
 
@@ -33,9 +34,12 @@ class Broadcaster:
                 connected WebSocket clients.
             history: Store that each telemetry record is appended to as it
                 is sent, for replay to clients that connect later.
+            after_telemetry: Awaited with each telemetry payload right after
+                it was broadcast (the timeline statuses follow the records).
         """
         self._broadcast = broadcast
         self._history = history
+        self._after_telemetry = after_telemetry
         self.queue: asyncio.Queue[dict[str, Any]] | None = None
         self._task: asyncio.Task | None = None
 
@@ -82,6 +86,8 @@ class Broadcaster:
                 if self._history is not None and message.get("type") == "telemetry":
                     self._history.append(message["payload"])
                 await self._broadcast(message)
+                if self._after_telemetry is not None and message.get("type") == "telemetry":
+                    await self._after_telemetry(message["payload"])
             except Exception as e:
                 logger.warning("Failed to broadcast %s message: %s", message.get("type"), e)
             logger.debug(

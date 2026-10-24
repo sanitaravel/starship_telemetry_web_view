@@ -5,7 +5,9 @@ records with a "frame_number"). The file's own frame step is detected (e.g.
 analysed every 10th source frame), and only records on every Nth step are
 kept: with --factor 3 a file analysed every 10th frame becomes every 30th.
 Records are selected by frame number, not position, because the files are
-not stored in frame order; the output is sorted by frame.
+not stored in frame order; the output is sorted by frame. A file saved with
+the mission timeline's statuses ({"records": [...], "timeline_status": ...})
+keeps that shape and its statuses.
 
 With --filter, speed and altitude of the downsampled records are cleaned,
 per vehicle: stretches misread with an extra leading digit (20.2 for 0.2,
@@ -307,7 +309,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.factor < 1:
         parser.error("--factor must be at least 1")
-    records = json.loads(args.path.read_text(encoding="utf-8"))
+    data = json.loads(args.path.read_text(encoding="utf-8"))
+    # Files saved with the mission timeline's statuses wrap the records
+    wrapped = isinstance(data, dict) and isinstance(data.get("records"), list)
+    records = data["records"] if wrapped else data
     if not isinstance(records, list):
         parser.error(f"{args.path} is not a JSON array of records")
 
@@ -316,8 +321,9 @@ def main(argv: list[str] | None = None) -> int:
     output = args.output or default_output(args.path, args.factor)
     if output.resolve() == args.path.resolve():
         parser.error("refusing to overwrite the input; pass a different --output")
+    written: Any = {**data, "records": result} if wrapped else result
     # Same layout as the source files (4-space indent)
-    output.write_text(json.dumps(result, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
+    output.write_text(json.dumps(written, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
 
     print(
         f"{args.path.name}: {stats['input']} records, analysed every {stats['frame_step']} frames"

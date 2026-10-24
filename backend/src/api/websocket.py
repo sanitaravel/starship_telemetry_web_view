@@ -1,5 +1,7 @@
 """The /ws/telemetry endpoint: live telemetry broadcast and control commands."""
 
+import itertools
+import json
 import logging
 import re
 import time
@@ -32,8 +34,13 @@ def _replay_source() -> Iterator[str]:
 
     The history snapshot is taken here, at call time, in the same step as the
     client's registration; the chunk texts are built lazily as they are sent.
+    The latest timeline statuses follow the records (one snapshot, taken now
+    too, so any later change reaches the client as a queued broadcast).
     """
-    return replay_messages(orchestrator.history.snapshot())
+    timeline = json.dumps(
+        orchestrator.timeline.message(), separators=(",", ":"), ensure_ascii=False
+    )
+    return itertools.chain(replay_messages(orchestrator.history.snapshot()), (timeline,))
 
 
 # --- WebSocket control commands ---

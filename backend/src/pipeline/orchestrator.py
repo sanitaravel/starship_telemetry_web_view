@@ -31,6 +31,7 @@ from src.pipeline.status_payload import build_status_payload
 from src.telemetry.record_assembler import RecordAssembler
 from src.telemetry.stage_assignment import StageAssigner
 from src.templates.template_registry import TemplateRegistry
+from src.timeline.service import TimelineService
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class PipelineOrchestrator:
         template_registry: TemplateRegistry,
         broadcast: Callable[[dict[str, Any]], Awaitable[None]],
         parallel_config: ParallelPipelineConfig | None = None,
+        timeline: TimelineService | None = None,
     ) -> None:
         """Initialize the pipeline orchestrator.
 
@@ -60,6 +62,8 @@ class PipelineOrchestrator:
                 connected WebSocket clients.
             parallel_config: Configuration for parallel pipeline execution.
                 Uses default values if not provided.
+            timeline: The mission timeline's statuses, fed every broadcast
+                record and reset on every start. A new one if not provided.
         """
         self._gpu_capabilities = gpu_capabilities
         self._template_registry = template_registry
@@ -78,7 +82,9 @@ class PipelineOrchestrator:
         # clients never holds up frame processing or its concurrency slot.
         # It feeds the Run's history, replayed to clients that connect later.
         self._history = TelemetryHistory()
-        self._broadcaster = Broadcaster(broadcast, self._history)
+        self._timeline = timeline or TimelineService()
+        self._timeline.reset_run(self._history.run_id)
+        self._broadcaster = Broadcaster(broadcast, self._history, self._on_telemetry_sent)
 
         # Reorder buffer for sequential broadcasting
         self._ordering = ReorderCoordinator(
@@ -121,6 +127,11 @@ class PipelineOrchestrator:
     def history(self) -> TelemetryHistory:
         """Return the current Run's telemetry history (kept after stop)."""
         return self._history
+
+    @property
+    def timeline(self) -> TimelineService:
+        """Return the mission timeline's statuses for the current Run."""
+        return self._timeline
 
     @property
     def frame_extractor(self) -> FrameExtractor:
@@ -198,6 +209,9 @@ class PipelineOrchestrator:
         # every telemetry message of this Run on every connection
         run_id = self._history.clear()
         await self._broadcast(empty_replay_message(run_id))
+        # Timeline statuses belong to the Run too: back to not yet
+        self._timeline.reset_run(run_id)
+        await self._broadcast(self._timeline.message())
 
         # Ensure OCR engine is loaded, with T-0 detection cleared from any
         # previous run so the time gate applies again
@@ -382,6 +396,11 @@ class PipelineOrchestrator:
                         self._concurrency_controller.in_flight,
                         self._concurrency_controller.limit,
                     )
+
+    async def _on_telemetry_sent(self, payload: dict[str, Any]) -> None:
+        """Feed a broadcast record to the timeline; broadcast its statuses if they changed."""
+        if self._timeline.on_record(payload):
+            await self._broadcast(self._timeline.message())
 
     # --- Status ---
 

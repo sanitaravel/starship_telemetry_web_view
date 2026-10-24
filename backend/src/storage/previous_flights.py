@@ -6,6 +6,10 @@ frame clock and both vehicles' speed and altitude, so each file is reduced
 once to a compact columnar payload and the encoded bytes are cached. Engine
 statuses, when a file has them, are passed through as change entries; the
 dashboard derives engine events from them.
+
+A file is either the plain array of records or, when the dashboard saved the
+mission timeline's final statuses with it, ``{"records": [...],
+"timeline_status": {...}}``; the statuses are passed through as they are.
 """
 
 import json
@@ -106,11 +110,26 @@ def load_flight(name: str, directory: Path = PREVIOUS_FLIGHTS_DIR) -> bytes | No
     return _encode_flight(path, path.stat().st_mtime_ns)
 
 
+def flight_records(data: Any) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """A parsed flight file's records and its timeline statuses (None when it has none).
+
+    Older files are a plain array of records; files saved with timeline
+    statuses wrap them as ``{"records": [...], "timeline_status": {...}}``.
+    """
+    if isinstance(data, dict):
+        timeline = data.get("timeline_status")
+        return list(data.get("records") or []), timeline if isinstance(timeline, dict) else None
+    return list(data), None
+
+
 @lru_cache(maxsize=8)
 def _encode_flight(path: Path, mtime_ns: int) -> bytes:
     """Parse, reduce and encode a flight file. Cached per (path, mtime)."""
     with open(path, "r", encoding="utf-8") as fh:
-        records = json.load(fh)
-    payload = json.dumps(to_columns(records), separators=(",", ":")).encode("utf-8")
+        records, timeline = flight_records(json.load(fh))
+    columns: dict[str, Any] = to_columns(records)
+    if timeline is not None:
+        columns["timeline_status"] = timeline
+    payload = json.dumps(columns, separators=(",", ":")).encode("utf-8")
     logger.info("Loaded previous flight %s: %d records", path.stem, len(records))
     return payload

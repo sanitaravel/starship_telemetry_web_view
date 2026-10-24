@@ -63,6 +63,16 @@ def test_cli_writes_next_to_input_and_keeps_the_original(tmp_path, capsys):
     assert "10 records" in capsys.readouterr().out
 
 
+def test_cli_keeps_a_files_timeline_statuses(tmp_path):
+    source = tmp_path / "ift-99.json"
+    statuses = {"mission_id": "ift-99", "events": []}
+    source.write_text(json.dumps({"records": _records(range(0, 100, 10)), "timeline_status": statuses}), encoding="utf-8")
+    assert ds.main([str(source)]) == 0
+    written = json.loads((tmp_path / "ift-99.every3.json").read_text(encoding="utf-8"))
+    assert written["timeline_status"] == statuses
+    assert [r["frame_number"] for r in written["records"]] == [0, 30, 60, 90]
+
+
 def test_cli_refuses_to_overwrite_the_input(tmp_path):
     source = tmp_path / "f.json"
     source.write_text(json.dumps(_records([0, 10, 20])), encoding="utf-8")
