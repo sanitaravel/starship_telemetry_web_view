@@ -124,6 +124,32 @@ describe('parseTimelinePaste: row formats', () => {
     ]);
   });
 
+  it('reads a whole CRLF paste like an LF one, with the same line numbers in warnings', () => {
+    const lf = 'Countdown:\nHr/Min/Sec\tEvent\n00:00:10\tA\nbad line\n00:00:20\tB\n';
+    const crlf = lf.replace(/\n/g, '\r\n');
+    expect(one(crlf)).toEqual(one(lf));
+    expect(one(crlf).warnings.map((w) => w.line)).toEqual([4]);
+    expect(one(lf.replace(/\n/g, '\r')).events).toHaveLength(2); // old Mac line ends
+  });
+
+  it('copes with non-breaking spaces and trailing tabs copied from a browser', () => {
+    const nbsp = ' ';
+    const result = one(`00:00:10\tLiftoff\t\t\n${nbsp}00:00:20${nbsp}Max Q${nbsp}\n00:00:30\t${nbsp}MECO\t\r\nT+${nbsp}00:00:40${nbsp}${nbsp}Boostback\t`);
+    expect(result.warnings).toEqual([]);
+    expect(result.events.map((e) => [e.t, e.event])).toEqual([
+      [10, 'Liftoff'],
+      [20, 'Max Q'],
+      [30, 'MECO'],
+      [40, 'Boostback'],
+    ]);
+  });
+
+  it('treats a line of only non-breaking spaces and tabs as blank', () => {
+    const result = one(' \t \n00:00:10\tA');
+    expect(result.warnings).toEqual([]);
+    expect(result.events).toHaveLength(1);
+  });
+
   it('warns about text longer than the backend accepts', () => {
     const result = one(`00:10:00\t${'x'.repeat(201)}`);
     expect(result.events).toEqual([]);
