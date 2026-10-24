@@ -8,7 +8,13 @@ from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, precondition, rule
 
 from src.storage.missions import TIMELINE_RULES, TimelineEvent
-from src.timeline.status import STATUSES, TimelineStatusMachine, labels_match, normalize_label
+from src.timeline.status import (
+    STATUSES,
+    TimelineStatusMachine,
+    labels_match,
+    normalize_label,
+    plausible_label,
+)
 from tests.timeline_records import PLANNED, Segment, event_id, flight, nominal_flight, record, rule_timeline
 
 
@@ -352,3 +358,48 @@ class TimelineStatusModel(RuleBasedStateMachine):
 
 TestTimelineStatusModel = TimelineStatusModel.TestCase
 TestTimelineStatusModel.settings = settings(max_examples=150, stateful_step_count=30, deadline=None)
+
+
+# --- HUD reads off the real video: look-alikes, noise, evidence ---
+
+
+@pytest.mark.parametrize(
+    "read, label, expected",
+    [
+        ("MAX0", "MAXQ", True),  # Q read as 0
+        ("SEC0", "SECO", True),
+        ("TAGESEP", "STAGESEP", True),  # clipped on the left
+        ("MAX", "MAXQ", False),
+    ],
+)
+def test_labels_match_folds_look_alikes(read, label, expected):
+    assert labels_match(read, label, 5) is expected
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("MAX 0", True),
+        ("STAGE SE", True),
+        ("HEAVY LANC", True),
+        ("3", False),
+        ("1 _", False),
+        ("4ad", False),
+        ("12:31", False),
+    ],
+)
+def test_plausible_label(text, expected):
+    assert plausible_label(text) is expected
+
+
+def test_label_read_with_look_alikes_names_the_milestone():
+    m = machine([ev("maxq", 58, {"kind": "hud", "label": "MAX Q"})])
+    m.on_met(62)
+    m.on_hud_label("MAX 0", 62)
+    assert m.status("maxq").evidence == 'HUD milestone MAX Q (read "MAX 0")'
+
+
+def test_matches_hud_event():
+    m = machine([ev("sep", 141, {"kind": "hud", "label": "STAGE SEP"})])
+    assert m.matches_hud_event("TAGE SEP")
+    assert not m.matches_hud_event("SECO")

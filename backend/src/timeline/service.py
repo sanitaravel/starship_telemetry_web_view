@@ -18,7 +18,7 @@ from typing import Any, Iterable, Mapping
 from src.storage import missions
 from src.storage.missions import TimelineEvent
 from src.timeline.config import TIMELINE_CONFIG, TimelineConfig
-from src.timeline.status import ChangeSet, TimelineStatusMachine, utc_now
+from src.timeline.status import ChangeSet, TimelineStatusMachine, plausible_label, utc_now
 
 MESSAGE_TYPE = "timeline_status"
 
@@ -45,7 +45,10 @@ class TimelineService:
                 the wall clock in ms, so revisions keep growing across
                 backend restarts and a client can always drop a stale snapshot.
         """
+        self._config = config
         self._machine = TimelineStatusMachine(config, now)
+        # The countdown clock shown before T-0: (met, hold), None when none
+        self._countdown: tuple[float, bool] | None = None
         self._mission_id: str | None = None
         self._run_id: str | None = None
         self._revision = time.time_ns() // 1_000_000 if first_revision is None else first_revision
@@ -77,6 +80,7 @@ class TimelineService:
     def reset_run(self, run_id: str) -> bool:
         """A new run started: every status goes back to auto and not yet."""
         self._run_id = run_id
+        self._countdown = None
         self._machine.reset()
         self._revision += 1  # the run id changed
         return True
@@ -88,7 +92,28 @@ class TimelineService:
         return self._changed(self._machine.on_met(met, source))
 
     def on_hud_label(self, text: str, met: float | None = None) -> bool:
+        """A label read off the HUD's milestone arc; noise and labels of no ``hud`` event are dropped."""
+        if not plausible_label(text, self._config) or not self._machine.matches_hud_event(text):
+            return False
         return self._changed(self._machine.on_hud_label(text, met))
+
+    def on_countdown(self, met: float, hold: bool = False) -> bool:
+        """The countdown clock before T-0 (checked, see ``countdown.py``). Returns whether to broadcast.
+
+        The snapshot then shows this countdown, also when a recycle took it
+        back (statuses still follow the furthest MET), so the dashboard's
+        clock ticks with it; once the telemetry's clock runs it is ignored.
+        """
+        if self._machine.clock_source == "telemetry":
+            return False
+        change = self._machine.on_met(met, "countdown")
+        shown = (float(met), bool(hold))
+        moved = shown != self._countdown
+        self._countdown = shown
+        if change or moved:
+            self._revision += 1
+            return True
+        return False
 
     def override(self, event_id: str, status: str | None) -> bool:
         """Raises KeyError for an unknown event id, ValueError for an unknown status."""
@@ -97,12 +122,15 @@ class TimelineService:
     def snapshot(self) -> dict[str, Any]:
         """The full status payload: small enough to send whole on every change."""
         events = [s.to_dict() for s in self._machine.snapshot()]
+        counting_down = self._machine.clock_source == "countdown" and self._countdown is not None
         return {
             "mission_id": self._mission_id,
             "run_id": self._run_id,
             "revision": self._revision,
-            "met": self._machine.met,
+            # Before T-0 the countdown clock as it reads now, after it the furthest MET
+            "met": self._countdown[0] if counting_down else self._machine.met,
             "clock_source": self._machine.clock_source,
+            "hold": bool(counting_down and self._countdown[1]),
             "pending": sum(1 for e in events if e["status"] == "pending"),
             "events": events,
         }

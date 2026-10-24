@@ -94,6 +94,24 @@ class TimelineConfig:
     hud_repeat_s: float = 60.0
     # A label only confirms an event planned at most this far from it (None: any)
     hud_max_offset_s: float | None = 300.0
+    # A read is only a label at all with at least this many letters and
+    # digits, at least this share of them letters (drops OCR noise such as
+    # "3" or "1 _" from a busy background before it is matched)
+    hud_min_read_chars: int = 4
+    hud_min_letter_ratio: float = 0.75
+
+    # --- Countdown clock (before T-0) ---
+    # A countdown reading this far from the one the video clock predicts is a
+    # misread, a recycle or a jump, accepted only when countdown_confirm_reads
+    # consecutive readings agree with each other
+    countdown_tolerance_s: float = 2.0
+    countdown_confirm_reads: int = 2
+    # A visible clock showing the same value for longer than this is holding
+    countdown_hold_s: float = 3.0
+    # With no clock on screen the countdown runs on from the last reading
+    # (the handoff from the top-left clock to the HUD's leaves ~2 s without
+    # one), for at most this long
+    countdown_gap_max_s: float = 60.0
 
 
 TIMELINE_CONFIG = TimelineConfig()

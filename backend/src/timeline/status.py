@@ -85,15 +85,36 @@ def normalize_label(text: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", text.upper())
 
 
+def plausible_label(text: str, config: TimelineConfig = TIMELINE_CONFIG) -> bool:
+    """Whether an OCR read could be a milestone label at all, rather than noise from the background."""
+    normalized = normalize_label(text)
+    if len(normalized) < config.hud_min_read_chars:
+        return False
+    letters = sum(1 for c in normalized if c.isalpha())
+    return letters / len(normalized) >= config.hud_min_letter_ratio
+
+
+# Characters OCR confuses on the HUD's font, folded to one before matching:
+# "MAX Q" is often read "MAX 0"
+_CONFUSABLES = str.maketrans("0Q158", "OOISB")
+
+
+def fold_label(normalized: str) -> str:
+    """A normalized label with OCR look-alikes folded together ("MAX0" -> "MAXO", "MAXQ" -> "MAXO")."""
+    return normalized.translate(_CONFUSABLES)
+
+
 def labels_match(read: str, label: str, min_chars: int) -> bool:
     """Whether a label read off the HUD is the event's label (both normalized).
 
     Long labels are clipped by the reading box, so the shorter of the two
     may be any part of the longer one if it has at least ``min_chars``
-    characters ("SUPERHEAVYLAND" matches "SUPERHEAVYLANDING").
+    characters ("SUPERHEAVYLAND" matches "SUPERHEAVYLANDING"). Look-alike
+    characters count as equal (``fold_label``).
     """
     if not read or not label:
         return False
+    read, label = fold_label(read), fold_label(label)
     if read == label:
         return True
     short, long = sorted((read, label), key=len)
@@ -201,6 +222,15 @@ class TimelineStatusMachine:
         self._rules.push(read_sample(record, met))
         return self.on_met(met, "telemetry")
 
+    def matches_hud_event(self, text: str) -> bool:
+        """Whether a label read off the HUD could confirm any ``hud`` event of the timeline."""
+        normalized = normalize_label(text)
+        return any(
+            labels_match(normalized, normalize_label(e.auto.label), self._config.hud_min_match_chars)
+            for e in self._events
+            if e.auto.kind == "hud"
+        )
+
     def on_hud_label(self, text: str, met: float | None = None) -> ChangeSet:
         """A milestone label read off the HUD's arc at ``met`` (default: the current MET)."""
         normalized = normalize_label(text)
@@ -209,7 +239,7 @@ class TimelineStatusMachine:
         if met is None:
             met = self._met
         for seen, _, at in self._sightings:
-            if seen == normalized and (
+            if fold_label(seen) == fold_label(normalized) and (
                 at is None or met is None or abs(met - at) <= self._config.hud_repeat_s
             ):
                 return ChangeSet()  # the same label still scrolling past
@@ -270,6 +300,10 @@ class TimelineStatusMachine:
         auto = event.auto
         if auto.kind == "hud" and event.id in hud:
             label, at = hud[event.id]
+            read, planned = normalize_label(label), normalize_label(auto.label)
+            if read != planned and fold_label(read) == fold_label(planned):
+                # Read with look-alike characters ("MAX 0"): name the milestone
+                label = f'{auto.label.upper()} (read "{label}")'
             return _Decision("success", "auto", f"HUD milestone {label}", at)
         if auto.kind == "rule":
             verdict = self._rules.verdict(auto.rule)
