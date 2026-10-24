@@ -234,4 +234,44 @@ describe('Timeline button in the engine settings', () => {
     const settingsPanel = [...document.querySelectorAll<HTMLElement>('.engine-settings')].find((p) => !p.hidden)!;
     expect(settingsPanel.querySelector('.engine-settings__timeline')).toBeNull();
   });
+
+  it('gives every form field a name, and the boxes an id', async () => {
+    await mission.choose('IFT 15');
+    editor.toggleTimelineEditor(anchor, mission);
+    paste('countdown', COUNTDOWN_PASTE);
+    const fields = [...panel().querySelectorAll<HTMLElement>('input, select, textarea')];
+    expect(fields.length).toBeGreaterThan(10);
+    for (const field of fields) expect((field as HTMLInputElement).name).not.toBe('');
+    expect(box('countdown').id).not.toBe('');
+    const names = fields.map((f) => (f as HTMLInputElement).name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('re-places itself when the panel changes size', async () => {
+    const observers: { callback: () => void }[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          observers.push({ callback });
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    try {
+      vi.resetModules();
+      const fresh = await import('./timeline-editor');
+      await mission.choose('IFT 15');
+      fresh.toggleTimelineEditor(anchor, mission);
+      const el = panel();
+      el.style.top = '';
+      observers.forEach((o) => o.callback());
+      expect(el.style.top).not.toBe('');
+      fresh.toggleTimelineEditor(anchor, mission);
+    } finally {
+      vi.unstubAllGlobals();
+      document.querySelectorAll('.timeline-editor').forEach((p) => p.remove());
+    }
+  });
 });

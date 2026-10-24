@@ -453,8 +453,16 @@
   display: none;
 }
 
+.timeline-editor__box .engine-settings__mission-label {
+  width: auto;
+  white-space: nowrap;
+}
+
+/* The table scrolls inside the popover, so Save and Cancel stay in view */
 .timeline-editor__scroll {
-  max-height: 18rem;
+  flex: 0 1 auto;
+  min-height: 6rem;
+  max-height: min(18rem, 40vh);
   overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: 4px;
@@ -500,6 +508,15 @@
 
 .timeline-editor__remove {
   padding: 0.125rem 0.4rem;
+}
+
+.timeline-editor > .engine-settings__actions {
+  position: sticky;
+  bottom: -0.75rem;
+  margin: 0 -0.75rem -0.75rem;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-surface);
+  border-top: 1px solid var(--color-border);
 }
 
 .timeline-editor__buttons {

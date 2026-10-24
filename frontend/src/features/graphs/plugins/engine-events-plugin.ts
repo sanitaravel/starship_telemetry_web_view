@@ -86,14 +86,16 @@ function drawMarkers(chart: Chart, markers: readonly EngineMarker[]): void {
     if (!Number.isFinite(x)) continue;
     const m = markers[i];
     if (m.kind === 'timeline') {
-      // Mission timeline: a faint, finely dashed line; the text comes on hover
-      ctx.globalAlpha = 0.55;
+      // Mission timeline: a dashed line, lighter than the engine markers; the
+      // text comes on hover. T+0 lies on the Y axis, so lines stay just inside it.
+      const lineX = Math.max(x, area.left + 1.5);
+      ctx.globalAlpha = 0.7;
       ctx.strokeStyle = m.color;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([2, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
       ctx.beginPath();
-      ctx.moveTo(x, area.top);
-      ctx.lineTo(x, area.bottom);
+      ctx.moveTo(lineX, area.top);
+      ctx.lineTo(lineX, area.bottom);
       ctx.stroke();
       continue;
     }

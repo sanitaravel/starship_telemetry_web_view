@@ -105,6 +105,8 @@ class TimelineEditorPopover {
       const area = document.createElement('textarea');
       area.className = 'engine-settings__text timeline-editor__area';
       area.dataset.section = section;
+      area.id = `timeline-editor-${section}`;
+      area.name = `timeline-${section}`;
       area.rows = 5;
       area.spellcheck = false;
       area.placeholder = placeholder;
@@ -165,6 +167,12 @@ class TimelineEditorPopover {
       align: 'right',
       onAnchorRemoved: () => this.close(false),
     });
+    // Pasting grows the preview and the text boxes can be resized: keep the panel on screen
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => {
+        if (!this.panel.hidden) this.anchored.reposition();
+      }).observe(this.panel);
+    }
   }
 
   toggle(anchor: HTMLElement, mission: CurrentMission): void {
@@ -252,6 +260,7 @@ class TimelineEditorPopover {
 
     const text = document.createElement('input');
     text.type = 'text';
+    text.name = `event-${row.id}`;
     text.className = 'engine-settings__text';
     text.value = row.event;
     text.setAttribute('aria-label', `Event at ${formatTimelineTime(row.t)}`);
@@ -261,14 +270,14 @@ class TimelineEditorPopover {
     });
     tr.insertCell().appendChild(text);
 
-    const vehicle = this.select(TIMELINE_VEHICLES, VEHICLE_LABELS, row.vehicle, `Vehicle at ${formatTimelineTime(row.t)}`);
+    const vehicle = this.select(TIMELINE_VEHICLES, VEHICLE_LABELS, row.vehicle, `Vehicle at ${formatTimelineTime(row.t)}`, `vehicle-${row.id}`);
     vehicle.addEventListener('change', () => (row.vehicle = vehicle.value as TimelineVehicle));
     tr.insertCell().appendChild(vehicle);
 
     const source = tr.insertCell();
     source.className = 'timeline-editor__source';
     const renderSource = () => {
-      const kind = this.select(TIMELINE_AUTO_KINDS, AUTO_LABELS, row.auto.kind, `Source at ${formatTimelineTime(row.t)}`);
+      const kind = this.select(TIMELINE_AUTO_KINDS, AUTO_LABELS, row.auto.kind, `Source at ${formatTimelineTime(row.t)}`, `source-${row.id}`);
       kind.addEventListener('change', () => {
         row.auto = defaultAuto(kind.value as TimelineAutoKind, row.event);
         renderSource();
@@ -299,6 +308,7 @@ class TimelineEditorPopover {
     if (auto.kind === 'hud') {
       const label = document.createElement('input');
       label.type = 'text';
+      label.name = `hud-label-${row.id}`;
       label.className = 'engine-settings__text';
       label.maxLength = MAX_HUD_LABEL;
       label.value = auto.label;
@@ -312,15 +322,16 @@ class TimelineEditorPopover {
     }
     if (auto.kind === 'rule') {
       const labels = TIMELINE_RULE_LABELS;
-      const rule = this.select(TIMELINE_RULES, labels, auto.rule, `Rule at ${formatTimelineTime(row.t)}`);
+      const rule = this.select(TIMELINE_RULES, labels, auto.rule, `Rule at ${formatTimelineTime(row.t)}`, `rule-${row.id}`);
       rule.addEventListener('change', () => (row.auto = { kind: 'rule', rule: rule.value as TimelineRule }));
       return rule;
     }
     return null;
   }
 
-  private select<T extends string>(values: readonly T[], labels: Record<T, string>, current: T, label: string): HTMLSelectElement {
+  private select<T extends string>(values: readonly T[], labels: Record<T, string>, current: T, label: string, name: string): HTMLSelectElement {
     const select = document.createElement('select');
+    select.name = name;
     select.className = 'engine-settings__text';
     select.setAttribute('aria-label', label);
     for (const value of values) {

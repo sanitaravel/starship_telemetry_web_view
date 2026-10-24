@@ -94,9 +94,9 @@
 
 .timeline-row {
   display: grid;
-  grid-template-columns: 1.5rem 6.5rem minmax(0, 1fr) auto auto;
+  grid-template-columns: 1.5rem 10.5ch minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   padding: 0.2rem 0.4rem;
   border-left: 3px solid transparent;
   font-size: 0.8125rem;
@@ -112,11 +112,13 @@
 }
 
 .timeline-row__time {
+  white-space: nowrap;
   color: var(--color-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .timeline-row--current .timeline-row__time {
+  white-space: nowrap;
   color: var(--color-text);
 }
 
@@ -211,14 +213,15 @@ button.timeline-circle:focus-visible {
   position: absolute;
   right: -0.15rem;
   bottom: -0.2rem;
-  min-width: 0.7rem;
-  padding: 0 0.1rem;
-  border-radius: 0.35rem;
+  min-width: 0.85rem;
+  padding: 0 0.15rem;
+  border-radius: 0.45rem;
+  border: 1px solid var(--color-background);
   background-color: var(--color-text);
   color: var(--color-background);
-  font-size: 0.5rem;
-  font-weight: 700;
-  line-height: 0.7rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  line-height: 0.85rem;
   text-align: center;
 }
 
@@ -283,6 +286,7 @@ button.timeline-circle:focus-visible {
 }
 
 .timeline-panel--overlay .timeline-panel__list {
+  scrollbar-width: none;
   flex: 1;
   min-height: 0;
   max-height: none;
@@ -309,4 +313,8 @@ button.timeline-circle:focus-visible {
 .timeline-panel--compact .timeline-panel__list {
   flex: none;
   overflow: hidden;
+}
+
+.timeline-panel--overlay .timeline-panel__list::-webkit-scrollbar {
+  display: none;
 }

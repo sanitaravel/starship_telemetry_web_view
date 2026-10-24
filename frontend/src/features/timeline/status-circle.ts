@@ -61,8 +61,8 @@ export function statusIcon(status: TimelineStatusValue): SVGSVGElement {
       break;
     case 'skipped':
       svg.append(
-        ring({ 'stroke-dasharray': '2.5 2.5' }),
-        svgEl('path', { d: 'M4.5 13.5 L13.5 4.5', stroke: color, 'stroke-width': '2', 'stroke-linecap': 'round' }),
+        ring({ 'stroke-dasharray': '2 2.5', fill: color, 'fill-opacity': '0.25' }),
+        svgEl('path', { d: 'M3.5 14.5 L14.5 3.5', stroke: color, 'stroke-width': '2.75', 'stroke-linecap': 'round' }),
       );
       break;
   }
