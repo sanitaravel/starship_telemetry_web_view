@@ -192,6 +192,14 @@ describe('TimelinePanel header and current event', () => {
     expect(container.querySelector('.timeline-panel__next')!.textContent).toBe('next: Booster engine start in 0:20');
   });
 
+  it('marks a countdown hold and drops the mark when it resumes', () => {
+    mount();
+    statuses.apply(payload([], { met: -40, clock_source: 'countdown', hold: true }));
+    expect(container.querySelector('.timeline-panel__clock')!.textContent).toBe('T-00:00:40 HOLD');
+    statuses.apply(payload([], { met: -39, clock_source: 'countdown', hold: false }));
+    expect(container.querySelector('.timeline-panel__clock')!.textContent).toBe('T-00:00:39');
+  });
+
   it('shows a dash while no MET is known', () => {
     mount();
     expect(container.querySelector('.timeline-panel__clock')!.textContent).toBe('—');

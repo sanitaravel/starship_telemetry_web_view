@@ -201,7 +201,10 @@ export class TimelinePanel {
 
     this.empty.hidden = events.length > 0;
     this.list.hidden = events.length === 0;
-    this.clock.textContent = formatClock(met);
+    // A countdown hold shows next to the clock while that clock is the one shown
+    const snapshot = this.timeline.statuses.snapshot;
+    const holding = snapshot?.clock_source === 'countdown' && snapshot.hold === true && met === snapshot.met;
+    this.clock.textContent = holding ? `${formatClock(met)} HOLD` : formatClock(met);
 
     this.syncRows(this.visibleEvents(events, current, next));
     this.updateRows(events, met, current, next);

@@ -104,10 +104,15 @@ export interface TimelineStatusPayload {
   run_id: string | null;
   /** Grows with every change, also across backend restarts: a lower one is stale */
   revision: number;
-  /** Furthest MET seen this Run, seconds */
+  /**
+   * MET in seconds: the furthest seen this Run, or before T-0 the countdown
+   * clock as it reads now (negative; sent about once a second while it runs)
+   */
   met: number | null;
   /** Where that MET came from: the HUD clock in the records, or the countdown clock */
   clock_source: 'telemetry' | 'countdown' | null;
+  /** The countdown clock is holding (always false once the telemetry clock runs); absent from older backends */
+  hold?: boolean;
   /** Events waiting for a person */
   pending: number;
   /** In timeline order */
