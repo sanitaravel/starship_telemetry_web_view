@@ -11,6 +11,9 @@ import re
 # Time format regex: HH:MM:SS (no sign prefix, just digits and colons)
 _TIME_PATTERN = re.compile(r"(\d{1,2}):(\d{2}):(\d{2})")
 
+# Signed clock: "T- 00:12:31", "T+00:00:05", "-00:00:27"; the sign is optional
+_SIGNED_TIME_PATTERN = re.compile(r"([+\-−])?\s*(\d{1,2}):(\d{2}):(\d{2})")
+
 # Numeric value regex: optional sign, digits with optional decimal point
 _NUMERIC_PATTERN = re.compile(r"[+\-−]?\s*(\d+(?:[.,]\d+)?)")
 
@@ -18,6 +21,13 @@ _NUMERIC_PATTERN = re.compile(r"[+\-−]?\s*(\d+(?:[.,]\d+)?)")
 _ALLOWLIST_TIME = "0123456789:_"
 _ALLOWLIST_NUMERIC = "0123456789."
 _ALLOWLIST_UNIT = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ/"
+# The countdown clock with its "T-" and the HUD clock's sign share one list,
+# so before T-0 they cost the CPU path a single extra recogniser call
+_ALLOWLIST_SIGNED_TIME = "0123456789:T+-"
+
+# The pre-launch countdown clock (top-left) and the sign left of the HUD clock
+COUNTDOWN_FIELD = "countdown_time"
+TIME_SIGN_FIELD = "time_sign"
 
 # Recognised unit spellings, mapped to their canonical form. The slash in
 # "KM/H" is often read as Z, I, L or 1, or dropped entirely.
@@ -45,6 +55,31 @@ def parse_time_value(text: str) -> str | None:
         return None
 
     return f"{hours}:{minutes}:{seconds}"
+
+
+def parse_signed_time_value(text: str) -> str | None:
+    """Parse a countdown clock such as ``"T- 00:12:31"`` into ``"-00:12:31"``.
+
+    The countdown clock only ever counts down to T-0, so a reading whose sign
+    was not recognised is taken as negative; an explicit ``+`` is kept.
+    Returns None when no valid HH:MM:SS is found.
+    """
+    match = _SIGNED_TIME_PATTERN.search(text)
+    if not match:
+        return None
+    sign, hours, minutes, seconds = match.groups()
+    if int(minutes) > 59 or int(seconds) > 59:
+        return None
+    return f"{'+' if sign == '+' else '-'}{hours.zfill(2)}:{minutes}:{seconds}"
+
+
+def parse_sign_value(text: str) -> str | None:
+    """The ``+`` or ``-`` of a ``T+``/``T-`` read left of the HUD clock, or None."""
+    has_plus = "+" in text
+    has_minus = "-" in text or "−" in text
+    if has_plus == has_minus:
+        return None
+    return "+" if has_plus else "-"
 
 
 def parse_unit_value(field_name: str, text: str) -> str | None:
@@ -106,10 +141,17 @@ def is_unit_field(field_name: str) -> bool:
     return field_name in unit_fields
 
 
+def is_signed_time_field(field_name: str) -> bool:
+    """The countdown clock and the HUD clock's sign: read with their T-/T+."""
+    return field_name in (COUNTDOWN_FIELD, TIME_SIGN_FIELD)
+
+
 def get_allowlist(field_name: str) -> str | None:
     """Return the EasyOCR allowlist for a given field, or None for no restriction."""
     if is_time_field(field_name):
         return _ALLOWLIST_TIME
+    elif is_signed_time_field(field_name):
+        return _ALLOWLIST_SIGNED_TIME
     elif is_numeric_field(field_name):
         return _ALLOWLIST_NUMERIC
     elif is_unit_field(field_name):
@@ -129,10 +171,14 @@ def parse_field_value(field_name: str, raw_text: str) -> float | str | None:
     """
     if is_time_field(field_name):
         return parse_time_value(raw_text)
+    elif field_name == COUNTDOWN_FIELD:
+        return parse_signed_time_value(raw_text)
+    elif field_name == TIME_SIGN_FIELD:
+        return parse_sign_value(raw_text)
     elif is_numeric_field(field_name):
         return parse_numeric_value(raw_text)
     elif is_unit_field(field_name):
         return parse_unit_value(field_name, raw_text)
     else:
-        # Stage labels and stage_sep_text are kept as strings
+        # Stage labels and the HUD milestone labels are kept as strings
         return raw_text
